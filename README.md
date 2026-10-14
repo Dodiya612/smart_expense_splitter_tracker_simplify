@@ -1,4 +1,4 @@
-﻿# Smart Expense Splitter & Tracker
+# Smart Expense Splitter & Tracker
 
 > A smart expense management application for tracking personal expenses,
 > splitting group expenses, managing budgets, and gaining intelligent
@@ -190,6 +190,7 @@ The system will enforce important rules including:
 - [x] Non-functional requirements identified
 - [x] Domain requirements identified
 - [x] Elicitation techniques documented
+- [x] Requirements conflicts identified and resolved
 - [x] Initial activity diagram created
 - [x] GitHub repository created
 - [x] Group members added as collaborators
