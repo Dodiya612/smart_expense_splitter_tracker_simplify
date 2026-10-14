@@ -10,7 +10,6 @@
 | 1 | **Individual Users** (Students, Working Professionals) | Track personal expenses, set budgets, analyse spending habits |
 | 2 | **Group Users** (Friends / Roommates / Colleagues) | Split shared expenses, monitor group budgets, resolve payment discrepancies |
 | 3 | **Group Admin / Creator** | Creates groups, manages members, manages shared expenses |
-| 4 | **Families** | Manage household expenses, shared accounts, family budgets |
 
 ### Secondary Stakeholders (Indirect Users)
 
@@ -21,4 +20,3 @@
 | 3 | **Customer Support Teams** | Resolve user issues, provide guidance |
 | 4 | **GenAI Service** | Supports expense categorization, analysis and summaries |
 | 5 | **Bill/OCR Service** | Extracts expense details from uploaded bills |
-| 6 | **Notification Service** | Sends reminders and alerts for expenses and budgets |
