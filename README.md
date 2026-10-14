@@ -190,7 +190,7 @@ The system will enforce important rules including:
 - [x] Non-functional requirements identified
 - [x] Domain requirements identified
 - [x] Elicitation techniques documented
-- [x] Requirements conflicts and resolutions documented ([docs/Conflicts.md](docs/Conflicts.md))
+- [x] Requirements conflicts identified and resolved
 - [x] Initial activity diagram created
 - [x] GitHub repository created
 - [x] Group members added as collaborators

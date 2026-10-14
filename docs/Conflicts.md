@@ -3,148 +3,104 @@
 
 ## 4. Requirements Conflicts and Resolutions
 
-### 4.1 Overview
+In software requirements engineering, different user needs, system features, and quality goals can conflict with each other. Below is the summary table of all identified conflicts, followed by a brief description and resolution for each.
 
-In software engineering, requirements elicitation inevitably reveals tensions between competing stakeholder expectations, functional capabilities, and non-functional quality constraints. Identifying, documenting, and resolving these conflicts early in the requirements engineering phase ensures a coherent system architecture, prevents costly redesigns during development, and preserves a balanced user experience.
+### 4.1 Summary of Conflicts
 
-This document synthesizes and resolves all identified requirement conflicts for the **Smart Expense Splitter & Tracker** application, removing redundancies and mapping each conflict to our formal Functional Requirements (**FR**), Non-Functional Requirements (**NFR**), Domain Requirements (**DR**), and Stakeholder roles.
-
----
-
-### 4.2 Summary Matrix of Conflicts
-
-| Conflict ID | Requirement / Stakeholders in Conflict | Why Conflict Occurs (Issue) | Proposed Resolution | Trade-off |
+| Conflict ID | Requirements in Conflict | Why Conflict Occurs (Issue) | Possible Resolution | Trade-off |
 |---|---|---|---|---|
-| **C-01** | **Security / Privacy vs. Usability**<br>*(NFR-03, NFR-08 vs. NFR-01)* | Strict access controls, frequent multi-factor prompts, and re-authentication add user friction during quick daily expense logging. | Use modern secure authentication (e.g., biometric login on mobile, secure persistent JWT sessions) and require step-up authentication only for sensitive actions (password change, exporting data, account deletion). | Balances strong account protection with ease of daily use; minor initial setup effort for users. |
-| **C-02** | **Parental Mode vs. Family Member Privacy**<br>*(FR-09, FR-14 vs. NFR-08, DR-12)* | Parents require visibility to monitor dependent spending and set limits, while family members and teenage dependents expect privacy over specific personal purchase details. | Allow parents to view aggregate category budgets, spending thresholds, and shared family expenses. Individual line-item details for personal allowances remain masked unless explicitly shared by the dependent or when a budget cap is breached. | Parents receive sufficient supervisory control, while dependents maintain appropriate personal privacy. |
-| **C-03** | **OCR Convenience vs. Data Accuracy**<br>*(FR-12 vs. NFR-09, DR-10)* | Users want instant, one-click automatic receipt data entry, but OCR scanning of crumpled, handwritten, or low-light receipts can extract inaccurate amounts or merchants. | OCR parses the receipt into an editable pre-save preview screen where extracted fields (amount, merchant, date, category) are highlighted for quick user verification and one-tap corrections before committing to the database. | Adds a short 3-second verification step for the user, but completely eliminates corrupted balances and erroneous splits. |
-| **C-04** | **AI Personalization & Insights vs. Data Privacy**<br>*(FR-06 vs. NFR-03, NFR-08, DR-12)* | Generative AI analysis and budget suggestions require processing financial transaction history, but sending unencrypted personal data to external LLMs risks confidentiality leaks. | AI features are strictly opt-in. Data transmitted to the external GenAI service is pseudonymized and scrubbed of PII (no names, emails, bank accounts, or exact geolocation; only description and amount). Enforce zero-retention and no-training agreements with the AI provider. | Protecting user identity limits cross-app contextual personalization, but guarantees compliance with financial privacy standards. |
-| **C-05** | **Reminders & Notifications vs. Usability (Notification Fatigue)**<br>*(FR-08, FR-10 vs. NFR-01)* | Frequent notifications for bill reminders, recurring payments, split balance updates, and budget thresholds can overwhelm users and lead them to disable notifications altogether. | Provide granular notification preferences (push, in-app, email), configurable alert thresholds (e.g., alert only at 80% and 100% budget utilization), smart quiet hours, and aggregated daily/weekly summary digests. | Users who configure low-frequency alerts may receive reminders later, but overall user satisfaction and notification retention increase significantly. |
-| **C-06** | **Continuous Availability vs. Necessary System Maintenance**<br>*(NFR-07 vs. NFR-05, NFR-04)* | Users expect 24/7 uninterrupted system availability to record expenses on the fly, but database schema updates, server patching, and security maintenance necessitate system updates. | Employ zero-downtime deployment strategies (blue-green deployments, database migrations with backward compatibility). When unavoidable, schedule maintenance during off-peak hours (e.g., 02:00–04:00 local time) with 48-hour advance in-app notice and an offline read-only fallback mode. | Occasional minimal scheduled maintenance windows are accepted to guarantee long-term system stability and data integrity. |
-| **C-07** | **Group Admin Authority vs. Member Autonomy & Data Integrity**<br>*(FR-13 vs. FR-03, DR-05, DR-06)* | Group admins need control to organize groups and settle debts, but unrestricted admin powers could permit modifying or deleting expenses added by other members, distorting financial balances. | Establish strict role permissions: Admins can manage membership, group names, and default split rules, but cannot edit or delete expenses entered by other members. Any post-entry expense change requires an approval notification to all affected group members. | Prevents unilateral tampering and disputes; requires collaborative consensus for expense modifications. |
-| **C-08** | **Manual Expense Categorization vs. Automated AI Categorization**<br>*(FR-03, DR-02 vs. FR-06)* | Users manually categorize their spending according to personal mental models. An automated AI categorizer could overwrite manual selections or misclassify ambiguous transactions. | AI classification acts purely as an assistive suggestion engine during expense creation. The user's explicit manual selection always takes final precedence. Corrections made by the user are saved locally to tune future category suggestions. | Ensures users stay in complete control of their budgets while still benefiting from AI automation. |
-| **C-09** | **Personal Recurring Expenses vs. Group Recurring Expenses**<br>*(FR-11 vs. FR-05, DR-09)* | Recurring expense automation can apply to individual subscriptions (e.g., personal gym, streaming) or shared recurring bills (e.g., apartment rent, shared Wi-Fi). Ambiguity in configuration could result in personal expenses being erroneously split across groups. | When configuring a recurring expense, the system presents an explicit scope selection: **Personal** or **Group**. For group recurring expenses, the user specifies the target group, members involved, and default split method, with an automated confirmation reminder before each cycle is posted. | Adds an initial explicit setup step, but eliminates accidental group splits and unauthorized member debt creation. |
-| **C-10** | **Customer Support / Admin Access vs. Financial Confidentiality**<br>*(FR-07, FR-15 vs. NFR-08, DR-12)* | Support personnel need account access to diagnose split discrepancies and bug reports, but viewing customer records risks exposing private financial data to support staff. | Implement Role-Based Access Control (RBAC) with Least Privilege: Support staff only view user account metadata and diagnostic error logs by default. Access to transaction data requires time-limited, explicit user consent (e.g., one-time support access token) and generates an immutable audit log. | Support troubleshooting may require an extra user authorization step, but customer financial data remains strictly confidential. |
-| **C-11** | **Debt Simplification (Minimum Cash Flow) vs. Transaction Traceability**<br>*(FR-05 vs. DR-06, NFR-01, NFR-09)* | Debt simplification algorithms minimize the total number of transactions in a group (e.g., Member A pays Member C instead of A→B and B→C). However, members who did not interact directly may be confused or distrust the settlement path. | Provide debt simplification as an optional toggle per group. When enabled, the settlement screen displays an interactive breakdown ("Why is this simplified?") detailing the underlying original expense chains. | Clarifying the calculation path requires additional UI documentation, but eliminates settlement skepticism while minimizing transactions. |
-| **C-12** | **Offline Expense Logging vs. Multi-User Concurrency & Balance Consistency**<br>*(NFR-01, NFR-02 vs. NFR-04, DR-06)* | Mobile users often add expenses in areas with poor internet connectivity. When multiple group members edit expenses or settle debts offline, conflicting updates occur upon reconnection. | Implement local optimistic offline caching with vector clocks / event timestamps. Upon reconnection, non-conflicting records are synced automatically. In case of direct collisions on the same expense, the system flags the conflict and prompts members to select the authoritative record. | Users can always record expenses without delay; rare simultaneous edits require a quick manual reconciliation prompt. |
-| **C-13** | **Custom / Percentage Bill Splitting vs. Mathematical Exactness & Rounding**<br>*(FR-05 vs. DR-03, DR-11, NFR-09)* | Splitting expenses unequally or by percentages (e.g., 100 split 3 ways = 33.333...) produces fractional cents/paisa. If not properly handled, the sum of split shares fails to equal the total bill amount (violating DR-03). | Enforce standard financial rounding (Largest Remainder Method / Banker's Rounding) where the residual cent is systematically assigned to the payer or the first payee, and display an explicit rounding note on the summary screen. | Minor 1-cent/paisa adjustment on an individual share, ensuring strict mathematical closure and balanced ledgers. |
+| **C-01** | Security/Privacy vs. Usability | Strong access controls add extra login steps. | Use biometric/persistent login for daily use; require extra auth only for sensitive actions. | Small setup effort for users. |
+| **C-02** | Parental Mode vs. Family Privacy | Parents need spending data while family members expect privacy. | Allow parents to view category totals/budgets without revealing private personal items. | Reduced personal privacy for dependents. |
+| **C-03** | OCR Convenience vs. Accuracy | Automatic receipt scanning may misread bill amounts or names. | Show a quick review/edit screen before saving extracted receipt data. | Adds a quick user check step. |
+| **C-04** | AI Personalization vs. Data Privacy | AI analysis requires expense data, but financial data must stay private. | Make AI opt-in, send only anonymized data, and ensure AI services do not store or train on it. | Slightly limits personalized AI insights. |
+| **C-05** | Notifications vs. Usability | Too many reminders and alerts can annoy users and cause alert fatigue. | Provide custom notification settings and send combined daily/weekly summaries. | Users might see low-priority alerts later. |
+| **C-06** | Availability vs. Maintenance | 24/7 availability conflicts with the need to update and maintain the system. | Schedule updates during off-peak hours (late night) with advance notice and offline view. | Small scheduled downtime periods. |
+| **C-07** | Group Admin Control vs. Member Autonomy | Admins manage groups, but members should not lose control of their records. | Admins manage members, but cannot edit or delete expenses entered by other members. | Members must correct their own mistakes. |
+| **C-08** | Manual vs. AI Auto-Categorization | AI categorizer may overwrite user-chosen categories or misclassify items. | AI only suggests categories; user selection is final and corrections train suggestions. | Requires brief user verification. |
+| **C-09** | Personal vs. Group Recurring Expenses | A recurring bill could be personal (gym) or shared (rent), causing wrong splits. | Let users select "Personal" or "Group" when creating recurring expenses with default split rules. | Adds one setup step during creation. |
+| **C-10** | Customer Support vs. Financial Privacy | Support staff need account info to solve issues, exposing private finances. | Support staff see only account info by default; viewing financial data requires user consent. | Extra approval step during support. |
+| **C-11** | Debt Simplification vs. Traceability | Simplifying group debts reduces transfers, but users may not recognize indirect payments. | Make debt simplification an optional toggle and show a clear breakdown of the calculation. | Requires displaying explanation steps. |
+| **C-12** | Offline Entry vs. Data Consistency | Logging expenses offline can cause conflicts if multiple members edit at the same time. | Store entries locally with timestamps and prompt users to confirm if same expense was edited. | Rare collisions need manual confirmation. |
+| **C-13** | Custom Bill Splitting vs. Rounding Precision | Unequal splits (e.g., 100 split 3 ways) create fractional cents that do not add up. | Round shares to 2 decimals and assign the leftover 1 cent to the payer with a note. | One user pays 1 cent more/less for exact closure. |
 
 ---
 
-### 4.3 Detailed Conflict Analysis & Resolution Strategies
+### 4.2 Details of Conflicts and Resolutions
 
-#### C-01: Security / Privacy vs. Usability
-- **Epics / Requirements in Conflict:** NFR-03 (Security), NFR-08 (Data Privacy) vs. NFR-01 (Usability), FR-02 (User Login & Session Management).
-- **Stakeholders Involved:** Individual Users, Group Users, IT / Security Teams.
-- **Problem Description:** Stringent security mechanisms (mandatory 2FA, short session timeouts, repeated password entries) ensure high data safety but degrade everyday usability for users attempting to log small, routine expenses quickly.
-- **Resolution Strategy:** Deploy a tiered authentication model. Standard interactions utilize secure biometric authentication (Face ID / Fingerprint) and persistent encrypted tokens on personal devices. High-risk administrative actions (changing recovery credentials, exporting raw financial statements, deleting accounts) trigger step-up multi-factor authentication.
-- **Trade-off:** Minimal friction during everyday use; security friction is concentrated only where high-impact risk exists.
+#### C-01: Security/Privacy vs. Usability
+- **Requirements:** NFR-03 (Security), NFR-08 (Data Privacy) vs. NFR-01 (Usability)
+- **Issue:** Strict password and verification steps protect user data but slow down everyday expense logging.
+- **Resolution:** Use biometric login or secure persistent sessions for daily use, requiring step-up verification only for critical actions like password reset or account deletion.
+- **Trade-off:** Small initial setup effort for the user, but ensures daily convenience without lowering security.
 
 #### C-02: Parental Mode vs. Family Member Privacy
-- **Epics / Requirements in Conflict:** FR-09 (Parental Mode), FR-14 (Family/Household Expense Management) vs. NFR-08 (Data Privacy), DR-12 (Access Permissions).
-- **Stakeholders Involved:** Parents/Guardians, Dependent Family Members (teens/students).
-- **Problem Description:** Parents funding accounts require assurance that money is spent responsibly, whereas dependents expect personal privacy regarding specific items purchased.
-- **Resolution Strategy:** Provide configurable privacy boundaries. Parents have visibility into high-level budget categories, total expenditure totals, and balance limits. Line-item descriptions for personal allowances remain private to the dependent unless budget limits are exceeded or the dependent voluntarily shares the receipt.
-- **Trade-off:** Parents receive high-level fiscal oversight without intrusive surveillance over every personal line-item purchase.
+- **Requirements:** FR-09 (Parental Mode), FR-14 (Family Expense Management) vs. NFR-08 (Data Privacy)
+- **Issue:** Parents need visibility to monitor household spending, while dependent family members expect privacy for personal purchases.
+- **Resolution:** Parents can view overall category budgets, spending caps, and alerts, but individual line-item details of personal allowances remain masked unless a limit is breached.
+- **Trade-off:** Parents receive sufficient supervision without intruding on every personal purchase.
 
-#### C-03: OCR Convenience vs. Data Accuracy
-- **Epics / Requirements in Conflict:** FR-12 (Bill/Receipt Scanning & Data Extraction) vs. NFR-09 (Accuracy), DR-10 (Extracted Bill Data Requirements).
-- **Stakeholders Involved:** All End Users, Bill/OCR Service, Development Team.
-- **Problem Description:** Automatic receipt parsing is designed to minimize manual data entry. However, real-world receipts are often crinkled, faded, or formatted irregularly. Unchecked auto-commit leads to erroneous ledger amounts, corrupting group balances.
-- **Resolution Strategy:** Implement a mandatory two-step "Scan & Confirm" interaction. The OCR extracts merchant, date, tax, and itemized amounts, presenting them in a pre-populated review form with low-confidence fields visually highlighted. The user must tap "Confirm & Save" before data is committed.
-- **Trade-off:** A brief review step prevents data entry errors and saves significant time compared to resolving faulty historical balances.
+#### C-03: OCR Convenience vs. Accuracy
+- **Requirements:** FR-12 (Bill/Receipt Scanning) vs. NFR-09 (Accuracy), DR-10 (Bill Data)
+- **Issue:** Users want instant automatic bill entry, but scanning faded or handwritten receipts can result in incorrect amounts or categories.
+- **Resolution:** Implement a quick review/edit screen after scanning where extracted details are displayed for user confirmation before saving.
+- **Trade-off:** Adds a 3-second verification step, but prevents incorrect expense amounts in group ledgers.
 
-#### C-04: AI Personalization & Insights vs. Data Privacy
-- **Epics / Requirements in Conflict:** FR-06 (AI Advisor & Insights) vs. NFR-03 (Security), NFR-08 (Data Privacy), DR-12 (Access Permissions).
-- **Stakeholders Involved:** Individual Users, GenAI Service, Security & Compliance Teams.
-- **Problem Description:** Generative AI capabilities (spending summaries, pattern discovery, budget advice) require contextual data. Sending raw financial records to external LLM APIs risks exposing sensitive financial behavior and Personally Identifiable Information (PII).
-- **Resolution Strategy:**
-  1. AI features are disabled by default and require explicit user opt-in.
-  2. Data scrubbed on-device/in-transit: Strip all PII (names, emails, account IDs, merchant addresses) before payload dispatch. Only generic expense tuples (`category`, `amount`, `date_offset`) are sent.
-  3. External enterprise API contracts guarantee zero data retention and exclude user data from model training.
-- **Trade-off:** Eliminating raw merchant names may slightly generalize AI advice, but guarantees strict regulatory compliance and user trust.
+#### C-04: AI Personalization vs. Data Privacy
+- **Requirements:** FR-06 (AI Advisor) vs. NFR-03 (Security), NFR-08 (Data Privacy)
+- **Issue:** GenAI features need expense data to provide personalized insights, but sending financial data to third-party AI services risks data leaks.
+- **Resolution:** AI features are strictly opt-in. Data is anonymized (no names, emails, or account numbers sent), and agreements ensure the AI provider does not store or train on user data.
+- **Trade-off:** Anonymized data slightly limits cross-context personalization, but protects user privacy.
 
-#### C-05: Reminders & Notifications vs. Usability (Notification Fatigue)
-- **Epics / Requirements in Conflict:** FR-08 (Reminders & Notifications), FR-10 (Budgeting & Alerts) vs. NFR-01 (Usability).
-- **Stakeholders Involved:** Group Users, Individual Users, Notification Service.
-- **Problem Description:** As group activities grow, automated notifications for every added expense, settlement, upcoming bill, and budget alert can lead to notification overload, resulting in users turning off notifications entirely.
-- **Resolution Strategy:** Incorporate a smart notification center:
-  - Users customize push notification triggers per category (e.g., immediate alerts for settlements; batched digests for routine group additions).
-  - Configurable threshold triggers (e.g., alert once at 80% and once at 100% of budget).
-  - Quiet-hours scheduling.
-- **Trade-off:** Users with aggressive alert throttling may receive updates in batches rather than instantaneously, preserving overall engagement.
+#### C-05: Notifications vs. Usability
+- **Requirements:** FR-08 (Reminders & Notifications), FR-10 (Budgeting & Alerts) vs. NFR-01 (Usability)
+- **Issue:** Too many notifications for bills, split payments, and budget warnings can overwhelm users and lead them to disable alerts completely.
+- **Resolution:** Provide user-controlled notification preferences, quiet hours, and aggregated daily or weekly digests instead of instant alerts for every event.
+- **Trade-off:** Users who choose low-frequency alerts may see non-critical reminders later.
 
-#### C-06: Continuous High Availability vs. System Maintenance & Upgrades
-- **Epics / Requirements in Conflict:** NFR-07 (Availability) vs. NFR-05 (Maintainability), NFR-04 (Reliability).
-- **Stakeholders Involved:** All End Users, Developers / IT Teams, Company Owners.
-- **Problem Description:** Users demand uninterrupted 24/7 service to record split bills in real-time at restaurants or venues, but database indexing, critical bug hotfixes, and architectural upgrades require maintenance windows.
-- **Resolution Strategy:** Design a decoupled backend leveraging blue-green continuous deployments. When scheduled maintenance is unavoidable, execute during off-peak hours (02:00 to 04:00 AM local time), alert users 48 hours in advance, and allow clients to record expenses locally in read-only/offline mode.
-- **Trade-off:** Occasional brief off-peak maintenance intervals maintain long-term system stability and performance.
+#### C-06: Availability vs. Maintenance
+- **Requirements:** NFR-07 (Availability) vs. NFR-05 (Maintainability), NFR-04 (Reliability)
+- **Issue:** Users expect the app to be available 24/7 to record expenses, but system upgrades and database fixes require downtime.
+- **Resolution:** Schedule maintenance windows during off-peak hours (e.g., late night), notify users in advance, and allow offline view and expense logging during maintenance.
+- **Trade-off:** Small scheduled downtime periods are accepted to keep the system reliable and updated.
 
-#### C-07: Group Admin Authority vs. Member Autonomy & Data Integrity
-- **Epics / Requirements in Conflict:** FR-13 (Group Management) vs. FR-03 (Expense Tracking), DR-05 (Modification Permissions), DR-06 (Group Balances).
-- **Stakeholders Involved:** Group Admin / Creator, Group Users.
-- **Problem Description:** Admins need authority to manage group membership and maintain order. However, allowing admins unrestricted ability to edit or delete any member's expense invites fraud, accidental deletions, or disputed debts.
-- **Resolution Strategy:** Establish immutable expense ownership:
-  - Only the user who created an expense (or the designated payer) can edit or delete it.
-  - Admins can archive groups, invite/remove members (provided the member has a zero net balance), and trigger settlement reminders.
-  - If an expense must be corrected by someone else, an explicit adjustment entry must be submitted with notification to all group members.
-- **Trade-off:** Prevents rogue admin modifications at the cost of requiring the original creator to amend mistaken entries.
+#### C-07: Group Admin Control vs. Member Autonomy
+- **Requirements:** FR-13 (Group Management) vs. FR-03 (Expense Tracking), DR-05 (Modification Permissions)
+- **Issue:** Group admins need authority to manage groups, but giving them full power could let them edit or delete other members' personal expense entries.
+- **Resolution:** Admins can manage group members and settings, but only the member who created an expense can edit or delete it. Any change notifies all group members.
+- **Trade-off:** Stronger admin limits prevent unauthorized edits, requiring members to correct their own entries.
 
-#### C-08: Manual User Categorization vs. Automated AI Categorization
-- **Epics / Requirements in Conflict:** FR-03 (Personal Expense Tracking), DR-02 (Mandatory Category Assignment) vs. FR-06 (AI Advisor & Smart Categorization).
-- **Stakeholders Involved:** Individual Users, GenAI Service.
-- **Problem Description:** Users often develop idiosyncratic budgeting categories. An autonomous AI model might re-categorize an expense contrary to the user's intent (e.g., classifying a book purchased for work as "Entertainment" instead of "Professional Development").
-- **Resolution Strategy:** The AI categorizer acts strictly as an advisory feature. It proposes a suggested category during entry; if the user selects a category manually, that choice is immutable by the AI. Furthermore, manual corrections update a user-specific preference dictionary to enhance future suggestions.
-- **Trade-off:** Relies on user interaction for ambiguous cases rather than 100% hands-free automatic classification.
+#### C-08: Manual Categorization vs. AI Auto-Categorization
+- **Requirements:** FR-03 (Expense Tracking), DR-02 (Category Assignment) vs. FR-06 (AI Advisor)
+- **Issue:** Users prefer their own expense categories, while AI auto-categorization might overwrite their choices or assign incorrect categories.
+- **Resolution:** AI only suggests categories during entry. The user's choice is final, and any manual correction helps train the suggestion system for future entries.
+- **Trade-off:** Requires a moment of user review rather than 100% hands-free automatic categorization.
 
-#### C-09: Personal Recurring Expenses vs. Group Recurring Expenses
-- **Epics / Requirements in Conflict:** FR-11 (Recurring Expense Automation) vs. FR-05 (Group Expense Splitting), DR-09 (Recurring Schedule).
-- **Stakeholders Involved:** Individual Users, Group Users.
-- **Problem Description:** Recurring expenses can be private (e.g., personal cloud storage, gym membership) or collective (e.g., shared apartment rent, streaming family plan). Without clear distinction, automated schedule runs could mistakenly distribute personal charges across a group or miss shared split schedules.
-- **Resolution Strategy:** Formally separate recurring expense definitions into two distinct creation flows:
-  1. **Personal Recurring:** Debited strictly from the user's individual dashboard.
-  2. **Group Recurring:** Bound to a specific group, assigning default split ratios among selected participants. Group members receive an in-app notice 24 hours prior to automated posting.
-- **Trade-off:** Adds an explicit setup step during creation, preventing erroneous shared debt calculations.
+#### C-09: Personal Recurring vs. Group Recurring Expenses
+- **Requirements:** FR-11 (Recurring Expense Automation) vs. FR-05 (Group Expense Splitting)
+- **Issue:** Recurring expenses can be personal (gym, subscriptions) or shared (rent, utilities). If not clearly defined, personal bills could be split across a group.
+- **Resolution:** When setting up a recurring bill, the user explicitly chooses "Personal" or "Group" and sets default split rules with a pre-posting reminder.
+- **Trade-off:** Adds an extra setup step during creation, but avoids wrong splits and member disputes.
 
-#### C-10: Customer Support / Admin Access vs. Financial Confidentiality
-- **Epics / Requirements in Conflict:** FR-07 (Customer Support), FR-15 (System Administration) vs. NFR-08 (Data Privacy), DR-12 (Data Access Permissions).
-- **Stakeholders Involved:** Customer Support Teams, System Administrators, End Users.
-- **Problem Description:** Support agents need contextual transaction data to resolve customer complaints regarding split errors or sync bugs, but granting open access exposes sensitive user finances to internal employees.
-- **Resolution Strategy:**
-  - Customer support dashboards show only redacted account statuses, ticket records, and non-financial telemetry by default.
-  - If deep investigation is required, the user must approve a temporary, time-bounded support grant (valid for 2 hours) directly from their app.
-  - Every access by support agents is logged in a tamper-proof audit trail.
-- **Trade-off:** Increases response time slightly for support tickets requiring user approval, but completely preserves user privacy and regulatory compliance.
+#### C-10: Customer Support vs. Financial Privacy
+- **Requirements:** FR-07 (Customer Support), FR-15 (System Admin) vs. NFR-08 (Data Privacy)
+- **Issue:** Support staff need account information to troubleshoot user issues, which could expose private financial transactions.
+- **Resolution:** Staff see only account metadata and ticket details by default. Viewing financial data requires temporary user consent and all access is logged.
+- **Trade-off:** Troubleshooting may take an extra confirmation step from the user to maintain strict privacy.
 
-#### C-11: Debt Simplification (Minimum Cash Flow) vs. Transaction Traceability
-- **Epics / Requirements in Conflict:** FR-05 (Group Expense Splitting) vs. DR-06 (Balance Tracking), NFR-01 (Usability), NFR-09 (Accuracy).
-- **Stakeholders Involved:** Group Users, Group Admin.
-- **Problem Description:** Minimum cash flow algorithms simplify multi-party debts (e.g., if User A owes User B $20, and User B owes User C $20, the algorithm directs User A to pay User C directly). While mathematically optimal, users frequently object because User A never participated in an expense with User C.
-- **Resolution Strategy:** Debt simplification is implemented as an optional, transparent feature. It can be toggled on or off per group. When active, an interactive ledger breakdown clearly illustrates how indirect balances were computed and matched.
-- **Trade-off:** Maintaining both direct debt and simplified debt calculation modes increases UI and algorithmic complexity, but guarantees user trust.
+#### C-11: Debt Simplification vs. Transaction Traceability
+- **Requirements:** FR-05 (Group Expense Splitting) vs. DR-06 (Balance Tracking), NFR-09 (Accuracy)
+- **Issue:** Simplifying group debts reduces the number of payments (e.g., A pays C directly), but members may be confused paying someone they did not borrow from.
+- **Resolution:** Provide debt simplification as an optional toggle per group, and show a clear breakdown of how the simplified payments were calculated.
+- **Trade-off:** Requires displaying an explanation breakdown in the UI, but avoids confusion and builds trust.
 
-#### C-12: Offline Expense Logging vs. Multi-User Concurrency & Balance Consistency
-- **Epics / Requirements in Conflict:** NFR-01 (Usability), NFR-02 (Performance) vs. NFR-04 (Reliability), DR-06 (Accurate Balances).
-- **Stakeholders Involved:** Group Users, Mobile Users, IT / Backend Team.
-- **Problem Description:** In offline scenarios (travel, remote venues), multiple members may log expenses or mark debts as settled simultaneously without internet access. When devices reconnect, conflicting states and balance mismatches emerge.
-- **Resolution Strategy:** Employ client-side event sourcing with idempotent UUIDs and timestamps. When syncing:
-  - Additive records (new expenses) are merged chronologically without conflict.
-  - Conflicting edits on the same entry prompt the group with a visual diff resolution modal, highlighting conflicting edits for one-tap consensus.
-- **Trade-off:** Occasional manual verification needed for rare simultaneous offline edits on the exact same expense.
+#### C-12: Offline Expense Entry vs. Data Consistency
+- **Requirements:** NFR-01 (Usability), NFR-02 (Performance) vs. NFR-04 (Reliability)
+- **Issue:** Users adding expenses offline (e.g., during travel) may cause sync conflicts if multiple members edit the same group expenses before reconnecting.
+- **Resolution:** Save entries locally with timestamps, sync automatically upon reconnecting, and prompt users to review if the exact same expense was edited by two people.
+- **Trade-off:** Rare simultaneous edits need a quick manual review to prevent overwritten data.
 
-#### C-13: Custom / Percentage Bill Splitting vs. Mathematical Exactness & Rounding
-- **Epics / Requirements in Conflict:** FR-05 (Group Expense Splitting) vs. DR-03 (Split Sum Equals Total), DR-11 (Monetary Precision), NFR-09 (Accuracy).
-- **Stakeholders Involved:** Group Users, Development Team.
-- **Problem Description:** Splitting an uneven expense (e.g., $100.00 split 3 ways results in $33.3333... per person). In percentage-based or shares-based splitting, rounding fractions of a cent can cause the sum of shares to deviate from the total bill, violating domain rules DR-03 and DR-11.
-- **Resolution Strategy:** Implement standard financial remainder distribution (Largest Remainder Method):
-  - Shares are rounded to 2 decimal places.
-  - The remaining 1-cent discrepancy is automatically allocated to the payer (or the first member in the split list).
-  - The breakdown displays a transparent note: *"Includes $0.01 rounding adjustment."*
-- **Trade-off:** One participant pays a single cent more or less, ensuring absolute mathematical integrity across all balance ledgers.
-
----
-
-### 4.4 Conclusion
-
-By systematically identifying these 13 core requirements conflicts and defining balanced, technically sound resolution strategies, the **Smart Expense Splitter & Tracker** project maintains a robust equilibrium between usability, security, financial accuracy, and data privacy. These resolutions will directly guide the system design, database schemas, and user interface workflows in the upcoming development phases.
+#### C-13: Custom Bill Splitting vs. Rounding Precision
+- **Requirements:** FR-05 (Group Expense Splitting) vs. DR-03 (Split Sum Equals Total), DR-11 (Rounding)
+- **Issue:** Splitting bills unequally or in percentages (e.g., $100 split 3 ways) creates fractional cents, causing individual shares not to match the bill total.
+- **Resolution:** Round shares to 2 decimals and allocate the remaining 1 cent to the payer with an explicit note.
+- **Trade-off:** One member pays 1 cent more or less to ensure the mathematical total is always exact.
