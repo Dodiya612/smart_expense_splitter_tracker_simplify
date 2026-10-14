@@ -14,14 +14,12 @@
 | FR-05 | Group Expense Splitting | Create shared expenses, split bills among members, track contributions and balances | Existing-system analysis, interviews, surveys | Final |
 | FR-06 | AI Advisor | GenAI analyses spending patterns, categorizes expenses, gives summaries and suggestions | Brainstorming, interviews, surveys | Final |
 | FR-07 | Customer Support | Users can report problems, raise support requests and get assistance | Stakeholder analysis | Provisional |
-| FR-08 | Reminders & Notifications | Reminders for expenses, pending payments, budgets and recurring expenses | User surveys, interviews | Final |
-| FR-09 | Parental Mode | Parents/guardians monitor relevant spending and set spending controls | Interviews, brainstorming, surveys | Provisional |
-| FR-10 | Budgeting & Alerts | Create category budgets; notify when nearing or exceeding limits | User surveys, interviews | Final |
-| FR-11 | Recurring Expense Automation | Create recurring expenses that are auto-recorded on schedule | User interviews | Provisional |
-| FR-12 | Bill/Receipt Scanning & Data Extraction | Upload bills/receipts and extract amount, date, merchant, category | Bill/OCR analysis, brainstorming | Provisional |
-| FR-13 | Group Management | Admins create groups, add/remove members, manage group expenses | Group-user interviews, stakeholder analysis | Final |
-| FR-14 | Family/Household Expense Management | Family users manage shared expenses and monitor household budgets | Family interviews, contextual inquiry | Provisional |
-| FR-15 | System Administration | Authorized admins manage users, handle reported issues, configure system settings | Administrator interviews, stakeholder analysis | Provisional |
+| FR-08 | Budgeting & Alerts | Create category budgets; notify when nearing or exceeding limits | User surveys, interviews | Final |
+| FR-09 | Recurring Expense Automation | Create recurring expenses that are auto-recorded on schedule | User interviews | Provisional |
+| FR-10 | Bill/Receipt Scanning & Data Extraction | Upload bills/receipts and extract amount, date, merchant, category | Bill/OCR analysis, brainstorming | Provisional |
+| FR-11 | Group Management | Admins create groups, add/remove members, manage group expenses | Group-user interviews, stakeholder analysis | Final |
+| FR-12 | Family/Household Expense Management | Family users manage shared expenses and monitor household budgets | Family interviews, contextual inquiry | Provisional |
+| FR-13 | System Administration | Authorized admins manage users, handle reported issues, configure system settings | Administrator interviews, stakeholder analysis | Provisional |
 
 ### 2.2 Non-Functional Requirements (NFR)
 
