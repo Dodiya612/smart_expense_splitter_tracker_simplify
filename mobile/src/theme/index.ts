@@ -1,7 +1,7 @@
 import { lightColors, categoryPalette, type ColorTokens } from './colors';
 import { spacing, minTouchTarget } from './spacing';
 import { radii } from './radii';
-import { shadows } from './shadows';
+import { shadows, type ShadowTokens } from './shadows';
 import { typography, fontFamily } from './typography';
 
 export const theme = {
@@ -16,7 +16,7 @@ export const theme = {
 } as const;
 
 export type Theme = typeof theme;
-export type { ColorTokens };
+export type { ColorTokens, ShadowTokens };
 
 /**
  * The only way screens and components read design tokens.
