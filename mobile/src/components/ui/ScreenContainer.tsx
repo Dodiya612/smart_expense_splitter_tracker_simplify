@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleProp,
@@ -19,6 +23,11 @@ export interface ScreenContainerProps {
   edges?: SafeEdge[];
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  scrollViewRef?: React.Ref<ScrollView>;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollViewLayout?: (event: LayoutChangeEvent) => void;
+  onContentSizeChange?: (width: number, height: number) => void;
+  keyboardBehavior?: 'height' | 'position' | 'padding';
 }
 
 export function ScreenContainer({
@@ -27,32 +36,65 @@ export function ScreenContainer({
   edges = ['top', 'bottom', 'left', 'right'],
   style,
   contentContainerStyle,
+  scrollViewRef,
+  onScroll,
+  onScrollViewLayout,
+  onContentSizeChange,
+  keyboardBehavior,
 }: ScreenContainerProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const topInset = edges.includes('top') ? insets.top : 0;
   const bottomInset = edges.includes('bottom') ? insets.bottom : 0;
   const leftInset = edges.includes('left') ? insets.left : 0;
   const rightInset = edges.includes('right') ? insets.right : 0;
 
+  // Modest bottom clearance when closed; additional clearance when keyboard is open
+  const bottomClearance = scrollable
+    ? isKeyboardOpen
+      ? theme.spacing.xxxl * 2
+      : theme.spacing.xl
+    : 0;
+
   const contentPaddingStyle: ViewStyle = {
     paddingTop: topInset,
-    paddingBottom: bottomInset,
+    paddingBottom: bottomInset + bottomClearance,
     paddingLeft: leftInset + theme.spacing.lg,
     paddingRight: rightInset + theme.spacing.lg,
   };
 
+  const activeKeyboardBehavior =
+    keyboardBehavior ?? (Platform.OS === 'ios' ? 'padding' : undefined);
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }, style]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={activeKeyboardBehavior}
         style={styles.keyboardView}>
         {scrollable ? (
           <ScrollView
+            ref={scrollViewRef}
             style={styles.scrollView}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={onScroll}
+            onLayout={onScrollViewLayout}
+            onContentSizeChange={onContentSizeChange}
             contentContainerStyle={[
               styles.scrollContent,
               contentPaddingStyle,

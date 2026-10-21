@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react';
 import {
+  LayoutChangeEvent,
   Platform,
   Pressable,
   StyleProp,
@@ -20,6 +21,7 @@ export interface AppInputProps extends Omit<TextInputProps, 'style' | 'editable'
   disabled?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
+  onContainerLayout?: (event: LayoutChangeEvent) => void;
 }
 
 export type AppInputRef = TextInput;
@@ -32,6 +34,7 @@ export const AppInput = React.forwardRef<TextInput, AppInputProps>(function AppI
     disabled = false,
     containerStyle,
     inputStyle,
+    onContainerLayout,
     secureTextEntry = false,
     onFocus,
     onBlur,
@@ -65,7 +68,7 @@ export const AppInput = React.forwardRef<TextInput, AppInputProps>(function AppI
   const a11yHint = accessibilityHint ?? (error ? `Error: ${error}` : helperText);
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View onLayout={onContainerLayout} style={[styles.container, containerStyle]}>
       <AppText variant="small" color={disabled ? 'textSecondary' : 'textPrimary'} nativeID={labelId}>
         {label}
       </AppText>

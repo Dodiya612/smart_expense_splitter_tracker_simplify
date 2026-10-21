@@ -41,6 +41,9 @@ export function Button({
       case 'primary':
         return {
           backgroundColor: pressed ? theme.colors.primaryPressed : theme.colors.primary,
+          ...(isInteractive && !pressed
+            ? theme.shadows.button
+            : { elevation: 0, shadowOpacity: 0 }),
         };
       case 'destructive':
         return {
