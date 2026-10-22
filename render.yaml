@@ -1,0 +1,52 @@
+# ==============================================================================
+# Render Infrastructure Blueprint Specification
+# Service: Coinscious Backend API
+# ==============================================================================
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: coinscious-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "10000"
+      - key: CORS_ORIGINS
+        value: '["https://coinscious.vercel.app","http://localhost:3000","http://localhost:8081"]'
+      # Production secrets - set in Render dashboard (sync: false prevents hardcoding):
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "15"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      - key: OCR_SPACE_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
