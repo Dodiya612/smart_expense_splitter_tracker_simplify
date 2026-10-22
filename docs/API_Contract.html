@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coinscious — Final API Contract & Team Guide</title>
+<style>
+:root{--ink:#17212b;--muted:#596777;--line:#dce3e9;--bg:#f3f6f8;--card:#fff;--green:#0b6b60;--greenbg:#e4f3ef;--blue:#2456a6;--bluebg:#eaf0fc;--amber:#8a5707;--amberbg:#fff2d9;--red:#a52c43;--redbg:#ffedf0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+header,main,footer{max-width:1100px;margin:auto;padding:24px}header{padding-top:38px}
+h1,h2,h3{line-height:1.2}h1{font-size:clamp(30px,5vw,46px);margin:8px 0 12px}h2{font-size:25px;margin-top:38px;padding-bottom:9px;border-bottom:1px solid var(--line)}h3{font-size:19px;margin-top:25px}
+p{max-width:85ch}.muted{color:var(--muted)}.eyebrow{color:var(--green);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}.note{background:var(--amberbg);border-left:4px solid var(--amber);padding:14px 16px;border-radius:8px}.good{background:var(--greenbg);border-left:4px solid var(--green);padding:14px 16px;border-radius:8px}.danger{background:var(--redbg);border-left:4px solid var(--red);padding:14px 16px;border-radius:8px}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:#eef1f4;padding:2px 5px;border-radius:5px;overflow-wrap:anywhere}pre{background:#111c27;color:#f3f6f8;padding:16px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.55}
+table{width:100%;border-collapse:collapse;background:#fff;margin:12px 0 20px;font-size:14px}th,td{text-align:left;vertical-align:top;padding:10px;border:1px solid var(--line)}th{background:#eaf0f3}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid .card{margin:0}
+.pill{display:inline-block;border-radius:999px;padding:3px 9px;background:var(--bluebg);color:var(--blue);font-size:12px;font-weight:700}
+ol,ul{padding-left:24px}li{margin:5px 0}.toc a{color:var(--green);text-decoration:none;margin-right:14px}.toc{line-height:2}
+footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);margin-top:40px}
+@media(max-width:700px){header,main,footer{padding:16px}.grid{grid-template-columns:1fr}table{display:block;overflow-x:auto;white-space:normal}}
+</style>
+</head>
+<body>
+<header>
+<div class="eyebrow">Coinscious · IT314 · Group 28</div>
+<h1>API Contract & Team Integration Guide</h1>
+<p>This is the shared guide for frontend, backend, AI/ML and QA members. It explains how the app parts communicate, what the API examples mean, how to use mock data while working in parallel, and how to integrate safely.</p>
+<div class="good"><strong>Goal:</strong> everyone should agree on the same endpoint paths, field names, data formats and error behaviour before building connected features.</div>
+<div class="note"><strong>Important status note:</strong> The supplied Product Document defines the architecture and API route families, but it does not contain a complete schema for every endpoint. The paths below follow that document. JSON examples marked as examples/proposed must be confirmed by the backend owner in FastAPI/Pydantic and the generated OpenAPI schema. This document does not claim that every listed endpoint is already implemented.</div>
+<nav class="toc">
+<a href="#basics">1. Basics</a><a href="#rules">2. Shared rules</a><a href="#routes">3. API list</a><a href="#examples">4. JSON examples</a><a href="#mock">5. Parallel work</a><a href="#errors">6. Errors</a><a href="#security">7. Security</a><a href="#done">8. Integration checklist</a>
+</nav>
+</header>
+<main>
+<h2 id="basics">1. First understand what an API is</h2>
+<div class="grid">
+<div class="card"><h3>Frontend</h3><p>The screens users see: forms, expense lists, dashboard and buttons. The frontend sends requests to the backend and displays the response.</p></div>
+<div class="card"><h3>Backend</h3><p>The FastAPI server receives requests, checks input and permissions, runs business rules, reads/writes PostgreSQL, and returns JSON.</p></div>
+<div class="card"><h3>Database</h3><p>PostgreSQL stores the actual accounts, expenses and other records. A successful-looking screen alone does not prove data was saved.</p></div>
+<div class="card"><h3>API contract</h3><p>The agreement that says which URL and method to call, which fields to send, what comes back, and which errors can happen.</p></div>
+</div>
+<p>Example: when a user adds lunch costing ₹250, the frontend sends an expense request. The backend validates it, checks the signed-in user, saves it to PostgreSQL, and returns the saved expense with its ID. The frontend then displays the server response.</p>
+
+<h2 id="rules">2. Rules everyone must follow</h2>
+<table>
+<thead><tr><th>Topic</th><th>Agreed rule</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Base path</td><td><code>/api/v1</code></td><td>All version 1 API routes use one prefix.</td></tr>
+<tr><td>Backend stack</td><td>FastAPI + Pydantic + PostgreSQL, as specified by the Product Document</td><td>Keep implementation consistent with the project plan.</td></tr>
+<tr><td>Dates</td><td>Date: <code>YYYY-MM-DD</code>; timestamp: ISO 8601 with timezone, e.g. <code>2026-10-22T08:30:00Z</code></td><td>Avoid locale and timezone confusion.</td></tr>
+<tr><td>Money</td><td>Use integer paise in API/database calculations. ₹250.00 = <code>25000</code> paise.</td><td>Avoid floating-point rounding errors.</td></tr>
+<tr><td>IDs</td><td>Treat IDs as opaque strings; never assume they are sequential.</td><td>IDs may be UUIDs or another generated format.</td></tr>
+<tr><td>Authentication</td><td>The Product Document specifies session cookies. Confirm cookie, CORS and CSRF behaviour for the target runtime.</td><td>Frontend and backend must agree on how a user stays signed in.</td></tr>
+<tr><td>Permissions</td><td>Every record lookup/change must check ownership or group membership on the server. Disallowed records return 404 per the Product Document.</td><td>Changing an ID must not reveal another user's data.</td></tr>
+<tr><td>Retry</td><td>Expense creation uses an <code>Idempotency-Key</code> header.</td><td>Retrying the same request should not create duplicate expenses.</td></tr>
+<tr><td>Editing</td><td>Use a record <code>version</code> for edits; stale edits should return 409 rather than overwrite newer data silently.</td><td>Prevents one user's update from silently replacing another's.</td></tr>
+<tr><td>AI</td><td>Suggestions are optional. Manual category selection must always remain available.</td><td>AI failure must not block expense entry.</td></tr>
+</tbody></table>
+
+<h2 id="routes">3. API route list and planned sprint</h2>
+<p>The route families and sprint labels below are based on the supplied Coinscious Product Document. A route listed here is a planned contract, not proof that it already exists. Backend should confirm each route in OpenAPI and mark implementation status in the issue/PR.</p>
+<table>
+<thead><tr><th>Purpose</th><th>Method and path</th><th>Planned sprint</th></tr></thead><tbody>
+<tr><td>Health check</td><td><code>GET /api/v1/health</code></td><td>Sprint 0</td></tr>
+<tr><td>Register / login / logout / refresh session</td><td><code>POST /api/v1/auth/register</code><br><code>POST /api/v1/auth/login</code><br><code>POST /api/v1/auth/logout</code><br><code>POST /api/v1/auth/refresh</code></td><td>Sprint 1</td></tr>
+<tr><td>Current user / sessions</td><td><code>GET /api/v1/auth/me</code><br><code>GET /api/v1/auth/sessions</code></td><td>Sprint 1</td></tr>
+<tr><td>Personal expenses</td><td><code>GET, POST /api/v1/expenses</code><br><code>GET, PATCH, DELETE /api/v1/expenses/{id}</code><br><code>POST /api/v1/expenses/{id}/restore</code></td><td>Sprint 1–2</td></tr>
+<tr><td>Sync</td><td><code>GET /api/v1/sync?since=...</code></td><td>Sprint 1</td></tr>
+<tr><td>Categories and AI category suggestion</td><td><code>GET /api/v1/categories</code><br><code>POST /api/v1/ai/category-suggestion</code></td><td>Sprint 1</td></tr>
+<tr><td>Groups and members</td><td><code>GET, POST /api/v1/groups</code><br><code>GET, PATCH, DELETE /api/v1/groups/{id}</code><br><code>POST /api/v1/groups/{id}/invitations</code><br><code>POST /api/v1/groups/join</code><br><code>POST /api/v1/invitations/{id}/accept</code><br><code>POST /api/v1/invitations/{id}/decline</code><br><code>PATCH, DELETE /api/v1/groups/{id}/members/{user_id}</code></td><td>Sprint 2–4</td></tr>
+<tr><td>Group expenses and balances</td><td><code>GET, POST /api/v1/groups/{id}/expenses</code><br><code>PATCH, DELETE /api/v1/groups/{id}/expenses/{eid}</code><br><code>GET /api/v1/groups/{id}/balances</code><br><code>GET /api/v1/groups/{id}/activity</code><br><code>GET, POST, DELETE /api/v1/groups/{id}/settlements</code></td><td>Sprint 2</td></tr>
+<tr><td>Notifications</td><td><code>GET /api/v1/notifications</code><br><code>POST /api/v1/notifications/read</code></td><td>Sprint 2</td></tr>
+<tr><td>Analytics</td><td><code>GET /api/v1/analytics/summary</code><br><code>GET /api/v1/analytics/trends</code><br><code>GET /api/v1/analytics/categories</code></td><td>Sprint 3</td></tr>
+<tr><td>Budgets and recurring expenses</td><td><code>GET, POST, PATCH /api/v1/budgets</code><br><code>GET, POST, PATCH /api/v1/recurring</code></td><td>Sprint 3</td></tr>
+<tr><td>Receipts / bill extraction</td><td><code>POST /api/v1/receipts</code><br><code>POST /api/v1/receipts/{id}/extract</code><br><code>POST /api/v1/receipts/{id}/confirm</code><br><code>GET /api/v1/receipts/{id}/image</code></td><td>Sprint 3–4</td></tr>
+<tr><td>AI assistant and budget recommendation</td><td><code>POST /api/v1/ai/ask</code><br><code>POST /api/v1/ai/budget-recommendation</code></td><td>Sprint 4</td></tr>
+<tr><td>Scheduled jobs / support / admin</td><td><code>POST /api/v1/internal/jobs/run</code><br><code>GET, POST /api/v1/support/tickets</code><br><code>/api/v1/admin/*</code></td><td>Sprint 3 / stretch</td></tr>
+</tbody></table>
+<div class="note"><strong>Sprint note:</strong> Sprint 1 frontend work should focus on authentication, personal expense entry/listing, category suggestions and the sync behaviour explicitly agreed for Sprint 1. Group expenses, settlements, receipts and later analytics must not be treated as Sprint 1 requirements unless the team explicitly brings them into scope.</div>
+
+<h2 id="examples">4. JSON examples for frontend and backend</h2>
+<p>These examples are proposed initial shapes for team agreement. The backend owner must encode the final request and response models in Pydantic/OpenAPI. If the real implementation differs, update the contract and frontend together—do not quietly maintain two different formats.</p>
+<h3>4.1 Register — <code>POST /api/v1/auth/register</code></h3>
+<pre>{
+  "email": "alex@example.com",
+  "password": "example-password",
+  "display_name": "Alex",
+  "remember_me": false
+}</pre>
+<p>Expected success: <code>201 Created</code>. Return only safe profile fields and issue the agreed session cookie. Never return a password, password hash or session secret in JSON.</p>
+<pre>{
+  "data": {
+    "id": "usr_opaque_id",
+    "email": "alex@example.com",
+    "display_name": "Alex"
+  }
+}</pre>
+<h3>4.2 Login — <code>POST /api/v1/auth/login</code></h3>
+<pre>{
+  "email": "alex@example.com",
+  "password": "example-password",
+  "remember_me": true
+}</pre>
+<p>Expected success: <code>200 OK</code>, with session cookie and safe user profile. Invalid credentials should return a generic <code>401</code> response.</p>
+<h3>4.3 Create a personal expense — <code>POST /api/v1/expenses</code></h3>
+<p>Send header <code>Idempotency-Key: &lt;unique-key&gt;</code>.</p>
+<pre>{
+  "amount_paise": 25000,
+  "description": "Lunch",
+  "category_id": "cat_food",
+  "occurred_on": "2026-10-22",
+  "notes": null
+}</pre>
+<p>Expected success: <code>201 Created</code>. The server returns the saved record, including its ID, version and timestamps.</p>
+<pre>{
+  "data": {
+    "id": "exp_opaque_id",
+    "amount_paise": 25000,
+    "description": "Lunch",
+    "category_id": "cat_food",
+    "occurred_on": "2026-10-22",
+    "version": 1,
+    "created_at": "2026-10-22T08:30:00Z",
+    "updated_at": "2026-10-22T08:30:00Z"
+  }
+}</pre>
+<h3>4.4 List expenses — <code>GET /api/v1/expenses</code></h3>
+<p>Possible query parameters: <code>from</code>, <code>to</code>, <code>category_id</code>, <code>q</code>, <code>limit</code>, <code>cursor</code>. The server must return only expenses the signed-in user may access.</p>
+<pre>{
+  "data": [
+    {
+      "id": "exp_opaque_id",
+      "amount_paise": 25000,
+      "description": "Lunch",
+      "category_id": "cat_food",
+      "occurred_on": "2026-10-22",
+      "version": 1
+    }
+  ],
+  "meta": { "next_cursor": null }
+}</pre>
+<h3>4.5 Edit an expense — <code>PATCH /api/v1/expenses/{id}</code></h3>
+<pre>{
+  "version": 1,
+  "description": "Lunch with team",
+  "amount_paise": 27000
+}</pre>
+<p>The server returns the updated record and increments its version. A stale version returns <code>409 Conflict</code>. The client must not be allowed to change protected fields such as <code>user_id</code> or roles.</p>
+<h3>4.6 Delete and restore</h3>
+<ul><li><code>DELETE /api/v1/expenses/{id}</code> — proposed soft delete.</li><li><code>POST /api/v1/expenses/{id}/restore</code> — restore only if allowed by policy.</li></ul>
+<p>The frontend should show success only after the server confirms it. If the request fails, keep the screen consistent with the server state.</p>
+<h3>4.7 Category suggestion — <code>POST /api/v1/ai/category-suggestion</code></h3>
+<pre>{
+  "description": "Uber ride to campus",
+  "merchant": "Uber"
+}</pre>
+<p>Proposed response:</p>
+<pre>{
+  "data": {
+    "suggested_category_id": "cat_transport",
+    "confidence": 0.91,
+    "requires_confirmation": true
+  }
+}</pre>
+<p>The suggested category must exist in <code>GET /api/v1/categories</code>. If the model is unavailable or uncertain, the user must still be able to choose a category manually. The app must not silently save an AI suggestion without user confirmation.</p>
+<h3>4.8 Sync — <code>GET /api/v1/sync?since=2026-10-22T08:00:00Z</code></h3>
+<pre>{
+  "data": {
+    "changes": [
+      {
+        "entity_type": "expense",
+        "id": "exp_opaque_id",
+        "operation": "upsert",
+        "version": 2,
+        "updated_at": "2026-10-22T08:30:00Z"
+      }
+    ],
+    "next_since": "2026-10-22T08:30:00Z"
+  }
+}</pre>
+<p>This is a proposed response. Backend must confirm cursor semantics and how deletions are represented. Sync must never return another user's private records.</p>
+<h3>4.9 Group expense — planned for Sprint 2, not a Sprint 1 dependency</h3>
+<p><code>POST /api/v1/groups/{id}/expenses</code></p>
+<pre>{
+  "amount_paise": 300000,
+  "description": "Groceries",
+  "category_id": "cat_groceries",
+  "occurred_on": "2026-10-22",
+  "paid_by_user_id": "usr_alex",
+  "participant_user_ids": ["usr_alex", "usr_blair", "usr_casey"],
+  "split_mode": "equal"
+}</pre>
+<p>Product rule: equal splits must allocate paise using the largest-remainder method. The expense, payment, shares and audit event must be written in one database transaction; if any write fails, roll back all writes.</p>
+
+<h2 id="errors">5. Standard error behaviour</h2>
+<p>The response envelope below is a proposed convention. If the existing API already uses another envelope, the backend owner must document it and keep it consistent rather than introduce two formats.</p>
+<pre>{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Please check the submitted fields.",
+    "field_errors": {
+      "amount_paise": "Must be greater than zero."
+    }
+  },
+  "meta": { "request_id": "req_opaque_id" }
+}</pre>
+<table><thead><tr><th>Status</th><th>Meaning</th><th>Frontend response</th></tr></thead><tbody>
+<tr><td><code>400</code></td><td>Malformed or invalid operation</td><td>Show useful message; keep entered values.</td></tr>
+<tr><td><code>401</code></td><td>Not signed in / session expired</td><td>Show sign-in flow; do not assume identity.</td></tr>
+<tr><td><code>404</code></td><td>Not found or not allowed to view</td><td>Show unavailable item; do not reveal whether private record exists.</td></tr>
+<tr><td><code>409</code></td><td>Duplicate/idempotency conflict or stale version</td><td>Explain conflict; refresh or retry safely.</td></tr>
+<tr><td><code>422</code></td><td>Request validation failed</td><td>Show field-level errors next to inputs.</td></tr>
+<tr><td><code>429</code></td><td>Rate limit reached</td><td>Suggest waiting; do not rapidly repeat requests.</td></tr>
+<tr><td><code>500</code></td><td>Unexpected server failure</td><td>Show a generic message and request ID; never show stack traces.</td></tr>
+</tbody></table>
+
+<h2 id="mock">6. How frontend and backend can work in parallel</h2>
+<ol>
+<li><strong>Agree on the contract first.</strong> Confirm method, path, request fields, response fields, status codes and authentication for each Sprint 1 endpoint.</li>
+<li><strong>Frontend uses mock data.</strong> Keep sample JSON in a dedicated mock/service module. Label it as mock and never show a fake save as if it were stored in PostgreSQL.</li>
+<li><strong>Backend implements the same schema.</strong> Define Pydantic request/response models, implement routes/services and expose OpenAPI.</li>
+<li><strong>Compare against OpenAPI.</strong> If field names or response shapes differ, agree the change and update both sides. Prefer generating frontend TypeScript types from OpenAPI.</li>
+<li><strong>Switch the API adapter.</strong> Keep screen code separate from the mock service so integration means changing configuration/client, not rewriting every screen.</li>
+<li><strong>Test real persistence.</strong> Create an expense, confirm the server response, reload/list it from the backend, and verify it is in the database.</li>
+</ol>
+<div class="good"><strong>Simple example:</strong> frontend can show a sample “Lunch ₹250” card using mock data while backend builds <code>POST /api/v1/expenses</code>. Before integration, both agree that the API sends <code>amount_paise: 25000</code>, not <code>amount: 250</code>. Later the frontend switches to the real API client.</div>
+
+<h2 id="security">7. Security and implementation rules</h2>
+<ul>
+<li>Use one shared frontend API client and one configured base URL; do not hard-code a developer's localhost URL into production code.</li>
+<li>For cookie authentication, verify credentials, CORS and CSRF settings in the actual target runtime.</li>
+<li>Never store passwords or session secrets in frontend source code or commit secrets to GitHub.</li>
+<li>Backend routes should stay thin: authenticate, authorize, validate, then call the service layer.</li>
+<li>Use Pydantic models for requests and responses; do not trust fields simply because the frontend sent them.</li>
+<li>Load ID-based records through the shared policy module before reading or changing them.</li>
+<li>Use transactions for multi-record writes and roll back all related writes if one fails.</li>
+<li>Do not calculate authoritative balances in the frontend. The backend ledger is authoritative; UI calculations are only previews.</li>
+<li>AI must not be part of the ledger arithmetic. Keep manual/rule-based fallback behaviour available.</li>
+<li>Keep mock mode separate and disable it in the final integrated path.</li>
+</ul>
+
+<h2 id="done">8. Final integration checklist</h2>
+<ul>
+<li>Frontend and backend agree on every endpoint used in Sprint 1.</li>
+<li>Request/response models are documented and match the generated OpenAPI schema.</li>
+<li>Authentication and session behaviour works in the actual runtime.</li>
+<li>Expense creation uses integer paise and an idempotency key.</li>
+<li>Expense lists contain only records the signed-in user may access.</li>
+<li>Invalid input returns useful field errors and preserves form data.</li>
+<li>Delete/restore UI reflects the actual server result.</li>
+<li>AI category suggestions never block manual selection.</li>
+<li>Sync cursor and deletion behaviour are documented before relying on sync.</li>
+<li>Tests cover valid input, invalid input, unauthenticated requests, unauthorized IDs, repeated requests and database failures.</li>
+<li>Mock data is disabled or removed from the final integrated flow.</li>
+<li>Relevant CI checks pass and pull requests have been reviewed.</li>
+</ul>
+<div class="danger"><strong>Do not mark an endpoint as complete just because it appears in this document.</strong> It is complete only when implemented, documented in OpenAPI, tested and integrated as required by its sprint.</div>
+
+<h2>9. Who does what?</h2>
+<table><thead><tr><th>Role</th><th>Main responsibility</th></tr></thead><tbody>
+<tr><td>Backend owner</td><td>Confirm final contract; implement Pydantic schemas, FastAPI routes, authorization, persistence and tests; update OpenAPI.</td></tr>
+<tr><td>Frontend owner</td><td>Build UI with mock data first; use the agreed request/response types; handle loading, empty, error and retry states; switch to the real client.</td></tr>
+<tr><td>AI/ML owner</td><td>Document model input/output and category labels; measure actual evaluation results; keep manual fallback working.</td></tr>
+<tr><td>QA/DevOps owner</td><td>Test the agreed contract, auth/data isolation, error paths, CI and end-to-end flow; report defects with reproduction steps.</td></tr>
+<tr><td>Jay / integration coordinator</td><td>Coordinate API decisions, track unresolved dependencies and verify frontend → backend → database integration.</td></tr>
+</tbody></table>
+</main>
+<footer>Coinscious · IT314 Group 28 · API Contract & Team Integration Guide · Based on the supplied Coinscious Product Document HTML. Examples marked proposed require confirmation in FastAPI/Pydantic/OpenAPI before being treated as final implementation facts.</footer>
+</body>
+</html>
