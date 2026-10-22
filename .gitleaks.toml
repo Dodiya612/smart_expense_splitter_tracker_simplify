@@ -1,0 +1,11 @@
+# Gitleaks configuration for Coinscious
+# Extends the default ruleset; only adds an allowlist for the CI canary file.
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Known test fixtures"
+  paths = [
+    '''tests/gitleaks-canary\.env''',
+  ]
