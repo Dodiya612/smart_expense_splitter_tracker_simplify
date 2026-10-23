@@ -1,0 +1,11 @@
+# Gitleaks config used only for CI canary validation.
+# Keeps default rules and adds an explicit rule for the canary fixture.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "ci-canary-fake-key"
+description = "CI canary fake key"
+regex = '''AKIAIOSFODNN7EXAMPLE'''
+path = '''tests/gitleaks-canary\.env'''
