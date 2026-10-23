@@ -42,7 +42,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "check:design": "node ./scripts/check-design.mjs",
-    "test": "node --test ./scripts/test-validation.mjs"
+    "test": "node --loader ./scripts/test-loader.mjs --test ./scripts/test-validation.mjs"
   },
   "private": true
 }
