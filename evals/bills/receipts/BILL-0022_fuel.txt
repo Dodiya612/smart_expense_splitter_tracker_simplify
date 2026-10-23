@@ -1,0 +1,23 @@
+==================================================
+              INDIAN OIL CORPORATION              
+           Auto Care Centre - COCO Naroda         
+                 Ahmedabad, Gujarat               
+               GSTIN: 24AAACI1234F1Z8             
+==================================================
+Date: 15/09/2026                 Time: 08:44:12   
+Receipt No: 49102                Pump No: 03      
+Nozzle No: 02                    Product: XP95    
+Vehicle No: GJ-01-XX-XXXX                         
+Density: 742.8 kg/m3                              
+--------------------------------------------------
+Volume (Litres):                             19.34
+Rate (INR/L):                               103.41
+--------------------------------------------------
+Subtotal:                                  1900.00
+VAT / Cess:                                 100.00
+--------------------------------------------------
+TOTAL AMOUNT:                            INR 2000.00
+--------------------------------------------------
+Payment Mode: Card (XXXX-XXXX-XXXX-3341)          
+Auth Code: 890124  TID: IOCL88102                 
+==================================================

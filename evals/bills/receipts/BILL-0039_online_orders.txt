@@ -1,0 +1,27 @@
+==================================================
+                  ZOMATO LIMITED                  
+             Online Food Ordering Bill            
+               GSTIN: 06AAACZ1102Q1Z9             
+==================================================
+Date: 30/09/2026                 Time: 21:12:00   
+Order ID: ZOM-10294819                            
+Merchant: Behrouz Biryani, Sector 18              
+User: [REDACTED_CUSTOMER]                         
+Drop Address: [REDACTED_HOSTEL_ROOM]              
+Mobile: +91 98XXX XXXXX                           
+--------------------------------------------------
+Dishes                        Qty   Price   Amount
+--------------------------------------------------
+Hyderabadi Chicken Biryani     1   380.00   380.00
+Mirchi Ka Salan & Raita        1    40.00    40.00
+Gulab Jamun (2 pcs)            1    80.00    80.00
+Packaging Charges              1    40.00    40.00
+--------------------------------------------------
+Subtotal:                                   540.00
+Restaurant GST (5%):                         27.00
+Delivery Fee:                                 FREE
+--------------------------------------------------
+PAID AMOUNT:                              INR 567.00
+--------------------------------------------------
+Paid with UPI ([REDACTED]@okaxis)                 
+==================================================

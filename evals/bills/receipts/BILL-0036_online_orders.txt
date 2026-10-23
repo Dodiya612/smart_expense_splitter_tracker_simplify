@@ -1,0 +1,26 @@
+==================================================
+             FLIPKART INTERNET PVT LTD            
+            Tax Invoice / Bill of Supply          
+             Devarabeesanahalli, Bellandur        
+              Bengaluru, Karnataka 560103         
+               GSTIN: 29AABCF1214D1ZS             
+==================================================
+Order ID: OD30291481920          Date: 20/09/2026 
+Customer Name: [REDACTED_BUYER]                   
+Shipping Address: [REDACTED_DELIVERY_ADDRESS]     
+Mobile: +91 97XXX XXXXX                           
+--------------------------------------------------
+Product Description           Qty   Price   Amount
+--------------------------------------------------
+Puma Men Crew Neck T-Shirt     1   699.00   699.00
+Wildcraft Sports Socks (3s)    1   299.00   299.00
+Cello Steel Water Bottle 1L    1   201.00   201.00
+--------------------------------------------------
+Items Subtotal:                            1199.00
+IGST (12%):                                 143.88
+Shipping Charges:                             FREE
+--------------------------------------------------
+GRAND TOTAL:                             INR 1342.88
+--------------------------------------------------
+Paid Online via PhonePe UPI ([REDACTED]@ybl)      
+==================================================

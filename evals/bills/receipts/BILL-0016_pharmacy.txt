@@ -1,0 +1,26 @@
+==================================================
+                 MEDPLUS PHARMACY                 
+             Optival Health Solutions             
+            Banjara Hills, Hyderabad (TS)         
+                GSTIN: 36AABCO9914R1Z3            
+==================================================
+Date: 19/09/2026                 Time: 19:22:18   
+Bill No: MP-2026-4410            Cashier: Suresh  
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 92XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Rate    Amount
+--------------------------------------------------
+Cetirizine 10mg Strip          2    25.00    50.00
+Vicks VapoRub 50g              1   145.00   145.00
+Hansaplast Bandages (10s)      1    45.00    45.00
+Dettol Antiseptic 125ml        1    70.00    70.00
+--------------------------------------------------
+Taxable Amount:                             310.00
+CGST 6%:                                     18.60
+SGST 6%:                                     18.60
+--------------------------------------------------
+TOTAL PAID:                               INR 347.20
+--------------------------------------------------
+Mode: UPI ([REDACTED]@okaxis)                     
+==================================================

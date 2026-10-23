@@ -1,0 +1,24 @@
+==================================================
+               BARBEQUE NATION HOSP.              
+          Sayaji Hotel Complex, H-1 Scheme 54     
+                 Indore, Madhya Pradesh           
+                 GSTIN: 23AABCB5512L1Z9           
+==================================================
+Date: 27/09/2026                 Time: 21:55:10   
+Table: 24                        Bill No: BBQ-5521
+Guest: [REDACTED_CUSTOMER]                        
+Phone: +91 94XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Rate    Amount
+--------------------------------------------------
+Non-Veg Dinner Buffet          2  1049.00  2098.00
+Fresh Lime Soda                1   100.00   100.00
+--------------------------------------------------
+Food Subtotal:                             2198.00
+CGST @ 2.5%:                                 54.95
+SGST @ 2.5%:                                 54.95
+--------------------------------------------------
+FINAL AMOUNT:                            INR 2307.90
+--------------------------------------------------
+Payment Mode: UPI ([REDACTED]@icici)              
+==================================================

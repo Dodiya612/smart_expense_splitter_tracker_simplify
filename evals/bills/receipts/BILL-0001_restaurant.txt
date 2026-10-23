@@ -1,0 +1,26 @@
+==================================================
+                 HALDIRAM'S EXPRESS               
+           Unit 4, Phoenix Marketcity, Kurla      
+                 Mumbai, Maharashtra              
+                 GSTIN: 27AABCH1234F1Z8           
+==================================================
+Date: 15/09/2026                 Time: 13:42:10   
+Bill No: HLD-2026-0982           Table: T-14      
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 98XXX XXXXX                            
+--------------------------------------------------
+Item                          Qty   Rate    Amount
+--------------------------------------------------
+Special Chole Bhature          2   160.00   320.00
+Masala Dosa                    1   120.00   120.00
+Sweet Lassi                    1    80.00    80.00
+--------------------------------------------------
+Subtotal:                                   520.00
+CGST @ 2.5%:                                 13.00
+SGST @ 2.5%:                                 13.00
+--------------------------------------------------
+TOTAL AMOUNT PAYABLE:                     INR 546.00
+--------------------------------------------------
+Payment Mode: UPI (Ref: [REDACTED]@okhdfcbank)     
+        Thank you for dining with Haldiram's!     
+==================================================

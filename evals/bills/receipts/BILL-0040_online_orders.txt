@@ -1,0 +1,24 @@
+==================================================
+               NYKAA E-RETAIL LIMITED             
+                    TAX INVOICE                   
+               GSTIN: 27AABCN8812E1Z8             
+==================================================
+Invoice: NYK-2026-441098         Date: 02/10/2026 
+Order ID: NYK-OD-892102                           
+Billed To: [REDACTED_CUSTOMER]                    
+Ship To: [REDACTED_DELHI_RESIDENCE]               
+Phone: +91 95XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Rate    Amount
+--------------------------------------------------
+Cetaphil Skin Cleanser 125ml   1   395.00   395.00
+Neutrogena Sunscreen 88ml      1   525.00   525.00
+--------------------------------------------------
+Subtotal:                                   920.00
+IGST (18% Cosmetics):                       165.60
+Shipping & Handling:                          0.00
+--------------------------------------------------
+TOTAL INVOICE VALUE:                     INR 1085.60
+--------------------------------------------------
+Payment Mode: Credit Card (XXXX-XXXX-XXXX-8902)   
+==================================================

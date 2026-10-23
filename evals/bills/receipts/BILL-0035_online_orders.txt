@@ -1,0 +1,25 @@
+==================================================
+           AMAZON SELLER SERVICES PVT LTD         
+                     TAX INVOICE                  
+              GSTIN: 27AABCA9910F1Z4              
+==================================================
+Invoice No: IN-AMZ-2026-8819     Date: 16/09/2026 
+Order ID: 408-9912041-8812903                     
+Buyer: [REDACTED_BUYER]                           
+Ship To: [REDACTED_SHIPPING_ADDRESS]              
+Phone: +91 98XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Rate    Amount
+--------------------------------------------------
+boAt BassHeads 100 Earphones   2   399.00   798.00
+Portronics 65W Type-C Cable    1   350.00   350.00
+SanDisk 64GB microSD Card      1   350.00   350.00
+--------------------------------------------------
+Subtotal:                                  1498.00
+Integrated GST (IGST 18%):                  269.64
+Delivery Fee:                                 0.00
+--------------------------------------------------
+INVOICE TOTAL:                           INR 1767.64
+--------------------------------------------------
+Payment: Credit Card (XXXX-XXXX-XXXX-9901)        
+==================================================

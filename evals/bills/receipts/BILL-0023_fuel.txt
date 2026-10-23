@@ -1,0 +1,22 @@
+==================================================
+             BHARAT PETROLEUM (BPCL)              
+           Shree Ganesh Petroleum - RO            
+             SV Road, Andheri West, Mumbai        
+               GSTIN: 27AAACB2210G1ZX             
+==================================================
+Date: 18/09/2026                 Time: 17:15:30   
+Txn ID: BP-884102                Dispenser: 04    
+Product: Speed Petrol            Attendant: Raju  
+Vehicle No: MH-02-XX-XXXX                         
+--------------------------------------------------
+Quantity (Ltr):                              14.23
+Price / Litre:                              105.41
+--------------------------------------------------
+Fuel Value:                                1425.00
+State Tax / Surcharge:                       75.00
+--------------------------------------------------
+NET AMOUNT PAID:                         INR 1500.00
+--------------------------------------------------
+Paid via UPI: [REDACTED]@okicici                  
+Thank you! Drive safely with Bharat Petroleum.    
+==================================================

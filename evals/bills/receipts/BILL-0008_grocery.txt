@@ -1,0 +1,28 @@
+==================================================
+                DMART SUPERMARKET                 
+           Avenue Supermarts Limited              
+            Plot 12, Sector 19, Vashi             
+             Navi Mumbai, Maharashtra             
+              GSTIN: 27AABCA3314L1Z1              
+==================================================
+Date: 14/09/2026                 Time: 18:22:15   
+Invoice: DM-2026-88124           Cashier: Mahesh  
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 96XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Rate    Amount
+--------------------------------------------------
+Aashirvaad Atta 5kg            1   245.00   245.00
+Fortune Sunflower Oil 1L       2   140.00   280.00
+India Gate Basmati Rice 1kg    2   120.00   240.00
+Tata Sampann Toor Dal 1kg      2   180.00   360.00
+Madhur Sugar 1kg               2    80.00   160.00
+--------------------------------------------------
+Items Subtotal:                            1285.00
+GST Payable (5%):                            64.25
+--------------------------------------------------
+NET AMOUNT DUE:                          INR 1349.25
+--------------------------------------------------
+Payment Mode: Debit Card (XXXX-XXXX-XXXX-3129)     
+Total Savings Today: INR 182.00                   
+==================================================

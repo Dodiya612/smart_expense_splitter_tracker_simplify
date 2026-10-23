@@ -1,0 +1,24 @@
+==================================================
+                 STARBUCKS COFFEE                 
+           Tata Starbucks Private Limited         
+               Indiranagar, Bangalore             
+               GSTIN: 29AABCT3912E1ZL             
+==================================================
+Date: 21/09/2026                 Time: 11:22:05   
+Invoice: SBUX-88219              Barista: Rohit   
+Customer: [REDACTED_CUSTOMER]                     
+--------------------------------------------------
+Item                          Qty   Rate    Amount
+--------------------------------------------------
+Grande Caramel Macchiato       1   385.00   385.00
+Blueberry Muffin               1   305.00   305.00
+--------------------------------------------------
+Subtotal:                                   690.00
+CGST (2.5%):                                 17.25
+SGST (2.5%):                                 17.25
+--------------------------------------------------
+TOTAL:                                    INR 724.50
+--------------------------------------------------
+Paid by: Debit Card (XXXX-XXXX-XXXX-8812)          
+Appr Code: 441029                                 
+==================================================
