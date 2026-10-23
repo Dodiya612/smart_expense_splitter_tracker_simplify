@@ -1,0 +1,187 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Coinscious API",
+    "description": "Coinscious Backend API \u2014 Smart Expense Splitter & Tracker.\n\nFeatures typed routes, repository/service architecture, consistent error responses, and automated OpenAPI client generation.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Service Health Check",
+        "description": "Returns service liveness status and environment indicator for deployment health checks.",
+        "operationId": "check_health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Service is live and operational.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorDetails": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Machine-readable error code (e.g. VALIDATION_ERROR, NOT_FOUND).",
+            "examples": [
+              "VALIDATION_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable explanation of the error.",
+            "examples": [
+              "Please check the submitted fields."
+            ]
+          },
+          "field_errors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Errors",
+            "description": "Map of field names to specific validation error messages.",
+            "examples": [
+              {
+                "amount_paise": "Must be greater than zero."
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetails",
+        "description": "Detailed error payload."
+      },
+      "ErrorMeta": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id",
+            "description": "Unique request tracing identifier.",
+            "examples": [
+              "req_4f9a2b8e"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "title": "ErrorMeta",
+        "description": "Metadata envelope for error tracing."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetails"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ErrorMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "meta"
+        ],
+        "title": "ErrorResponse",
+        "description": "Top-level standard error response envelope."
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Overall service health status.",
+            "default": "ok",
+            "examples": [
+              "ok"
+            ]
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment",
+            "description": "Current running environment (development, staging, production).",
+            "examples": [
+              "development"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Service semantic version string.",
+            "examples": [
+              "0.1.0"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 UTC timestamp of the health inspection.",
+            "examples": [
+              "2026-10-23T10:00:00.000000+00:00"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "environment",
+          "version",
+          "timestamp"
+        ],
+        "title": "HealthResponse",
+        "description": "Liveness health check response model."
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Server Environment"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local Development"
+    },
+    {
+      "url": "https://coinscious-backend.onrender.com",
+      "description": "Production (Render)"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@coinscious/api-client",
+  "version": "0.1.0",
+  "description": "Generated TypeScript API client for Coinscious FastAPI backend",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "generate": "npx openapi-typescript ../../backend/openapi.json -o src/schema.d.ts",
+    "verify": "node verify-health.mjs"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
+}

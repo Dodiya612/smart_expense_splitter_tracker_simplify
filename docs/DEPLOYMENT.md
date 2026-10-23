@@ -288,6 +288,19 @@ python -m ruff check backend
 python -m ruff format --check backend
 ```
 
+### 7.6 OpenAPI Export & TypeScript Client Generation
+
+```bash
+# 1. Export OpenAPI 3.1 specification from FastAPI
+python backend/scripts/export_openapi.py
+
+# 2. Generate TypeScript client definitions via openapi-typescript
+npx openapi-typescript backend/openapi.json -o packages/api-client/src/schema.d.ts
+
+# 3. Verify client health endpoint call against running backend
+node packages/api-client/verify-health.mjs
+```
+
 ---
 
 ## 8. Health Endpoint (`GET /api/v1/health`) Specification
