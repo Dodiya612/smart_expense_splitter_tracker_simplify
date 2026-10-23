@@ -1,22 +1,12 @@
 """Health check endpoint for liveness and deployment verification."""
 
-from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, status
 
-from fastapi import APIRouter, status
-from pydantic import BaseModel
-
-from app.core.config import settings
+from app.schemas.errors import ErrorResponse
+from app.schemas.health import HealthResponse
+from app.services.health import HealthService, get_health_service
 
 router = APIRouter()
-
-
-class HealthResponse(BaseModel):
-    """Minimal health status response without sensitive information."""
-
-    status: str
-    environment: str
-    version: str
-    timestamp: str
 
 
 @router.get(
@@ -28,12 +18,19 @@ class HealthResponse(BaseModel):
         "Returns service liveness status and environment indicator "
         "for deployment health checks."
     ),
+    responses={
+        200: {
+            "model": HealthResponse,
+            "description": "Service is live and operational.",
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Internal server error envelope.",
+        },
+    },
 )
-def get_health() -> HealthResponse:
-    """Return service health status."""
-    return HealthResponse(
-        status="ok",
-        environment=settings.ENVIRONMENT,
-        version=settings.VERSION,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
+def check_health(
+    service: HealthService = Depends(get_health_service),
+) -> HealthResponse:
+    """Return service health status via HealthService."""
+    return service.get_health()
