@@ -1,10 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import {
-  isValidEmail,
-  validateLogin,
-  validateSignup,
-} from '../src/features/auth/utils/validation.ts';
+import { readFile } from 'node:fs/promises';
+import typescript from 'typescript';
+
+const validationSourcePath = new URL('../src/features/auth/utils/validation.ts', import.meta.url);
+const validationSourceCode = await readFile(validationSourcePath, 'utf8');
+const validationCompiled = typescript.transpileModule(validationSourceCode, {
+  compilerOptions: {
+    module: typescript.ModuleKind.ESNext,
+    target: typescript.ScriptTarget.ES2022,
+  },
+  fileName: validationSourcePath.pathname,
+});
+const validationModule = await import(
+  `data:text/javascript;base64,${Buffer.from(validationCompiled.outputText).toString('base64')}`,
+);
+const { isValidEmail, validateLogin, validateSignup } = validationModule;
 
 test('isValidEmail', async (t) => {
   await t.test('accepts valid email addresses', () => {
