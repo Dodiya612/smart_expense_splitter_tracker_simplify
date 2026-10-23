@@ -168,7 +168,7 @@ jobs:
       - name: Validate canary detection
         run: |
           set +e
-          gitleaks detect --no-git --source tests/ --verbose
+          gitleaks detect --no-git --source tests/ --config .gitleaks-canary.toml --verbose
           EXIT_CODE=$?
           set -e
           if [ "$EXIT_CODE" -eq 1 ]; then
