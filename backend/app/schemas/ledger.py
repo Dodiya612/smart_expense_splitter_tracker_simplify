@@ -1,7 +1,7 @@
 """Schemas for the pure ledger engine, splits, settlements, and repayments."""
 
 from enum import Enum
-from typing import Any, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
