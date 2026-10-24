@@ -1,0 +1,25 @@
+==================================================
+                  MAINLAND CHINA                  
+           Speciality Restaurants Ltd             
+             South City Mall, Kolkata             
+              GSTIN: 19AABCS8812D1ZR              
+==================================================
+Date: 02/10/2026                 Time: 20:45:18   
+Table: T-08                      Bill: MC-41098   
+Guest: [REDACTED_CUSTOMER]                        
+--------------------------------------------------
+Item                          Qty   Rate    Amount
+--------------------------------------------------
+Chicken Sui Mai Dim Sum        1   425.00   425.00
+Veg Hakka Noodles              1   380.00   380.00
+Manchurian Gravy               1   475.00   475.00
+Jasmine Green Tea Pot          1   500.00   500.00
+--------------------------------------------------
+Sub Total:                                 1780.00
+CGST 2.5%:                                   44.50
+SGST 2.5%:                                   44.50
+--------------------------------------------------
+GRAND TOTAL:                             INR 1869.00
+--------------------------------------------------
+Settlement: Credit Card (XXXX-XXXX-XXXX-9014)     
+==================================================

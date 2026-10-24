@@ -1,0 +1,25 @@
+==================================================
+                      ZEPTO                       
+             KiranaKart Technologies              
+            Koramangala, Bengaluru (KA)           
+              GSTIN: 29AAGCK9912D1ZR              
+==================================================
+Date: 28/09/2026                 Time: 19:04:50   
+Order No: ZEP-441092                              
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 88XXX XXXXX                            
+--------------------------------------------------
+Particulars                   Qty   Rate    Amount
+--------------------------------------------------
+Robusta Banana 500g            1    45.00    45.00
+Tender Coconut                 2    60.00   120.00
+Parle-G Gold Biscuits 1kg      1    40.00    40.00
+Platform Fee                   1    13.00    13.00
+--------------------------------------------------
+Sub Total:                                  218.00
+Convenience Tax:                             10.00
+--------------------------------------------------
+FINAL AMOUNT:                             INR 228.00
+--------------------------------------------------
+Paid online via UPI ([REDACTED]@ibl)              
+==================================================

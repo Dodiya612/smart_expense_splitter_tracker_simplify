@@ -1,0 +1,22 @@
+==================================================
+               GUJARAT GAS LIMITED                
+               CNG Station - Gotri                
+                Vadodara, Gujarat                 
+              GSTIN: 24AABCG5512F1Z4              
+==================================================
+Date: 29/09/2026                 Time: 16:30:45   
+Slip No: GGL-77102               Dispenser: D-01  
+Product: CNG                                      
+Vehicle No: GJ-06-XX-XXXX                         
+Filling Pressure: 200 bar                         
+--------------------------------------------------
+Mass Delivered:                            8.33 Kg
+Rate / Kg:                               78.03 INR
+--------------------------------------------------
+Basic Value:                                620.00
+VAT (Gujarat 5%):                            30.00
+--------------------------------------------------
+TOTAL INVOICE VALUE:                      INR 650.00
+--------------------------------------------------
+Mode: UPI ([REDACTED]@paytm)                      
+==================================================

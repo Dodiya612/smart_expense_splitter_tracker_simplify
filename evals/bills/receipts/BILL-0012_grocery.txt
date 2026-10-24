@@ -1,0 +1,26 @@
+==================================================
+                     BLINKIT                      
+            Blink Commerce Private Limited        
+             Udyog Vihar, Gurugram (HR)           
+              GSTIN: 06AABCB8819M1ZB              
+==================================================
+Date: 26/09/2026                 Time: 08:35:10   
+Order ID: BLK-7712093                             
+Delivered to: [REDACTED_CUSTOMER]                 
+Location: [REDACTED_FLAT_SOCIETY]                 
+Phone: +91 98XXX XXXXX                            
+--------------------------------------------------
+Item                          Qty   Price   Amount
+--------------------------------------------------
+Amul Gold Milk 500ml           2    33.00    66.00
+The Laughing Cow Cheese 200g   1   145.00   145.00
+Harvest Gold White Bread       1    50.00    50.00
+Handling & Delivery Fee        1    37.00    37.00
+--------------------------------------------------
+Subtotal:                                   298.00
+GST on Services:                             14.00
+--------------------------------------------------
+TOTAL PAID:                               INR 312.00
+--------------------------------------------------
+Payment Mode: UPI ([REDACTED]@paytm)              
+==================================================

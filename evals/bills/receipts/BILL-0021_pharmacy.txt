@@ -1,0 +1,23 @@
+==================================================
+                 GUARDIAN PHARMACY                
+           Guardian Healthcare Services           
+            Saket District Centre, Delhi          
+               GSTIN: 07AAACG2210P1ZQ             
+==================================================
+Date: 02/10/2026                 Time: 16:20:15   
+Receipt: GP-2026-119             Staff: Rakesh    
+Customer: [REDACTED_CUSTOMER]                     
+--------------------------------------------------
+Product Description           Qty   Rate    Amount
+--------------------------------------------------
+ON Gold Whey 1lb               1  1150.00  1150.00
+Electral Powder Pack of 5      2    90.00   180.00
+Dettol Sanitizer 50ml          1    50.00    50.00
+--------------------------------------------------
+Sub Total:                                 1380.00
+GST 12%:                                    165.60
+--------------------------------------------------
+BILL VALUE:                              INR 1545.60
+--------------------------------------------------
+Settlement: Credit Card (XXXX-XXXX-XXXX-5529)     
+==================================================

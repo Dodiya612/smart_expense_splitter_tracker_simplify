@@ -1,0 +1,22 @@
+==================================================
+             RELIANCE JIO INFOCOMM LTD            
+                 JioFiber Broadband               
+               GSTIN: 27AAACR1214Q1Z8             
+==================================================
+Invoice No: JIO-FIB-890124       Date: 20/09/2026 
+Account No: 022XXXX9912          Plan: 150 Mbps   
+Subscriber: [REDACTED_SUBSCRIBER]                 
+--------------------------------------------------
+Plan Description              Qty   Rate    Amount
+--------------------------------------------------
+JioFiber Unlimited 150 Mbps    1   999.00   999.00
+Includes 14 OTT Apps                              
+--------------------------------------------------
+Taxable Service Value:                      999.00
+CGST @ 9%:                                   89.91
+SGST @ 9%:                                   89.91
+--------------------------------------------------
+TOTAL INVOICE VALUE:                     INR 1178.82
+--------------------------------------------------
+Payment Mode: Credit Card (XXXX-XXXX-XXXX-8821)   
+==================================================

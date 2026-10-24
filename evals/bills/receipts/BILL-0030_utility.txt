@@ -1,0 +1,24 @@
+==================================================
+              TORRENT POWER LIMITED               
+               Torrent House, Ashram Road         
+                   Ahmedabad, Gujarat             
+                 GSTIN: 24AABCT0014K1ZV           
+==================================================
+Date: 15/09/2026                 Service: 200XXXX441
+Consumer: [REDACTED_CONSUMER]                     
+Address: [REDACTED_AHMEDABAD_ADDRESS]             
+Cycle: Bimonthly                 Units: 190 kWh   
+--------------------------------------------------
+Description                                 Amount
+--------------------------------------------------
+Energy Charge (190 kWh)                    1520.00
+Standing Fixed Charge                       120.00
+FPPPA Charges                               180.00
+--------------------------------------------------
+Subtotal:                                  1820.00
+Electricity Duty (Govt 10%):                182.00
+--------------------------------------------------
+CURRENT BILL PAYABLE:                    INR 2002.00
+--------------------------------------------------
+Paid via UPI: [REDACTED]@okhdfcbank               
+==================================================

@@ -1,0 +1,24 @@
+==================================================
+                FRANK ROSS PHARMACY               
+             Emami Frank Ross Limited             
+             Park Street, Kolkata (WB)            
+              GSTIN: 19AABCF9912K1Z6              
+==================================================
+Date: 30/09/2026                 Time: 11:40:22   
+Memo No: FR-88402                Prescriber: Dr.[REDACTED]
+Patient: [REDACTED_CUSTOMER]                      
+Phone: +91 91XXX XXXXX                            
+--------------------------------------------------
+Medicines                     Qty   Price   Amount
+--------------------------------------------------
+Glycomet-GP 1 Tab (15s)        2   125.00   250.00
+Telma 40mg Tab (15s)           1   140.00   140.00
+Atorva 10mg Strip              1   130.00   130.00
+--------------------------------------------------
+Taxable Amount:                             520.00
+GST (12%):                                   62.40
+--------------------------------------------------
+TOTAL CASH DUE:                           INR 582.40
+--------------------------------------------------
+Amount Paid: INR 600.00      Balance: INR 17.60   
+==================================================

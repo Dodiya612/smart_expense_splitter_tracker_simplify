@@ -1,0 +1,22 @@
+==================================================
+               MYNTRA DESIGNS PVT LTD             
+                    TAX INVOICE                   
+               GSTIN: 29AABCM8812R1Z3             
+==================================================
+Date: 24/09/2026                 Order: MYN-991204
+Recipient: [REDACTED_BUYER]                       
+Address: [REDACTED_PUNE_ADDRESS]                  
+--------------------------------------------------
+Description                   Qty   Price   Amount
+--------------------------------------------------
+Roadster Slim Fit Denim        1  1299.00  1299.00
+Highlander Casual Shirt        1   851.00   851.00
+--------------------------------------------------
+Total Taxable Value:                       2150.00
+CGST 2.5%:                                   53.75
+SGST 2.5%:                                   53.75
+--------------------------------------------------
+TOTAL INVOICE VALUE:                     INR 2257.50
+--------------------------------------------------
+Paid By: Credit Card (XXXX-XXXX-XXXX-4410)        
+==================================================
