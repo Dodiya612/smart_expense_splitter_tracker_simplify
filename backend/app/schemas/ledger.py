@@ -156,6 +156,8 @@ class SuggestedTransfer(BaseModel):
     def creditor_id(self) -> str:
         return self.to_user
 
-    def __iter__(self) -> Iterator[Union[str, int]]:
+    def __iter__(self):
         """Support tuple unpacking: debtor, creditor, amount = transfer."""
-        return iter((self.from_user, self.to_user, self.amount_paise))
+        yield self.from_user
+        yield self.to_user
+        yield self.amount_paise
