@@ -1,4 +1,3 @@
-
 """Create initial users, sessions, and default categories."""
 
 from typing import Sequence, Union

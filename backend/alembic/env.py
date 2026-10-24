@@ -1,4 +1,3 @@
-
 """Alembic migration environment for Coinscious."""
 
 from logging.config import fileConfig
