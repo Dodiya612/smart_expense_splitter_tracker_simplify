@@ -4,8 +4,9 @@
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # Revision identifiers, used by Alembic.
 revision: str = "82424c3fb118"

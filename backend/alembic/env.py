@@ -3,10 +3,10 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import make_url
 
+from alembic import context
 from app.core.config import settings
 
 config = context.config
