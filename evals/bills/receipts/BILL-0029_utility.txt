@@ -1,0 +1,24 @@
+==================================================
+             ADANI ELECTRICITY MUMBAI             
+             Adani Electricity Mumbai Ltd         
+                GSTIN: 27AABCA8814R1Z0            
+==================================================
+Bill Month: Sep-2026             Bill Date: 12/09/2026
+Due Date: 26/09/2026             CA No: 100XXXX892
+Consumer Name: [REDACTED_CONSUMER]                
+Address: [REDACTED_MUMBAI_ADDRESS]                
+Meter No: MTR-994102             Units: 245 kWh   
+--------------------------------------------------
+Charge Description                          Amount
+--------------------------------------------------
+Energy Charges (245 units @ 7.80)          1911.00
+Fixed Monthly Demand Charges                150.00
+Fuel Adjustment Charges (FAC)               279.00
+--------------------------------------------------
+Net Energy Charges:                        2340.00
+Electricity Duty & Tax (9%):                210.60
+--------------------------------------------------
+TOTAL BILL AMOUNT:                       INR 2550.60
+--------------------------------------------------
+Payment Status: PAID via NetBanking               
+==================================================

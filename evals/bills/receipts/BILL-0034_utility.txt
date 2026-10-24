@@ -1,0 +1,21 @@
+==================================================
+         MUNICIPAL WATER SUPPLY & SEWERAGE        
+             Water Works Department               
+==================================================
+Bill Date: 28/09/2026            Cycle: Aug-Sep 26
+Connection ID: WTR-XXXX-891      Ward: [REDACTED] 
+Occupant Name: [REDACTED_OCCUPANT]                
+Meter Status: Normal             Reading: 20 KL   
+--------------------------------------------------
+Particulars                                 Amount
+--------------------------------------------------
+Water Consumption (20 KL @ 12.50)           250.00
+Sewerage & Sanitation Tax                   100.00
+--------------------------------------------------
+Subtotal:                                   350.00
+Municipal Tax Exempt:                         0.00
+--------------------------------------------------
+TOTAL PAYABLE:                            INR 350.00
+--------------------------------------------------
+Paid via Citizen Portal UPI: [REDACTED]@sbi       
+==================================================

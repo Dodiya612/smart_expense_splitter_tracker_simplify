@@ -1,0 +1,21 @@
+==================================================
+               BHARTI AIRTEL LIMITED              
+                 Airtel Postpaid                  
+               GSTIN: 07AAACB2894G1Z2             
+==================================================
+Bill Date: 22/09/2026            Due Date: 08/10/2026
+Relationship No: 109XXXX821      Mobile: +91 98XXX XXXXX
+Customer: [REDACTED_CUSTOMER]                     
+--------------------------------------------------
+Charges Summary                             Amount
+--------------------------------------------------
+Infinity 75GB Plan Rental                   499.00
+Unlimited Calling + 100 SMS/day                   
+--------------------------------------------------
+Total Taxable Amount:                       499.00
+GST @ 18%:                                   89.82
+--------------------------------------------------
+AMOUNT PAYABLE:                           INR 588.82
+--------------------------------------------------
+Paid via: UPI Auto-Pay ([REDACTED]@okicici)       
+==================================================

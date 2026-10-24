@@ -1,0 +1,27 @@
+==================================================
+                  DOMINO'S PIZZA                  
+           Jubilant FoodWorks Ltd - Store 4812    
+                 Connaught Place, New Delhi       
+                 GSTIN: 07AAACJ2214R1Z0           
+==================================================
+Date: 18/09/2026                 Time: 20:15:33   
+Order No: DOM-66412              Order Type: Dine 
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 99XXX XXXXX                            
+--------------------------------------------------
+Item Description              Qty   Price   Amount
+--------------------------------------------------
+Medium Farmhouse Pizza         1   459.00   459.00
+Garlic Breadsticks             1   119.00   119.00
+Cheesy Dip                     2    30.00    60.00
+Pepsi 500ml                    2    80.00   160.00
+--------------------------------------------------
+Sub Total:                                  798.00
+CGST 2.5%:                                   19.95
+SGST 2.5%:                                   19.95
+--------------------------------------------------
+NET AMOUNT:                               INR 837.90
+--------------------------------------------------
+Paid via: Credit Card (Card: XXXX-XXXX-XXXX-4521) 
+Txn ID: TXN994821039 Auth: 781204                 
+==================================================

@@ -1,0 +1,22 @@
+==================================================
+           HINDUSTAN PETROLEUM (HPCL)             
+             Auto Service Centre - NH48           
+                Mahipalpur, New Delhi             
+               GSTIN: 07AAACH1118D1ZM             
+==================================================
+Date: 21/09/2026                 Time: 21:05:40   
+Slip No: 991204                  DU No: 02        
+Product: Power Diesel                             
+Vehicle: DL-1C-XX-XXXX                            
+--------------------------------------------------
+Volume:                                  33.15 Ltr
+Unit Price:                            90.50 INR/L
+--------------------------------------------------
+Base Amount:                               2850.00
+Duties & Taxes:                             150.00
+--------------------------------------------------
+TOTAL SALE:                              INR 3000.00
+--------------------------------------------------
+Card Payment: XXXX-XXXX-XXXX-9902                 
+Batch No: 001924  Appr: HP8812                    
+==================================================

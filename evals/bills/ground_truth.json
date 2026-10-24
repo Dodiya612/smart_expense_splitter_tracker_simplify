@@ -1,0 +1,1411 @@
+[
+  {
+    "bill_id": "BILL-0001",
+    "category": "Restaurant",
+    "merchant_name": "Haldiram's Express",
+    "date": "2026-09-15",
+    "currency": "INR",
+    "subtotal": 520.0,
+    "tax": 26.0,
+    "total_amount": 546.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Special Chole Bhature",
+        "quantity": 2,
+        "unit_price": 160.0,
+        "total_price": 320.0
+      },
+      {
+        "item_name": "Masala Dosa",
+        "quantity": 1,
+        "unit_price": 120.0,
+        "total_price": 120.0
+      },
+      {
+        "item_name": "Sweet Lassi",
+        "quantity": 1,
+        "unit_price": 80.0,
+        "total_price": 80.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 98XXX XXXXX",
+      "upi_id": "[REDACTED]@okhdfcbank",
+      "table_number": "T-14"
+    }
+  },
+  {
+    "bill_id": "BILL-0002",
+    "category": "Restaurant",
+    "merchant_name": "Domino's Pizza",
+    "date": "2026-09-18",
+    "currency": "INR",
+    "subtotal": 798.0,
+    "tax": 39.9,
+    "total_amount": 837.9,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Medium Farmhouse Pizza",
+        "quantity": 1,
+        "unit_price": 459.0,
+        "total_price": 459.0
+      },
+      {
+        "item_name": "Garlic Breadsticks",
+        "quantity": 1,
+        "unit_price": 119.0,
+        "total_price": 119.0
+      },
+      {
+        "item_name": "Cheesy Dip",
+        "quantity": 2,
+        "unit_price": 30.0,
+        "total_price": 60.0
+      },
+      {
+        "item_name": "Pepsi 500ml",
+        "quantity": 2,
+        "unit_price": 80.0,
+        "total_price": 160.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 99XXX XXXXX",
+      "card_number": "XXXX-XXXX-XXXX-4521"
+    }
+  },
+  {
+    "bill_id": "BILL-0003",
+    "category": "Restaurant",
+    "merchant_name": "Starbucks Coffee",
+    "date": "2026-09-21",
+    "currency": "INR",
+    "subtotal": 690.0,
+    "tax": 34.5,
+    "total_amount": 724.5,
+    "payment_mode": "Debit Card",
+    "items": [
+      {
+        "item_name": "Grande Caramel Macchiato",
+        "quantity": 1,
+        "unit_price": 385.0,
+        "total_price": 385.0
+      },
+      {
+        "item_name": "Blueberry Muffin",
+        "quantity": 1,
+        "unit_price": 305.0,
+        "total_price": 305.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "card_number": "XXXX-XXXX-XXXX-8812"
+    }
+  },
+  {
+    "bill_id": "BILL-0004",
+    "category": "Restaurant",
+    "merchant_name": "Sagar Gaire Fast Food",
+    "date": "2026-09-24",
+    "currency": "INR",
+    "subtotal": 310.0,
+    "tax": 15.5,
+    "total_amount": 325.5,
+    "payment_mode": "Cash",
+    "items": [
+      {
+        "item_name": "Paneer Cheese Burger",
+        "quantity": 1,
+        "unit_price": 110.0,
+        "total_price": 110.0
+      },
+      {
+        "item_name": "Cold Coffee with Ice Cream",
+        "quantity": 1,
+        "unit_price": 100.0,
+        "total_price": 100.0
+      },
+      {
+        "item_name": "French Fries Peri Peri",
+        "quantity": 1,
+        "unit_price": 100.0,
+        "total_price": 100.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 97XXX XXXXX"
+    }
+  },
+  {
+    "bill_id": "BILL-0005",
+    "category": "Restaurant",
+    "merchant_name": "Barbeque Nation",
+    "date": "2026-09-27",
+    "currency": "INR",
+    "subtotal": 2198.0,
+    "tax": 109.9,
+    "total_amount": 2307.9,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Non-Veg Dinner Buffet",
+        "quantity": 2,
+        "unit_price": 1049.0,
+        "total_price": 2098.0
+      },
+      {
+        "item_name": "Fresh Lime Soda",
+        "quantity": 1,
+        "unit_price": 100.0,
+        "total_price": 100.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 94XXX XXXXX",
+      "upi_id": "[REDACTED]@icici"
+    }
+  },
+  {
+    "bill_id": "BILL-0006",
+    "category": "Restaurant",
+    "merchant_name": "Chai Point",
+    "date": "2026-09-29",
+    "currency": "INR",
+    "subtotal": 255.0,
+    "tax": 12.75,
+    "total_amount": 267.75,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Ginger Chai Flask 500ml",
+        "quantity": 1,
+        "unit_price": 155.0,
+        "total_price": 155.0
+      },
+      {
+        "item_name": "Bun Maska",
+        "quantity": 1,
+        "unit_price": 60.0,
+        "total_price": 60.0
+      },
+      {
+        "item_name": "Punjabi Samosa (2 pcs)",
+        "quantity": 1,
+        "unit_price": 40.0,
+        "total_price": 40.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 91XXX XXXXX",
+      "upi_id": "[REDACTED]@paytm"
+    }
+  },
+  {
+    "bill_id": "BILL-0007",
+    "category": "Restaurant",
+    "merchant_name": "Mainland China",
+    "date": "2026-10-02",
+    "currency": "INR",
+    "subtotal": 1780.0,
+    "tax": 89.0,
+    "total_amount": 1869.0,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Chicken Sui Mai Dim Sum",
+        "quantity": 1,
+        "unit_price": 425.0,
+        "total_price": 425.0
+      },
+      {
+        "item_name": "Veg Hakka Noodles",
+        "quantity": 1,
+        "unit_price": 380.0,
+        "total_price": 380.0
+      },
+      {
+        "item_name": "Manchurian Gravy",
+        "quantity": 1,
+        "unit_price": 475.0,
+        "total_price": 475.0
+      },
+      {
+        "item_name": "Jasmine Green Tea Pot",
+        "quantity": 1,
+        "unit_price": 500.0,
+        "total_price": 500.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "card_number": "XXXX-XXXX-XXXX-9014"
+    }
+  },
+  {
+    "bill_id": "BILL-0008",
+    "category": "Grocery",
+    "merchant_name": "D-Mart Supermarket",
+    "date": "2026-09-14",
+    "currency": "INR",
+    "subtotal": 1285.0,
+    "tax": 64.25,
+    "total_amount": 1349.25,
+    "payment_mode": "Debit Card",
+    "items": [
+      {
+        "item_name": "Aashirvaad Shudh Chakki Atta 5kg",
+        "quantity": 1,
+        "unit_price": 245.0,
+        "total_price": 245.0
+      },
+      {
+        "item_name": "Fortune Sunlite Sunflower Oil 1L",
+        "quantity": 2,
+        "unit_price": 140.0,
+        "total_price": 280.0
+      },
+      {
+        "item_name": "India Gate Basmati Rice Feast 1kg",
+        "quantity": 2,
+        "unit_price": 120.0,
+        "total_price": 240.0
+      },
+      {
+        "item_name": "Tata Sampann Toor Dal 1kg",
+        "quantity": 2,
+        "unit_price": 180.0,
+        "total_price": 360.0
+      },
+      {
+        "item_name": "Madhur Pure & Hygienic Sugar 1kg",
+        "quantity": 2,
+        "unit_price": 80.0,
+        "total_price": 160.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 96XXX XXXXX",
+      "card_number": "XXXX-XXXX-XXXX-3129"
+    }
+  },
+  {
+    "bill_id": "BILL-0009",
+    "category": "Grocery",
+    "merchant_name": "Reliance Smart Bazaar",
+    "date": "2026-09-17",
+    "currency": "INR",
+    "subtotal": 574.0,
+    "tax": 28.7,
+    "total_amount": 602.7,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Amul Taaza Milk 500ml",
+        "quantity": 2,
+        "unit_price": 27.0,
+        "total_price": 54.0
+      },
+      {
+        "item_name": "Britannia 100% Whole Wheat Bread",
+        "quantity": 1,
+        "unit_price": 50.0,
+        "total_price": 50.0
+      },
+      {
+        "item_name": "Amul Butter Pasteurised 500g",
+        "quantity": 1,
+        "unit_price": 275.0,
+        "total_price": 275.0
+      },
+      {
+        "item_name": "Vim Dishwash Gel 500ml",
+        "quantity": 1,
+        "unit_price": 115.0,
+        "total_price": 115.0
+      },
+      {
+        "item_name": "Surf Excel Matic Front Load 1kg",
+        "quantity": 1,
+        "unit_price": 80.0,
+        "total_price": 80.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 93XXX XXXXX",
+      "upi_id": "[REDACTED]@okaxis"
+    }
+  },
+  {
+    "bill_id": "BILL-0010",
+    "category": "Grocery",
+    "merchant_name": "Nature's Basket",
+    "date": "2026-09-20",
+    "currency": "INR",
+    "subtotal": 1540.0,
+    "tax": 77.0,
+    "total_amount": 1617.0,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Borges Extra Virgin Olive Oil 500ml",
+        "quantity": 1,
+        "unit_price": 790.0,
+        "total_price": 790.0
+      },
+      {
+        "item_name": "Artisanal Sourdough Loaf",
+        "quantity": 1,
+        "unit_price": 220.0,
+        "total_price": 220.0
+      },
+      {
+        "item_name": "Pintola Organic Peanut Butter 1kg",
+        "quantity": 1,
+        "unit_price": 420.0,
+        "total_price": 420.0
+      },
+      {
+        "item_name": "Lindt Excellence 85% Dark Chocolate",
+        "quantity": 1,
+        "unit_price": 110.0,
+        "total_price": 110.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "card_number": "XXXX-XXXX-XXXX-1994"
+    }
+  },
+  {
+    "bill_id": "BILL-0011",
+    "category": "Grocery",
+    "merchant_name": "BigBasket",
+    "date": "2026-09-23",
+    "currency": "INR",
+    "subtotal": 425.0,
+    "tax": 0.0,
+    "total_amount": 425.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Farm Fresh Onion 2kg",
+        "quantity": 1,
+        "unit_price": 90.0,
+        "total_price": 90.0
+      },
+      {
+        "item_name": "Potato Fresh Crop 2kg",
+        "quantity": 1,
+        "unit_price": 80.0,
+        "total_price": 80.0
+      },
+      {
+        "item_name": "Hybrid Tomato 1kg",
+        "quantity": 1,
+        "unit_price": 60.0,
+        "total_price": 60.0
+      },
+      {
+        "item_name": "Fresh Coriander Leaves 250g",
+        "quantity": 1,
+        "unit_price": 35.0,
+        "total_price": 35.0
+      },
+      {
+        "item_name": "Fresh Cauliflower 1 pc",
+        "quantity": 1,
+        "unit_price": 50.0,
+        "total_price": 50.0
+      },
+      {
+        "item_name": "Ginger Fresh 250g",
+        "quantity": 1,
+        "unit_price": 50.0,
+        "total_price": 50.0
+      },
+      {
+        "item_name": "Green Chillies 200g",
+        "quantity": 1,
+        "unit_price": 60.0,
+        "total_price": 60.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "delivery_address": "[REDACTED_DELIVERY_ADDRESS]",
+      "phone_number": "+91 90XXX XXXXX",
+      "upi_id": "[REDACTED]@ybl"
+    }
+  },
+  {
+    "bill_id": "BILL-0012",
+    "category": "Grocery",
+    "merchant_name": "Blinkit",
+    "date": "2026-09-26",
+    "currency": "INR",
+    "subtotal": 298.0,
+    "tax": 14.0,
+    "total_amount": 312.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Amul Gold Milk 500ml",
+        "quantity": 2,
+        "unit_price": 33.0,
+        "total_price": 66.0
+      },
+      {
+        "item_name": "The Laughing Cow Cheese Slices 200g",
+        "quantity": 1,
+        "unit_price": 145.0,
+        "total_price": 145.0
+      },
+      {
+        "item_name": "Harvest Gold White Bread",
+        "quantity": 1,
+        "unit_price": 50.0,
+        "total_price": 50.0
+      },
+      {
+        "item_name": "Handling & Delivery Fee",
+        "quantity": 1,
+        "unit_price": 37.0,
+        "total_price": 37.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "delivery_address": "[REDACTED_FLAT_SOCIETY]",
+      "phone_number": "+91 98XXX XXXXX",
+      "upi_id": "[REDACTED]@paytm"
+    }
+  },
+  {
+    "bill_id": "BILL-0013",
+    "category": "Grocery",
+    "merchant_name": "Zepto",
+    "date": "2026-09-28",
+    "currency": "INR",
+    "subtotal": 218.0,
+    "tax": 10.0,
+    "total_amount": 228.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Robusta Banana 500g",
+        "quantity": 1,
+        "unit_price": 45.0,
+        "total_price": 45.0
+      },
+      {
+        "item_name": "Tender Coconut 1 pc",
+        "quantity": 2,
+        "unit_price": 60.0,
+        "total_price": 120.0
+      },
+      {
+        "item_name": "Parle-G Gold Biscuits 1kg",
+        "quantity": 1,
+        "unit_price": 40.0,
+        "total_price": 40.0
+      },
+      {
+        "item_name": "Platform Fee",
+        "quantity": 1,
+        "unit_price": 13.0,
+        "total_price": 13.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 88XXX XXXXX",
+      "upi_id": "[REDACTED]@ibl"
+    }
+  },
+  {
+    "bill_id": "BILL-0014",
+    "category": "Grocery",
+    "merchant_name": "Shrinathji Provision Store",
+    "date": "2026-10-01",
+    "currency": "INR",
+    "subtotal": 480.0,
+    "tax": 0.0,
+    "total_amount": 480.0,
+    "payment_mode": "Cash",
+    "items": [
+      {
+        "item_name": "Wagh Bakri CTC Tea 500g",
+        "quantity": 1,
+        "unit_price": 260.0,
+        "total_price": 260.0
+      },
+      {
+        "item_name": "Thick Poha 1kg",
+        "quantity": 1,
+        "unit_price": 60.0,
+        "total_price": 60.0
+      },
+      {
+        "item_name": "Besan (Gram Flour) 1kg",
+        "quantity": 1,
+        "unit_price": 90.0,
+        "total_price": 90.0
+      },
+      {
+        "item_name": "Tata Salt Iodized 1kg",
+        "quantity": 1,
+        "unit_price": 28.0,
+        "total_price": 28.0
+      },
+      {
+        "item_name": "Everest Turmeric Powder 200g",
+        "quantity": 1,
+        "unit_price": 42.0,
+        "total_price": 42.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 94XXX XXXXX"
+    }
+  },
+  {
+    "bill_id": "BILL-0015",
+    "category": "Pharmacy",
+    "merchant_name": "Apollo Pharmacy",
+    "date": "2026-09-16",
+    "currency": "INR",
+    "subtotal": 450.0,
+    "tax": 54.0,
+    "total_amount": 504.0,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Dolo 650mg Tablets (15s)",
+        "quantity": 2,
+        "unit_price": 34.0,
+        "total_price": 68.0
+      },
+      {
+        "item_name": "Azithral 500mg (5 tabs)",
+        "quantity": 1,
+        "unit_price": 132.0,
+        "total_price": 132.0
+      },
+      {
+        "item_name": "Pan 40mg Strip of 15",
+        "quantity": 1,
+        "unit_price": 170.0,
+        "total_price": 170.0
+      },
+      {
+        "item_name": "Strepsils Lozenges (Pack of 8)",
+        "quantity": 2,
+        "unit_price": 40.0,
+        "total_price": 80.0
+      }
+    ],
+    "redacted_fields": {
+      "patient_name": "[REDACTED_PATIENT]",
+      "doctor_name": "Dr. [REDACTED]",
+      "phone_number": "+91 98XXX XXXXX",
+      "card_number": "XXXX-XXXX-XXXX-7112"
+    }
+  },
+  {
+    "bill_id": "BILL-0016",
+    "category": "Pharmacy",
+    "merchant_name": "MedPlus Health Services",
+    "date": "2026-09-19",
+    "currency": "INR",
+    "subtotal": 310.0,
+    "tax": 37.2,
+    "total_amount": 347.2,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Cetirizine 10mg Strip",
+        "quantity": 2,
+        "unit_price": 25.0,
+        "total_price": 50.0
+      },
+      {
+        "item_name": "Vicks VapoRub 50g",
+        "quantity": 1,
+        "unit_price": 145.0,
+        "total_price": 145.0
+      },
+      {
+        "item_name": "Hansaplast Bandages (Pack of 10)",
+        "quantity": 1,
+        "unit_price": 45.0,
+        "total_price": 45.0
+      },
+      {
+        "item_name": "Dettol Antiseptic Liquid 125ml",
+        "quantity": 1,
+        "unit_price": 70.0,
+        "total_price": 70.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "phone_number": "+91 92XXX XXXXX",
+      "upi_id": "[REDACTED]@okaxis"
+    }
+  },
+  {
+    "bill_id": "BILL-0017",
+    "category": "Pharmacy",
+    "merchant_name": "Netmeds Marketplace",
+    "date": "2026-09-22",
+    "currency": "INR",
+    "subtotal": 1150.0,
+    "tax": 138.0,
+    "total_amount": 1288.0,
+    "payment_mode": "NetBanking",
+    "items": [
+      {
+        "item_name": "Becadexamin Multivitamin (30 caps)",
+        "quantity": 2,
+        "unit_price": 60.0,
+        "total_price": 120.0
+      },
+      {
+        "item_name": "Calcitas D3 60K IU Granules (4 sachets)",
+        "quantity": 2,
+        "unit_price": 190.0,
+        "total_price": 380.0
+      },
+      {
+        "item_name": "TrueBasics Omega 3 Fish Oil 60 caps",
+        "quantity": 1,
+        "unit_price": 650.0,
+        "total_price": 650.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "shipping_address": "[REDACTED_SHIPPING_ADDRESS]",
+      "phone_number": "+91 97XXX XXXXX"
+    }
+  },
+  {
+    "bill_id": "BILL-0018",
+    "category": "Pharmacy",
+    "merchant_name": "Wellness Forever",
+    "date": "2026-09-25",
+    "currency": "INR",
+    "subtotal": 670.0,
+    "tax": 80.4,
+    "total_amount": 750.4,
+    "payment_mode": "Debit Card",
+    "items": [
+      {
+        "item_name": "Digital Oral Thermometer Dr. Morepen",
+        "quantity": 1,
+        "unit_price": 280.0,
+        "total_price": 280.0
+      },
+      {
+        "item_name": "Himalaya Gentle Baby Wipes 72s",
+        "quantity": 2,
+        "unit_price": 140.0,
+        "total_price": 280.0
+      },
+      {
+        "item_name": "Digene Antacid Mint Gel 200ml",
+        "quantity": 1,
+        "unit_price": 110.0,
+        "total_price": 110.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "card_number": "XXXX-XXXX-XXXX-6031"
+    }
+  },
+  {
+    "bill_id": "BILL-0019",
+    "category": "Pharmacy",
+    "merchant_name": "Tata 1mg Diagnostics",
+    "date": "2026-09-28",
+    "currency": "INR",
+    "subtotal": 850.0,
+    "tax": 0.0,
+    "total_amount": 850.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Thyroid Profile Total (T3, T4, TSH)",
+        "quantity": 1,
+        "unit_price": 450.0,
+        "total_price": 450.0
+      },
+      {
+        "item_name": "Complete Blood Count (CBC) with ESR",
+        "quantity": 1,
+        "unit_price": 300.0,
+        "total_price": 300.0
+      },
+      {
+        "item_name": "Home Sample Collection Fee",
+        "quantity": 1,
+        "unit_price": 100.0,
+        "total_price": 100.0
+      }
+    ],
+    "redacted_fields": {
+      "patient_name": "[REDACTED_PATIENT]",
+      "sample_address": "[REDACTED_RESIDENCE_ADDRESS]",
+      "phone_number": "+91 99XXX XXXXX",
+      "upi_id": "[REDACTED]@googlepay"
+    }
+  },
+  {
+    "bill_id": "BILL-0020",
+    "category": "Pharmacy",
+    "merchant_name": "Frank Ross Pharmacy",
+    "date": "2026-09-30",
+    "currency": "INR",
+    "subtotal": 520.0,
+    "tax": 62.4,
+    "total_amount": 582.4,
+    "payment_mode": "Cash",
+    "items": [
+      {
+        "item_name": "Glycomet-GP 1 Tablet (15s)",
+        "quantity": 2,
+        "unit_price": 125.0,
+        "total_price": 250.0
+      },
+      {
+        "item_name": "Telma 40mg Tablet (15s)",
+        "quantity": 1,
+        "unit_price": 140.0,
+        "total_price": 140.0
+      },
+      {
+        "item_name": "Atorva 10mg Strip of 15",
+        "quantity": 1,
+        "unit_price": 130.0,
+        "total_price": 130.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "doctor_name": "Dr. [REDACTED]",
+      "phone_number": "+91 91XXX XXXXX"
+    }
+  },
+  {
+    "bill_id": "BILL-0021",
+    "category": "Pharmacy",
+    "merchant_name": "Guardian Pharmacy",
+    "date": "2026-10-02",
+    "currency": "INR",
+    "subtotal": 1380.0,
+    "tax": 165.6,
+    "total_amount": 1545.6,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Optimum Nutrition Gold Whey 1lb",
+        "quantity": 1,
+        "unit_price": 1150.0,
+        "total_price": 1150.0
+      },
+      {
+        "item_name": "Electral Powder 21.8g (Box of 5)",
+        "quantity": 2,
+        "unit_price": 90.0,
+        "total_price": 180.0
+      },
+      {
+        "item_name": "Dettol Instant Hand Sanitizer 50ml",
+        "quantity": 1,
+        "unit_price": 50.0,
+        "total_price": 50.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "card_number": "XXXX-XXXX-XXXX-5529"
+    }
+  },
+  {
+    "bill_id": "BILL-0022",
+    "category": "Fuel",
+    "merchant_name": "Indian Oil Corporation",
+    "date": "2026-09-15",
+    "currency": "INR",
+    "subtotal": 1900.0,
+    "tax": 100.0,
+    "total_amount": 2000.0,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "XP95 Petrol",
+        "quantity": 19.34,
+        "unit_price": 103.41,
+        "total_price": 2000.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "GJ-01-XX-XXXX",
+      "card_number": "XXXX-XXXX-XXXX-3341",
+      "fcc_id": "[REDACTED_FCC]"
+    }
+  },
+  {
+    "bill_id": "BILL-0023",
+    "category": "Fuel",
+    "merchant_name": "Bharat Petroleum (BPCL)",
+    "date": "2026-09-18",
+    "currency": "INR",
+    "subtotal": 1425.0,
+    "tax": 75.0,
+    "total_amount": 1500.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Speed High Performance Petrol",
+        "quantity": 14.23,
+        "unit_price": 105.41,
+        "total_price": 1500.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "MH-02-XX-XXXX",
+      "upi_id": "[REDACTED]@okicici"
+    }
+  },
+  {
+    "bill_id": "BILL-0024",
+    "category": "Fuel",
+    "merchant_name": "Hindustan Petroleum (HPCL)",
+    "date": "2026-09-21",
+    "currency": "INR",
+    "subtotal": 2850.0,
+    "tax": 150.0,
+    "total_amount": 3000.0,
+    "payment_mode": "Debit Card",
+    "items": [
+      {
+        "item_name": "Power Diesel",
+        "quantity": 33.15,
+        "unit_price": 90.5,
+        "total_price": 3000.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "DL-1C-XX-XXXX",
+      "card_number": "XXXX-XXXX-XXXX-9902"
+    }
+  },
+  {
+    "bill_id": "BILL-0025",
+    "category": "Fuel",
+    "merchant_name": "Shell India Markets",
+    "date": "2026-09-24",
+    "currency": "INR",
+    "subtotal": 2090.0,
+    "tax": 110.0,
+    "total_amount": 2200.0,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Shell V-Power Unleaded Petrol",
+        "quantity": 19.82,
+        "unit_price": 111.0,
+        "total_price": 2200.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "KA-03-XX-XXXX",
+      "card_number": "XXXX-XXXX-XXXX-1234"
+    }
+  },
+  {
+    "bill_id": "BILL-0026",
+    "category": "Fuel",
+    "merchant_name": "Nayara Energy",
+    "date": "2026-09-27",
+    "currency": "INR",
+    "subtotal": 950.0,
+    "tax": 50.0,
+    "total_amount": 1000.0,
+    "payment_mode": "Cash",
+    "items": [
+      {
+        "item_name": "Motor Spirit (Regular Petrol)",
+        "quantity": 10.36,
+        "unit_price": 96.52,
+        "total_price": 1000.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "RJ-14-XX-XXXX"
+    }
+  },
+  {
+    "bill_id": "BILL-0027",
+    "category": "Fuel",
+    "merchant_name": "Gujarat Gas Limited",
+    "date": "2026-09-29",
+    "currency": "INR",
+    "subtotal": 620.0,
+    "tax": 30.0,
+    "total_amount": 650.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Compressed Natural Gas (CNG)",
+        "quantity": 8.33,
+        "unit_price": 78.03,
+        "total_price": 650.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "GJ-06-XX-XXXX",
+      "upi_id": "[REDACTED]@paytm"
+    }
+  },
+  {
+    "bill_id": "BILL-0028",
+    "category": "Fuel",
+    "merchant_name": "Jio-bp Mobility Station",
+    "date": "2026-10-01",
+    "currency": "INR",
+    "subtotal": 1950.0,
+    "tax": 100.0,
+    "total_amount": 2050.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Diesel Active Technology",
+        "quantity": 18.88,
+        "unit_price": 90.04,
+        "total_price": 1700.0
+      },
+      {
+        "item_name": "ClearBlue AdBlue Exhaust Fluid 5L",
+        "quantity": 1,
+        "unit_price": 350.0,
+        "total_price": 350.0
+      }
+    ],
+    "redacted_fields": {
+      "vehicle_number": "MH-12-XX-XXXX",
+      "upi_id": "[REDACTED]@okhdfcbank"
+    }
+  },
+  {
+    "bill_id": "BILL-0029",
+    "category": "Utility",
+    "merchant_name": "Adani Electricity Mumbai",
+    "date": "2026-09-12",
+    "currency": "INR",
+    "subtotal": 2340.0,
+    "tax": 210.6,
+    "total_amount": 2550.6,
+    "payment_mode": "NetBanking",
+    "items": [
+      {
+        "item_name": "Energy Charges (245 Units)",
+        "quantity": 245,
+        "unit_price": 7.8,
+        "total_price": 1911.0
+      },
+      {
+        "item_name": "Fixed Monthly Demand Charges",
+        "quantity": 1,
+        "unit_price": 150.0,
+        "total_price": 150.0
+      },
+      {
+        "item_name": "Fuel Adjustment Charges (FAC)",
+        "quantity": 1,
+        "unit_price": 279.0,
+        "total_price": 279.0
+      }
+    ],
+    "redacted_fields": {
+      "consumer_number": "100XXXX892",
+      "consumer_name": "[REDACTED_CONSUMER]",
+      "premises_address": "[REDACTED_MUMBAI_ADDRESS]"
+    }
+  },
+  {
+    "bill_id": "BILL-0030",
+    "category": "Utility",
+    "merchant_name": "Torrent Power Limited",
+    "date": "2026-09-15",
+    "currency": "INR",
+    "subtotal": 1820.0,
+    "tax": 182.0,
+    "total_amount": 2002.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Power Consumption (190 kWh)",
+        "quantity": 190,
+        "unit_price": 8.0,
+        "total_price": 1520.0
+      },
+      {
+        "item_name": "Standing Fixed Charge",
+        "quantity": 1,
+        "unit_price": 120.0,
+        "total_price": 120.0
+      },
+      {
+        "item_name": "FPPPA Regulatory Surcharge",
+        "quantity": 1,
+        "unit_price": 180.0,
+        "total_price": 180.0
+      }
+    ],
+    "redacted_fields": {
+      "service_number": "200XXXX441",
+      "consumer_name": "[REDACTED_CONSUMER]",
+      "address": "[REDACTED_AHMEDABAD_ADDRESS]",
+      "upi_id": "[REDACTED]@okhdfcbank"
+    }
+  },
+  {
+    "bill_id": "BILL-0031",
+    "category": "Utility",
+    "merchant_name": "Reliance Jio Infocomm",
+    "date": "2026-09-20",
+    "currency": "INR",
+    "subtotal": 999.0,
+    "tax": 179.82,
+    "total_amount": 1178.82,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "JioFiber 150 Mbps Monthly Plan",
+        "quantity": 1,
+        "unit_price": 999.0,
+        "total_price": 999.0
+      }
+    ],
+    "redacted_fields": {
+      "account_id": "022XXXX9912",
+      "subscriber_name": "[REDACTED_SUBSCRIBER]",
+      "card_number": "XXXX-XXXX-XXXX-8821"
+    }
+  },
+  {
+    "bill_id": "BILL-0032",
+    "category": "Utility",
+    "merchant_name": "Bharti Airtel Limited",
+    "date": "2026-09-22",
+    "currency": "INR",
+    "subtotal": 499.0,
+    "tax": 89.82,
+    "total_amount": 588.82,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Airtel Postpaid Infinity 75GB Monthly Rental",
+        "quantity": 1,
+        "unit_price": 499.0,
+        "total_price": 499.0
+      }
+    ],
+    "redacted_fields": {
+      "mobile_number": "+91 98XXX XXXXX",
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "account_no": "109XXXX821",
+      "upi_id": "[REDACTED]@okicici"
+    }
+  },
+  {
+    "bill_id": "BILL-0033",
+    "category": "Utility",
+    "merchant_name": "Mahanagar Gas Limited",
+    "date": "2026-09-25",
+    "currency": "INR",
+    "subtotal": 820.0,
+    "tax": 41.0,
+    "total_amount": 861.0,
+    "payment_mode": "NetBanking",
+    "items": [
+      {
+        "item_name": "Domestic Piped Natural Gas (16.2 SCM)",
+        "quantity": 16.2,
+        "unit_price": 48.5,
+        "total_price": 785.7
+      },
+      {
+        "item_name": "Bi-monthly Meter Rent",
+        "quantity": 1,
+        "unit_price": 34.3,
+        "total_price": 34.3
+      }
+    ],
+    "redacted_fields": {
+      "bp_number": "900XXXX112",
+      "consumer_name": "[REDACTED_CONSUMER]",
+      "premise": "[REDACTED_PREMISE_THANE]"
+    }
+  },
+  {
+    "bill_id": "BILL-0034",
+    "category": "Utility",
+    "merchant_name": "Municipal Corporation Water Works",
+    "date": "2026-09-28",
+    "currency": "INR",
+    "subtotal": 350.0,
+    "tax": 0.0,
+    "total_amount": 350.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Water Consumption Charges (20 KL)",
+        "quantity": 20,
+        "unit_price": 12.5,
+        "total_price": 250.0
+      },
+      {
+        "item_name": "Sewerage & Sanitation Tax",
+        "quantity": 1,
+        "unit_price": 100.0,
+        "total_price": 100.0
+      }
+    ],
+    "redacted_fields": {
+      "connection_id": "WTR-XXXX-891",
+      "occupant_name": "[REDACTED_OCCUPANT]",
+      "ward_no": "Ward [REDACTED]",
+      "upi_id": "[REDACTED]@sbi"
+    }
+  },
+  {
+    "bill_id": "BILL-0035",
+    "category": "Online Orders",
+    "merchant_name": "Amazon Seller Services",
+    "date": "2026-09-16",
+    "currency": "INR",
+    "subtotal": 1498.0,
+    "tax": 269.64,
+    "total_amount": 1767.64,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "boAt BassHeads 100 Wired Earphones",
+        "quantity": 2,
+        "unit_price": 399.0,
+        "total_price": 798.0
+      },
+      {
+        "item_name": "Portronics 65W Fast Type-C Cable 1.5m",
+        "quantity": 1,
+        "unit_price": 350.0,
+        "total_price": 350.0
+      },
+      {
+        "item_name": "SanDisk 64GB Ultra microSD Card",
+        "quantity": 1,
+        "unit_price": 350.0,
+        "total_price": 350.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_BUYER]",
+      "delivery_address": "[REDACTED_SHIPPING_ADDRESS]",
+      "phone_number": "+91 98XXX XXXXX",
+      "card_number": "XXXX-XXXX-XXXX-9901"
+    }
+  },
+  {
+    "bill_id": "BILL-0036",
+    "category": "Online Orders",
+    "merchant_name": "Flipkart Internet",
+    "date": "2026-09-20",
+    "currency": "INR",
+    "subtotal": 1199.0,
+    "tax": 143.88,
+    "total_amount": 1342.88,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Puma Men Solid Crew Neck T-Shirt",
+        "quantity": 1,
+        "unit_price": 699.0,
+        "total_price": 699.0
+      },
+      {
+        "item_name": "Wildcraft Running Sports Socks (Pack of 3)",
+        "quantity": 1,
+        "unit_price": 299.0,
+        "total_price": 299.0
+      },
+      {
+        "item_name": "Cello Stainless Steel Water Bottle 1L",
+        "quantity": 1,
+        "unit_price": 201.0,
+        "total_price": 201.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_BUYER]",
+      "delivery_address": "[REDACTED_DELIVERY_ADDRESS]",
+      "phone_number": "+91 97XXX XXXXX",
+      "upi_id": "[REDACTED]@ybl"
+    }
+  },
+  {
+    "bill_id": "BILL-0037",
+    "category": "Online Orders",
+    "merchant_name": "Myntra Designs",
+    "date": "2026-09-24",
+    "currency": "INR",
+    "subtotal": 2150.0,
+    "tax": 107.5,
+    "total_amount": 2257.5,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Roadster Men Slim Fit Denim Jeans",
+        "quantity": 1,
+        "unit_price": 1299.0,
+        "total_price": 1299.0
+      },
+      {
+        "item_name": "Highlander Casual Cotton Shirt",
+        "quantity": 1,
+        "unit_price": 851.0,
+        "total_price": 851.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_BUYER]",
+      "delivery_address": "[REDACTED_PUNE_ADDRESS]",
+      "card_number": "XXXX-XXXX-XXXX-4410"
+    }
+  },
+  {
+    "bill_id": "BILL-0038",
+    "category": "Online Orders",
+    "merchant_name": "Swiggy Food Delivery",
+    "date": "2026-09-27",
+    "currency": "INR",
+    "subtotal": 485.0,
+    "tax": 24.25,
+    "total_amount": 509.25,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Paneer Butter Masala (Full)",
+        "quantity": 1,
+        "unit_price": 280.0,
+        "total_price": 280.0
+      },
+      {
+        "item_name": "Butter Naan",
+        "quantity": 3,
+        "unit_price": 45.0,
+        "total_price": 135.0
+      },
+      {
+        "item_name": "Jeera Rice Half",
+        "quantity": 1,
+        "unit_price": 70.0,
+        "total_price": 70.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "delivery_address": "[REDACTED_SECTOR_FLAT]",
+      "phone_number": "+91 93XXX XXXXX",
+      "upi_id": "[REDACTED]@googlepay"
+    }
+  },
+  {
+    "bill_id": "BILL-0039",
+    "category": "Online Orders",
+    "merchant_name": "Zomato Limited",
+    "date": "2026-09-30",
+    "currency": "INR",
+    "subtotal": 540.0,
+    "tax": 27.0,
+    "total_amount": 567.0,
+    "payment_mode": "UPI",
+    "items": [
+      {
+        "item_name": "Hyderabadi Chicken Dum Biryani",
+        "quantity": 1,
+        "unit_price": 380.0,
+        "total_price": 380.0
+      },
+      {
+        "item_name": "Mirchi Ka Salan & Raita",
+        "quantity": 1,
+        "unit_price": 40.0,
+        "total_price": 40.0
+      },
+      {
+        "item_name": "Gulab Jamun (2 pcs)",
+        "quantity": 1,
+        "unit_price": 80.0,
+        "total_price": 80.0
+      },
+      {
+        "item_name": "Restaurant Packaging Charge",
+        "quantity": 1,
+        "unit_price": 40.0,
+        "total_price": 40.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "delivery_address": "[REDACTED_HOSTEL_ROOM]",
+      "phone_number": "+91 98XXX XXXXX",
+      "upi_id": "[REDACTED]@okaxis"
+    }
+  },
+  {
+    "bill_id": "BILL-0040",
+    "category": "Online Orders",
+    "merchant_name": "Nykaa E-Retail",
+    "date": "2026-10-02",
+    "currency": "INR",
+    "subtotal": 920.0,
+    "tax": 165.6,
+    "total_amount": 1085.6,
+    "payment_mode": "Credit Card",
+    "items": [
+      {
+        "item_name": "Cetaphil Gentle Skin Cleanser 125ml",
+        "quantity": 1,
+        "unit_price": 395.0,
+        "total_price": 395.0
+      },
+      {
+        "item_name": "Neutrogena Ultra Sheer Sunscreen 88ml",
+        "quantity": 1,
+        "unit_price": 525.0,
+        "total_price": 525.0
+      }
+    ],
+    "redacted_fields": {
+      "customer_name": "[REDACTED_CUSTOMER]",
+      "shipping_address": "[REDACTED_DELHI_RESIDENCE]",
+      "phone_number": "+91 95XXX XXXXX",
+      "card_number": "XXXX-XXXX-XXXX-8902"
+    }
+  }
+]

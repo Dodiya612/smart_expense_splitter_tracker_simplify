@@ -1,0 +1,24 @@
+==================================================
+                 NATURE'S BASKET                  
+            Spencer's Retail Limited              
+             Bandra West, Mumbai (MH)             
+              GSTIN: 27AABCS2911P1ZK              
+==================================================
+Date: 20/09/2026                 Time: 12:10:44   
+Tax Invoice No: NB-90112         Cashier: Deepak  
+Customer: [REDACTED_CUSTOMER]                     
+--------------------------------------------------
+Item                          Qty   Rate    Amount
+--------------------------------------------------
+Borges Extra Virgin Olive Oil  1   790.00   790.00
+Artisanal Sourdough Loaf       1   220.00   220.00
+Pintola Organic Peanut Butter  1   420.00   420.00
+Lindt 85% Dark Chocolate       1   110.00   110.00
+--------------------------------------------------
+Gross Subtotal:                            1540.00
+GST (5%):                                    77.00
+--------------------------------------------------
+BILL TOTAL:                              INR 1617.00
+--------------------------------------------------
+Paid By: Credit Card (XXXX-XXXX-XXXX-1994)        
+==================================================

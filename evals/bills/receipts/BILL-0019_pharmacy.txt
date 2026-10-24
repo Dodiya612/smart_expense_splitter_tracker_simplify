@@ -1,0 +1,24 @@
+==================================================
+               TATA 1MG TECHNOLOGIES              
+           1mg Technologies Private Ltd           
+           Sector 44, Gurugram, Haryana           
+              GSTIN: 06AABCT4412B1ZX              
+==================================================
+Date: 28/09/2026                 Booking ID: 1MG-8
+Patient Name: [REDACTED_PATIENT] Age/Sex: [REDACTED]
+Address: [REDACTED_RESIDENCE_ADDRESS]             
+Contact: +91 99XXX XXXXX                          
+--------------------------------------------------
+Test Package / Service        Qty   Price   Amount
+--------------------------------------------------
+Thyroid Profile Total          1   450.00   450.00
+Complete Blood Count (CBC)     1   300.00   300.00
+Home Sample Collection         1   100.00   100.00
+--------------------------------------------------
+Sub Total:                                  850.00
+Diagnostic Healthcare Tax:                    0.00
+--------------------------------------------------
+TOTAL AMOUNT PAID:                        INR 850.00
+--------------------------------------------------
+Mode: UPI ([REDACTED]@googlepay)                  
+==================================================

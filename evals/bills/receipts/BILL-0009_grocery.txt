@@ -1,0 +1,26 @@
+==================================================
+              RELIANCE SMART BAZAAR               
+           Reliance Retail Limited                
+          SG Highway, Bodakdev, Ahmedabad         
+              GSTIN: 24AABCR4412Q1ZM              
+==================================================
+Date: 17/09/2026                 Time: 16:04:19   
+Pos No: 04                       Bill: RSB-491024 
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 93XXX XXXXX                            
+--------------------------------------------------
+Description                   Qty   Price   Amount
+--------------------------------------------------
+Amul Taaza Milk 500ml          2    27.00    54.00
+Britannia Wheat Bread          1    50.00    50.00
+Amul Butter 500g               1   275.00   275.00
+Vim Dishwash Gel 500ml         1   115.00   115.00
+Surf Excel 1kg                 1    80.00    80.00
+--------------------------------------------------
+Subtotal:                                   574.00
+Taxes:                                       28.70
+--------------------------------------------------
+TOTAL PAYABLE:                            INR 602.70
+--------------------------------------------------
+Payment Method: UPI ([REDACTED]@okaxis)           
+==================================================

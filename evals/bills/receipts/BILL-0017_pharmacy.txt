@@ -1,0 +1,25 @@
+==================================================
+               NETMEDS MARKETPLACE                
+           Netmeds Marketplace Limited            
+               Thoraipakkam, Chennai              
+              GSTIN: 33AABCN4412E1ZQ              
+==================================================
+Date: 22/09/2026                 Order No: NM-7812
+Recipient: [REDACTED_CUSTOMER]                    
+Delivery To: [REDACTED_SHIPPING_ADDRESS]          
+Phone: +91 97XXX XXXXX                            
+--------------------------------------------------
+Medicines / Supplements       Qty   Price   Amount
+--------------------------------------------------
+Becadexamin Multivitamin (30)  2    60.00   120.00
+Calcitas D3 60K Granules       2   190.00   380.00
+TrueBasics Omega 3 60 caps     1   650.00   650.00
+--------------------------------------------------
+Subtotal:                                  1150.00
+GST (12%):                                  138.00
+Delivery Charges:                             0.00
+--------------------------------------------------
+TOTAL AMOUNT:                            INR 1288.00
+--------------------------------------------------
+Paid via: NetBanking (HDFC Bank Account)          
+==================================================

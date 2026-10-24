@@ -1,0 +1,25 @@
+==================================================
+                 WELLNESS FOREVER                 
+          Wellness Forever Medicare Ltd           
+            Linking Road, Santacruz (W)           
+                 Mumbai, Maharashtra              
+               GSTIN: 27AACCW9014J1ZV             
+==================================================
+Date: 25/09/2026                 Time: 22:45:10   
+Tax Memo: WF-559102              Cashier: Kiran   
+Customer: [REDACTED_CUSTOMER]                     
+--------------------------------------------------
+Particulars                   Qty   Rate    Amount
+--------------------------------------------------
+Dr. Morepen Thermometer        1   280.00   280.00
+Himalaya Baby Wipes 72s        2   140.00   280.00
+Digene Mint Gel 200ml          1   110.00   110.00
+--------------------------------------------------
+Sub Total:                                  670.00
+CGST 6%:                                     40.20
+SGST 6%:                                     40.20
+--------------------------------------------------
+INVOICE TOTAL:                            INR 750.40
+--------------------------------------------------
+Card: XXXX-XXXX-XXXX-6031   Txn ID: 991823        
+==================================================

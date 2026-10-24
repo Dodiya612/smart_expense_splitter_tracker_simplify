@@ -1,0 +1,22 @@
+==================================================
+              MAHANAGAR GAS LIMITED               
+               Domestic PNG Invoice               
+               GSTIN: 27AAACM0012L1Z4             
+==================================================
+Invoice: MGL-2026-99120          Date: 25/09/2026 
+BP Number: 900XXXX112            Meter: MG-44102  
+Consumer: [REDACTED_CONSUMER]                     
+Address: [REDACTED_PREMISE_THANE]                 
+--------------------------------------------------
+Description                   Units  Rate   Amount
+--------------------------------------------------
+PNG Consumption (SCM)         16.2  48.50   785.70
+Bi-monthly Meter Maintenance   1    34.30    34.30
+--------------------------------------------------
+Net Gas Value:                              820.00
+VAT @ 5%:                                    41.00
+--------------------------------------------------
+TOTAL AMOUNT DUE:                         INR 861.00
+--------------------------------------------------
+Payment Receipt: PAID Online NetBanking           
+==================================================

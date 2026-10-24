@@ -1,0 +1,41 @@
+bill_id,category,merchant_name,date,currency,subtotal,tax,total_amount,payment_mode,items_count,receipt_file
+BILL-0001,Restaurant,Haldiram's Express,2026-09-15,INR,520.00,26.00,546.00,UPI,3,receipts/BILL-0001_restaurant.txt
+BILL-0002,Restaurant,Domino's Pizza,2026-09-18,INR,798.00,39.90,837.90,Credit Card,4,receipts/BILL-0002_restaurant.txt
+BILL-0003,Restaurant,Starbucks Coffee,2026-09-21,INR,690.00,34.50,724.50,Debit Card,2,receipts/BILL-0003_restaurant.txt
+BILL-0004,Restaurant,Sagar Gaire Fast Food,2026-09-24,INR,310.00,15.50,325.50,Cash,3,receipts/BILL-0004_restaurant.txt
+BILL-0005,Restaurant,Barbeque Nation,2026-09-27,INR,2198.00,109.90,2307.90,UPI,2,receipts/BILL-0005_restaurant.txt
+BILL-0006,Restaurant,Chai Point,2026-09-29,INR,255.00,12.75,267.75,UPI,3,receipts/BILL-0006_restaurant.txt
+BILL-0007,Restaurant,Mainland China,2026-10-02,INR,1780.00,89.00,1869.00,Credit Card,4,receipts/BILL-0007_restaurant.txt
+BILL-0008,Grocery,D-Mart Supermarket,2026-09-14,INR,1285.00,64.25,1349.25,Debit Card,5,receipts/BILL-0008_grocery.txt
+BILL-0009,Grocery,Reliance Smart Bazaar,2026-09-17,INR,574.00,28.70,602.70,UPI,5,receipts/BILL-0009_grocery.txt
+BILL-0010,Grocery,Nature's Basket,2026-09-20,INR,1540.00,77.00,1617.00,Credit Card,4,receipts/BILL-0010_grocery.txt
+BILL-0011,Grocery,BigBasket,2026-09-23,INR,425.00,0.00,425.00,UPI,7,receipts/BILL-0011_grocery.txt
+BILL-0012,Grocery,Blinkit,2026-09-26,INR,298.00,14.00,312.00,UPI,4,receipts/BILL-0012_grocery.txt
+BILL-0013,Grocery,Zepto,2026-09-28,INR,218.00,10.00,228.00,UPI,4,receipts/BILL-0013_grocery.txt
+BILL-0014,Grocery,Shrinathji Provision Store,2026-10-01,INR,480.00,0.00,480.00,Cash,5,receipts/BILL-0014_grocery.txt
+BILL-0015,Pharmacy,Apollo Pharmacy,2026-09-16,INR,450.00,54.00,504.00,Credit Card,4,receipts/BILL-0015_pharmacy.txt
+BILL-0016,Pharmacy,MedPlus Health Services,2026-09-19,INR,310.00,37.20,347.20,UPI,4,receipts/BILL-0016_pharmacy.txt
+BILL-0017,Pharmacy,Netmeds Marketplace,2026-09-22,INR,1150.00,138.00,1288.00,NetBanking,3,receipts/BILL-0017_pharmacy.txt
+BILL-0018,Pharmacy,Wellness Forever,2026-09-25,INR,670.00,80.40,750.40,Debit Card,3,receipts/BILL-0018_pharmacy.txt
+BILL-0019,Pharmacy,Tata 1mg Diagnostics,2026-09-28,INR,850.00,0.00,850.00,UPI,3,receipts/BILL-0019_pharmacy.txt
+BILL-0020,Pharmacy,Frank Ross Pharmacy,2026-09-30,INR,520.00,62.40,582.40,Cash,3,receipts/BILL-0020_pharmacy.txt
+BILL-0021,Pharmacy,Guardian Pharmacy,2026-10-02,INR,1380.00,165.60,1545.60,Credit Card,3,receipts/BILL-0021_pharmacy.txt
+BILL-0022,Fuel,Indian Oil Corporation,2026-09-15,INR,1900.00,100.00,2000.00,Credit Card,1,receipts/BILL-0022_fuel.txt
+BILL-0023,Fuel,Bharat Petroleum (BPCL),2026-09-18,INR,1425.00,75.00,1500.00,UPI,1,receipts/BILL-0023_fuel.txt
+BILL-0024,Fuel,Hindustan Petroleum (HPCL),2026-09-21,INR,2850.00,150.00,3000.00,Debit Card,1,receipts/BILL-0024_fuel.txt
+BILL-0025,Fuel,Shell India Markets,2026-09-24,INR,2090.00,110.00,2200.00,Credit Card,1,receipts/BILL-0025_fuel.txt
+BILL-0026,Fuel,Nayara Energy,2026-09-27,INR,950.00,50.00,1000.00,Cash,1,receipts/BILL-0026_fuel.txt
+BILL-0027,Fuel,Gujarat Gas Limited,2026-09-29,INR,620.00,30.00,650.00,UPI,1,receipts/BILL-0027_fuel.txt
+BILL-0028,Fuel,Jio-bp Mobility Station,2026-10-01,INR,1950.00,100.00,2050.00,UPI,2,receipts/BILL-0028_fuel.txt
+BILL-0029,Utility,Adani Electricity Mumbai,2026-09-12,INR,2340.00,210.60,2550.60,NetBanking,3,receipts/BILL-0029_utility.txt
+BILL-0030,Utility,Torrent Power Limited,2026-09-15,INR,1820.00,182.00,2002.00,UPI,3,receipts/BILL-0030_utility.txt
+BILL-0031,Utility,Reliance Jio Infocomm,2026-09-20,INR,999.00,179.82,1178.82,Credit Card,1,receipts/BILL-0031_utility.txt
+BILL-0032,Utility,Bharti Airtel Limited,2026-09-22,INR,499.00,89.82,588.82,UPI,1,receipts/BILL-0032_utility.txt
+BILL-0033,Utility,Mahanagar Gas Limited,2026-09-25,INR,820.00,41.00,861.00,NetBanking,2,receipts/BILL-0033_utility.txt
+BILL-0034,Utility,Municipal Corporation Water Works,2026-09-28,INR,350.00,0.00,350.00,UPI,2,receipts/BILL-0034_utility.txt
+BILL-0035,Online Orders,Amazon Seller Services,2026-09-16,INR,1498.00,269.64,1767.64,Credit Card,3,receipts/BILL-0035_online_orders.txt
+BILL-0036,Online Orders,Flipkart Internet,2026-09-20,INR,1199.00,143.88,1342.88,UPI,3,receipts/BILL-0036_online_orders.txt
+BILL-0037,Online Orders,Myntra Designs,2026-09-24,INR,2150.00,107.50,2257.50,Credit Card,2,receipts/BILL-0037_online_orders.txt
+BILL-0038,Online Orders,Swiggy Food Delivery,2026-09-27,INR,485.00,24.25,509.25,UPI,3,receipts/BILL-0038_online_orders.txt
+BILL-0039,Online Orders,Zomato Limited,2026-09-30,INR,540.00,27.00,567.00,UPI,4,receipts/BILL-0039_online_orders.txt
+BILL-0040,Online Orders,Nykaa E-Retail,2026-10-02,INR,920.00,165.60,1085.60,Credit Card,2,receipts/BILL-0040_online_orders.txt

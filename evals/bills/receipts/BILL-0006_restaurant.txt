@@ -1,0 +1,26 @@
+==================================================
+                    CHAI POINT                    
+          Mountain Trail Foods Pvt Ltd            
+             Cyber City, DLF Phase 2              
+                Gurugram, Haryana                 
+              GSTIN: 06AABCM3312P1ZF              
+==================================================
+Date: 29/09/2026                 Time: 09:12:44   
+Order ID: CP-991204              Cashier: Priya   
+Customer: [REDACTED_CUSTOMER]                     
+Phone: +91 91XXX XXXXX                            
+--------------------------------------------------
+Items                         Qty   Price   Amount
+--------------------------------------------------
+Ginger Chai Flask 500ml        1   155.00   155.00
+Bun Maska                      1    60.00    60.00
+Punjabi Samosa (2 pcs)         1    40.00    40.00
+--------------------------------------------------
+Sub Total:                                  255.00
+CGST 2.5%:                                    6.38
+SGST 2.5%:                                    6.38
+--------------------------------------------------
+TOTAL DUE:                                INR 267.75
+--------------------------------------------------
+Paid via: UPI QR ([REDACTED]@paytm)               
+==================================================

@@ -1,0 +1,29 @@
+==================================================
+                    BIGBASKET                     
+          Supermarket Grocery Supplies Pvt Ltd    
+              Electronic City, Bangalore          
+              GSTIN: 29AAGCS4410K1ZT              
+==================================================
+Date: 23/09/2026                 Order: BB-8819024
+Customer: [REDACTED_CUSTOMER]                     
+Address: [REDACTED_DELIVERY_ADDRESS]              
+Phone: +91 90XXX XXXXX                            
+--------------------------------------------------
+Product Description           Qty   Rate    Amount
+--------------------------------------------------
+Farm Fresh Onion 2kg           1    90.00    90.00
+Potato Fresh Crop 2kg          1    80.00    80.00
+Hybrid Tomato 1kg              1    60.00    60.00
+Fresh Coriander Leaves 250g    1    35.00    35.00
+Fresh Cauliflower 1 pc         1    50.00    50.00
+Ginger Fresh 250g              1    50.00    50.00
+Green Chillies 200g            1    60.00    60.00
+--------------------------------------------------
+Subtotal:                                   425.00
+Tax (Fresh Veg exempt):                       0.00
+Delivery Fee:                                 FREE
+--------------------------------------------------
+TOTAL INVOICE VALUE:                      INR 425.00
+--------------------------------------------------
+Payment: UPI ([REDACTED]@ybl)                     
+==================================================

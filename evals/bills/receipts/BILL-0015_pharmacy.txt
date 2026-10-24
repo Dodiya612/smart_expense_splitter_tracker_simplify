@@ -1,0 +1,27 @@
+==================================================
+                 APOLLO PHARMACY                  
+           Apollo Hospitals Enterprise Ltd        
+          Plot 45, Anna Nagar, Chennai (TN)       
+               GSTIN: 33AAACA4412F1ZG             
+                 DL No: TN-12-8891                
+==================================================
+Date: 16/09/2026                 Time: 14:15:20   
+Bill No: APL-99214               Reg No: 4182     
+Patient: [REDACTED_PATIENT]      Doctor: Dr. [REDACTED]
+Phone: +91 98XXX XXXXX                            
+--------------------------------------------------
+Product Description           Qty   MRP     Amount
+--------------------------------------------------
+Dolo 650mg Tablets (15s)       2    34.00    68.00
+Azithral 500mg (5 tabs)        1   132.00   132.00
+Pan 40mg Strip of 15           1   170.00   170.00
+Strepsils Lozenges             2    40.00    80.00
+--------------------------------------------------
+Subtotal:                                   450.00
+CGST @ 6%:                                   27.00
+SGST @ 6%:                                   27.00
+--------------------------------------------------
+NET AMOUNT PAYABLE:                       INR 504.00
+--------------------------------------------------
+Payment Mode: Credit Card (XXXX-XXXX-XXXX-7112)   
+==================================================
