@@ -1,36 +1,38 @@
-"""Health check endpoint for liveness and deployment verification."""
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
 
-from fastapi import APIRouter, Depends, status
-
-from app.schemas.errors import ErrorResponse
-from app.schemas.health import HealthResponse
-from app.services.health import HealthService, get_health_service
+from app.core.config import settings
+from app.core.database import check_database_connection
+from app.schemas.common import HealthResponse
 
 router = APIRouter()
 
 
 @router.get(
-    "",
+    "/health",
     response_model=HealthResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Service Health Check",
-    description=(
-        "Returns service liveness status and environment indicator "
-        "for deployment health checks."
-    ),
-    responses={
-        200: {
-            "model": HealthResponse,
-            "description": "Service is live and operational.",
-        },
-        500: {
-            "model": ErrorResponse,
-            "description": "Internal server error envelope.",
-        },
-    },
+    summary="Health Check",
+    description="Check the operational status of the API and its database connectivity.",
 )
-def check_health(
-    service: HealthService = Depends(get_health_service),
-) -> HealthResponse:
-    """Return service health status via HealthService."""
-    return service.get_health()
+async def health_check():
+    db_connected, error = await check_database_connection()
+
+    if db_connected:
+        return HealthResponse(
+            status="healthy",
+            database="connected",
+            environment=settings.ENVIRONMENT,
+            version=settings.VERSION,
+        )
+
+    # If database is not reachable, report degraded status with 503 Service Unavailable
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "degraded",
+            "database": "disconnected",
+            "environment": settings.ENVIRONMENT,
+            "version": settings.VERSION,
+            "error": error,
+        },
+    )

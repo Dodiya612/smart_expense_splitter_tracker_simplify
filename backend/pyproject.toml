@@ -1,42 +1,36 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "coinscious-backend"
+name = "expense-tracker-backend"
 version = "0.1.0"
-description = "Coinscious Smart Expense Splitter & Tracker Backend API"
-readme = "README.md"
-requires-python = ">=3.11"
+description = "Backend foundation for Smart Expense Splitter & Tracker"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.28.0",
-    "pydantic>=2.6.0",
-    "pydantic-settings>=2.2.0",
-    "python-dotenv>=1.0.0",
-    "httpx>=0.27.0",
-    "hypothesis>=6.0.0",
-    "SQLAlchemy>=2.0,<3.0",
-    "alembic>=1.13,<2.0",
-    "psycopg[binary]>=3.1,<4.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.4.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "greenlet>=3.0.0",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "psycopg[binary]>=3.2.0",
+    "argon2-cffi>=23.1.0",
+    "pyjwt>=2.8.0",
+    "email-validator>=2.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "ruff>=0.3.0",
-    "mypy>=1.9.0",
+    "anyio>=4.0.0",
+    "httpx>=0.27.0",
+    "pytest-asyncio>=0.23.0",
 ]
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-p no:cacheprovider"
-
-[tool.ruff]
-line-length = 88
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "W"]
-ignore = []
+python_files = "test_*.py"

@@ -1,60 +1,108 @@
-"""Application configuration using Pydantic Settings."""
-
 import json
-from typing import List, Union
-
-from pydantic import field_validator
+import os
+from pathlib import Path
+from typing import Any, List
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Stable paths relative to backend root directory independent of CWD
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def get_env_file_path() -> Path:
+    """
+    Returns an absolute path to the .env file, independent of current working directory.
+    If the ENV_FILE environment variable is set:
+      - If absolute, it is returned as-is.
+      - If relative, it is resolved relative to BACKEND_DIR.
+    Otherwise, defaults to BACKEND_DIR / ".env".
+    """
+    env_override = os.getenv("ENV_FILE")
+    if env_override and env_override.strip():
+        candidate = Path(env_override.strip())
+        return candidate if candidate.is_absolute() else (BACKEND_DIR / candidate).resolve()
+    return BACKEND_DIR / ".env"
+
+
+ENV_FILE_PATH = get_env_file_path()
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
-
-    PROJECT_NAME: str = "Coinscious API"
-    VERSION: str = "0.1.0"
-    API_V1_STR: str = "/api/v1"
-
+    PROJECT_NAME: str = "Smart Expense Splitter Backend"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = False
+    DEBUG: bool = True
+    VERSION: str = "0.1.0"
 
-    PORT: int = 8000
-    HOST: str = "0.0.0.0"
+    # Database Configuration
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/expense_tracker"
 
-    CORS_ORIGINS: Union[List[str], str] = ["*"]
+    # CORS Configuration
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+        "http://10.0.2.2:8081",
+    ]
 
-    # Supabase / Database (PostgreSQL 16)
-    DATABASE_URL: str | None = None
-    DIRECT_URL: str | None = None
-    SUPABASE_URL: str | None = None
-    SUPABASE_ANON_KEY: str | None = None
-    SUPABASE_SERVICE_ROLE_KEY: str | None = None
-
-    # Auth & Tokens
-    JWT_SECRET: str | None = None
+    # JWT Authentication Configuration
+    JWT_SECRET_KEY: str = "dev-secret-key-change-in-production-at-least-32-bytes-long"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    JWT_ISSUER: str = "smart-expense-splitter"
+    JWT_AUDIENCE: str = "smart-expense-splitter-app"
 
-    # External integrations
-    OCR_SPACE_API_KEY: str | None = None
-    GROQ_API_KEY: str | None = None
+    @model_validator(mode="after")
+    def validate_jwt_secret_key(self) -> "Settings":
+        if self.ENVIRONMENT != "development":
+            if (
+                self.JWT_SECRET_KEY == "dev-secret-key-change-in-production-at-least-32-bytes-long"
+                or len(self.JWT_SECRET_KEY) < 32
+            ):
+                raise ValueError(
+                    "In non-development environments, JWT_SECRET_KEY must not be the default value "
+                    "and must be at least 32 characters long."
+                )
+        return self
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: Any) -> str:
+        if isinstance(v, str):
+            url = v.strip()
+            # Normalize driver prefix for SQLAlchemy asyncpg
+            if url.startswith("postgres://"):
+                url = "postgresql+asyncpg://" + url[len("postgres://"):]
+            elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
+                url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+            
+            # asyncpg requires ssl= rather than sslmode=
+            if "sslmode=" in url:
+                url = url.replace("sslmode=", "ssl=")
+            return url
+        return v
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
         if isinstance(v, str):
-            if v.strip().startswith("[") and v.strip().endswith("]"):
+            v_trimmed = v.strip()
+            if v_trimmed.startswith("[") and v_trimmed.endswith("]"):
                 try:
-                    return json.loads(v)
+                    return json.loads(v_trimmed)
                 except Exception:
                     pass
-            return [i.strip() for i in v.split(",") if i.strip()]
-        elif isinstance(v, list):
-            return v
-        return ["*"]
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        elif isinstance(v, (list, tuple)):
+            return [str(item) for item in v]
+        return []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if "_env_file" not in kwargs:
+            kwargs["_env_file"] = get_env_file_path()
+        super().__init__(*args, **kwargs)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_FILE_PATH,
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
