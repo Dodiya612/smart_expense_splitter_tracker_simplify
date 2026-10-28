@@ -1,11 +1,19 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import inspect, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, engine
+from app.core.rate_limit import (
+    check_login_rate_limit,
+    record_failed_login_attempt,
+    reset_login_rate_limit,
+)
 from app.core.security import hash_password, hash_refresh_token, verify_password
+from app.models.rate_limit import LoginRateLimit
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
@@ -22,10 +30,10 @@ async def _check_tables_exist() -> bool:
     try:
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                text("SELECT to_regclass('public.users'), to_regclass('public.refresh_tokens')")
+                text("SELECT to_regclass('public.users'), to_regclass('public.refresh_tokens'), to_regclass('public.login_rate_limits')")
             )
-            users_table, tokens_table = result.one()
-            return bool(users_table and tokens_table)
+            users_table, tokens_table, rate_limits_table = result.one()
+            return bool(users_table and tokens_table and rate_limits_table)
     except Exception:
         return False
 
@@ -43,6 +51,7 @@ async def test_auth_tables_schema_live_postgres():
         tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
         assert "users" in tables
         assert "refresh_tokens" in tables
+        assert "login_rate_limits" in tables
 
         user_cols = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("users")})
         expected_user_cols = {"id", "email", "name", "hashed_password", "is_active", "created_at", "updated_at"}
@@ -51,6 +60,17 @@ async def test_auth_tables_schema_live_postgres():
         token_cols = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("refresh_tokens")})
         expected_token_cols = {"id", "user_id", "family_id", "token_hash", "parent_id", "is_revoked", "expires_at", "created_at"}
         assert expected_token_cols.issubset(token_cols)
+
+        rate_limit_cols = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("login_rate_limits")})
+        expected_rate_limit_cols = {"id", "key", "attempts", "last_attempt_at", "created_at", "updated_at"}
+        assert expected_rate_limit_cols.issubset(rate_limit_cols)
+
+        # Verify canonical unique index on key without redundant indexes
+        rate_limit_indexes = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_indexes("login_rate_limits"))
+        ix_map = {ix["name"]: ix for ix in rate_limit_indexes}
+        assert "ix_login_rate_limits_key" in ix_map
+        assert ix_map["ix_login_rate_limits_key"]["unique"] is True
+        assert "login_rate_limits_key_key" not in ix_map, "Redundant unique constraint index must not exist"
 
 
 @pytest.mark.anyio
@@ -269,4 +289,105 @@ async def test_live_postgresql_concurrent_refresh_row_locking():
         if db_user:
             await session.delete(db_user)
             await session.commit()
+
+
+@pytest.mark.anyio
+async def test_live_postgresql_duplicate_email_uniqueness_constraint():
+    """
+    Live PostgreSQL integration test:
+    Verify that registering duplicate normalized emails cannot create duplicate accounts
+    and that the database uniqueness constraint (ix_users_email) is strictly enforced.
+    """
+    if not await _check_tables_exist():
+        pytest.skip("Live auth tables not yet migrated.")
+
+    test_email = f"unique_test_{uuid.uuid4().hex[:8]}@example.com"
+
+    async with AsyncSessionLocal() as session:
+        # Insert first user with normalized email
+        user1 = User(
+            email=test_email,
+            name="First User",
+            hashed_password=hash_password("Password123!"),
+            is_active=True,
+        )
+        session.add(user1)
+        await session.commit()
+        user1_id = user1.id
+
+    # Attempt to insert second user with exact same email into PostgreSQL
+    async with AsyncSessionLocal() as session2:
+        user2 = User(
+            email=test_email,
+            name="Second User (Duplicate)",
+            hashed_password=hash_password("Password123!"),
+            is_active=True,
+        )
+        session2.add(user2)
+        with pytest.raises(IntegrityError) as exc_info:
+            await session2.commit()
+        assert "unique constraint" in str(exc_info.value).lower() or "ix_users_email" in str(exc_info.value).lower()
+
+    # Cleanup test user
+    async with AsyncSessionLocal() as session:
+        db_user = (await session.execute(select(User).where(User.id == user1_id))).scalar_one_or_none()
+        if db_user:
+            await session.delete(db_user)
+            await session.commit()
+
+
+@pytest.mark.anyio
+async def test_live_postgresql_login_rate_limiting_shared_persistence():
+    """
+    Live PostgreSQL integration test:
+    Verifies that rate limiting state is stored in PostgreSQL and shared across
+    independent database sessions (multi-worker / multi-instance simulation).
+    """
+    if not await _check_tables_exist():
+        pytest.skip("Live auth tables not yet migrated.")
+
+    test_key = f"rate_limit_test_{uuid.uuid4().hex[:8]}@example.com"
+
+    try:
+        # Worker/Instance 1: Records 3 failed attempts in its session
+        async with AsyncSessionLocal() as worker1_session:
+            for _ in range(3):
+                await record_failed_login_attempt(worker1_session, test_key)
+
+        # Worker/Instance 2: Reads state, confirms 3 attempts recorded, adds 2 more (total 5)
+        async with AsyncSessionLocal() as worker2_session:
+            record = (await worker2_session.execute(
+                select(LoginRateLimit).where(LoginRateLimit.key == test_key)
+            )).scalar_one_or_none()
+            assert record is not None
+            assert record.attempts == 3
+
+            for _ in range(2):
+                await record_failed_login_attempt(worker2_session, test_key)
+
+        # Worker/Instance 3: Checks rate limit (threshold = 5). Must raise HTTP 429
+        async with AsyncSessionLocal() as worker3_session:
+            with pytest.raises(HTTPException) as exc_info:
+                await check_login_rate_limit(worker3_session, test_key, max_attempts=5)
+            assert exc_info.value.status_code == 429
+            assert exc_info.value.detail["code"] == "RATE_LIMIT_EXCEEDED"
+
+        # Worker/Instance 1: Resets rate limit (simulating successful login)
+        async with AsyncSessionLocal() as worker1_session:
+            await reset_login_rate_limit(worker1_session, test_key)
+
+        # Worker/Instance 2: Confirms lock is cleared, check passes without 429
+        async with AsyncSessionLocal() as worker2_session:
+            # Does not raise HTTPException
+            await check_login_rate_limit(worker2_session, test_key, max_attempts=5)
+
+    finally:
+        # Cleanup test rate limit record
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("DELETE FROM login_rate_limits WHERE key = :k"),
+                {"k": test_key},
+            )
+            await session.commit()
+
 
