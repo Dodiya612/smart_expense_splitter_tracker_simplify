@@ -1,114 +1,125 @@
-"""Main FastAPI application entrypoint."""
-
-import os
-
-import uvicorn
-from fastapi import FastAPI, status
+import logging
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.api import api_router
 from app.core.config import settings
-from app.core.errors import register_error_handlers
-from app.core.middleware import RequestIDMiddleware
-from app.schemas.health import HealthResponse
-from app.services.health import HealthService
+from app.schemas.common import ApiErrorDetail, ApiErrorResponse
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description=(
-        "Coinscious Backend API — Smart Expense Splitter & Tracker.\n\n"
-        "Features typed routes, repository/service architecture, "
-        "consistent error responses, and automated OpenAPI client generation."
-    ),
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url="/api/v1/openapi.json",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
 )
 
-# 1. Register Request ID Middleware
-app.add_middleware(RequestIDMiddleware)
-
-# 2. Register CORS Middleware
+# CORS Middleware with explicitly configured development origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS
-    if isinstance(settings.CORS_ORIGINS, list)
-    else ["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["X-Request-ID"],
 )
 
-# 3. Register Global Error Handlers (Consistent Error Envelope)
-register_error_handlers(app)
 
-# 4. Mount API v1 Routers (including /api/v1/health)
-app.include_router(api_router, prefix=settings.API_V1_STR)
-
-
-@app.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    summary="Root Service Info",
-    include_in_schema=False,
-)
-def root():
-    """Root info endpoint providing service status and links."""
-    return {
-        "service": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "status": "running",
-        "environment": settings.ENVIRONMENT,
-        "health": f"{settings.API_V1_STR}/health",
-        "docs": f"{settings.API_V1_STR}/docs",
-        "openapi": f"{settings.API_V1_STR}/openapi.json",
-    }
-
-
-# Convenience alias for platforms checking top-level /health
-@app.get(
-    "/health",
-    response_model=HealthResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Liveness Check (Root Alias)",
-    include_in_schema=False,
-)
-def health_alias() -> HealthResponse:
-    """Top-level health alias delegating to HealthService."""
-    return HealthService().get_health()
-
-
-def custom_openapi():
-    """Generate cached custom OpenAPI schema with clean metadata."""
-    if app.openapi_schema:
-        return app.openapi_schema
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
-    # Add servers configuration
-    openapi_schema["servers"] = [
-        {"url": "/", "description": "Current Server Environment"},
-        {"url": "http://localhost:8000", "description": "Local Development"},
-        {
-            "url": "https://coinscious-backend.onrender.com",
-            "description": "Production (Render)",
-        },
+# Exception Handlers ensuring standardized camelCase error envelope
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Standardize 422 Unprocessable Entity validation errors to:
+    { "code": "VALIDATION_ERROR", "message": "...", "detail": [...], "isRetryable": false }
+    """
+    details = [
+        ApiErrorDetail(
+            loc=list(err.get("loc", [])),
+            msg=str(err.get("msg", "")),
+            type=str(err.get("type", "")),
+        )
+        for err in exc.errors()
     ]
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+    error_response = ApiErrorResponse(
+        code="VALIDATION_ERROR",
+        message="Invalid request parameters.",
+        detail=details,
+        is_retryable=False,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content=error_response.model_dump(by_alias=True),
+    )
 
 
-app.openapi = custom_openapi  # type: ignore[method-assign]
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Standardize HTTPExceptions (including Starlette 404/405) to the common error envelope.
+    """
+    code = "NOT_FOUND" if exc.status_code == 404 else ("METHOD_NOT_ALLOWED" if exc.status_code == 405 else "HTTP_ERROR")
+    message = "A request error occurred."
+    detail = None
+
+    if isinstance(exc.detail, dict):
+        code = exc.detail.get("code", code)
+        message = exc.detail.get("message", message)
+        detail = exc.detail.get("detail", None)
+    elif isinstance(exc.detail, str) and exc.detail not in ("Not Found", "Method Not Allowed"):
+        code = exc.detail
+        message = exc.detail
+    elif isinstance(exc.detail, str):
+        message = exc.detail
+
+    error_response = ApiErrorResponse(
+        code=code,
+        message=message,
+        detail=detail,
+        is_retryable=exc.status_code >= 500,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response.model_dump(by_alias=True),
+        headers=getattr(exc, "headers", None),
+    )
 
 
-if __name__ == "__main__":
-    # Render and hosting providers set the PORT environment variable dynamically
-    port = int(os.environ.get("PORT", settings.PORT))
-    host = os.environ.get("HOST", settings.HOST)
-    uvicorn.run("app.main:app", host=host, port=port, reload=settings.DEBUG)
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all exception handler to avoid leaking tracebacks or internal details.
+    """
+    logger.exception(f"Unhandled error processing request {request.method} {request.url.path}: {exc}")
+    error_response = ApiErrorResponse(
+        code="INTERNAL_SERVER_ERROR",
+        message="An unexpected server error occurred. Please try again later.",
+        detail=None,
+        is_retryable=True,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=error_response.model_dump(by_alias=True),
+    )
+
+
+# Register API v1 routes
+app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return {
+        "name": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "docsUrl": "/api/v1/docs",
+        "healthUrl": "/api/v1/health",
+    }
