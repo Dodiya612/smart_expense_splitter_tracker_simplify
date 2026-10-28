@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_current_user_optional
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import (
+    check_login_rate_limit,
+    record_failed_login_attempt,
+    reset_login_rate_limit,
+)
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -144,6 +149,9 @@ async def register(payload: UserSignupRequest, db: AsyncSession = Depends(get_db
 async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
     normalized_email = payload.email.strip().lower()
 
+    # Pre-auth rate limit check (returns 429 when max failed attempts reached)
+    await check_login_rate_limit(db, normalized_email)
+
     result = await db.execute(
         select(User).where(User.email == normalized_email)
     )
@@ -152,6 +160,7 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
     if not user:
         # Preempt user enumeration via timing attack equalization
         verify_dummy_password(payload.password)
+        await record_failed_login_attempt(db, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -161,6 +170,7 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
         )
 
     if not verify_password(payload.password, user.hashed_password):
+        await record_failed_login_attempt(db, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -177,6 +187,9 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
                 "message": "User account is inactive.",
             },
         )
+
+    # Successful login resets the failed login attempt counter
+    await reset_login_rate_limit(db, normalized_email)
 
     # Issue new refresh token with fresh family_id
     raw_refresh_token = generate_refresh_token()

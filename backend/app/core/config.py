@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "smart-expense-splitter"
     JWT_AUDIENCE: str = "smart-expense-splitter-app"
 
+    # Login Rate Limiting Configuration
+    LOGIN_RATE_LIMIT_MAX_ATTEMPTS: int = 5
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 900
+
+
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":
         if self.ENVIRONMENT != "development":

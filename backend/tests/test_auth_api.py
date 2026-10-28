@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.main import app
+from app.models.rate_limit import LoginRateLimit
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
@@ -16,6 +17,7 @@ class FakeInMemoryDB:
     def __init__(self):
         self.users: Dict[uuid.UUID, User] = {}
         self.tokens: Dict[uuid.UUID, RefreshToken] = {}
+        self.rate_limits: Dict[str, LoginRateLimit] = {}
 
 
 from contextlib import asynccontextmanager
@@ -52,6 +54,7 @@ class FakeAsyncSession:
         self.db = db
         self.pending_users: Dict[uuid.UUID, User] = {}
         self.pending_tokens: Dict[uuid.UUID, RefreshToken] = {}
+        self.pending_rate_limits: Dict[str, LoginRateLimit] = {}
         self.simulate_integrity_error: bool = False
 
     def add(self, obj):
@@ -61,6 +64,13 @@ class FakeAsyncSession:
             self.pending_users[obj.id] = obj
         elif isinstance(obj, RefreshToken):
             self.pending_tokens[obj.id] = obj
+        elif isinstance(obj, LoginRateLimit):
+            self.pending_rate_limits[obj.key] = obj
+
+    async def delete(self, obj):
+        if isinstance(obj, LoginRateLimit):
+            self.db.rate_limits.pop(obj.key, None)
+            self.pending_rate_limits.pop(obj.key, None)
 
     async def flush(self):
         if self.simulate_integrity_error:
@@ -72,8 +82,10 @@ class FakeAsyncSession:
                     raise IntegrityError(f"Key (email)=({u.email}) already exists.", params={}, orig=Exception())
         self.db.users.update(self.pending_users)
         self.db.tokens.update(self.pending_tokens)
+        self.db.rate_limits.update(self.pending_rate_limits)
         self.pending_users.clear()
         self.pending_tokens.clear()
+        self.pending_rate_limits.clear()
 
     async def commit(self):
         await self.flush()
@@ -81,6 +93,7 @@ class FakeAsyncSession:
     async def rollback(self):
         self.pending_users.clear()
         self.pending_tokens.clear()
+        self.pending_rate_limits.clear()
 
     async def refresh(self, obj):
         pass
@@ -96,8 +109,10 @@ class FakeAsyncSession:
         # Flush pending changes to ensure visibility in queries
         self.db.users.update(self.pending_users)
         self.db.tokens.update(self.pending_tokens)
+        self.db.rate_limits.update(self.pending_rate_limits)
         self.pending_users.clear()
         self.pending_tokens.clear()
+        self.pending_rate_limits.clear()
 
         params = stmt.compile().params
         sql_str = str(stmt).lower()
@@ -137,6 +152,14 @@ class FakeAsyncSession:
                     if t.user_id == user_val:
                         t.is_revoked = True
             return FakeResult([])
+
+        # 4. SELECT LoginRateLimit queries
+        if "from login_rate_limits" in sql_str:
+            key_val = next((v for k, v in params.items() if "key" in k), None)
+            if key_val is not None:
+                matched = [r for r in self.db.rate_limits.values() if r.key == key_val]
+                return FakeResult(matched)
+            return FakeResult(list(self.db.rate_limits.values()))
 
         return FakeResult([])
 
@@ -1240,5 +1263,406 @@ async def test_contract_compliance_error_envelopes(auth_client: AsyncClient):
     assert "message" in data_401
     assert "isRetryable" in data_401
     assert data_401["isRetryable"] is False
+
+
+# ============================================================================
+# US-01 Dedicated Acceptance Criteria Verification Tests
+# ============================================================================
+
+@pytest.mark.anyio
+async def test_duplicate_normalized_email_sequential_registration_prevented(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that registering emails differing only in normalization
+    (e.g. capitalization, leading/trailing whitespace) cannot create duplicate accounts,
+    and that database-level email uniqueness is strictly enforced.
+    """
+    # 1. First registration with mixed-case email
+    resp1 = await auth_client.post(
+        "/api/v1/auth/signup",
+        json={
+            "name": "Original User",
+            "email": "John.Doe@Example.com",
+            "password": "Password123!",
+        },
+    )
+    assert resp1.status_code == 201
+    data1 = resp1.json()
+    assert data1["user"]["email"] == "john.doe@example.com"
+    assert len(fake_db.users) == 1
+
+    # 2. Duplicate registration attempt with ALL CAPS email
+    resp2 = await auth_client.post(
+        "/api/v1/auth/signup",
+        json={
+            "name": "Impostor User",
+            "email": "JOHN.DOE@EXAMPLE.COM",
+            "password": "DifferentPassword123!",
+        },
+    )
+    assert resp2.status_code == 409
+    data2 = resp2.json()
+    assert data2["code"] == "EMAIL_ALREADY_EXISTS"
+    assert "already exists" in data2["message"]
+
+    # 3. Duplicate registration attempt with whitespace-padded lowercase email
+    resp3 = await auth_client.post(
+        "/api/v1/auth/signup",
+        json={
+            "name": "Whitespace Impostor",
+            "email": "   john.doe@example.com   ",
+            "password": "AnotherPassword123!",
+        },
+    )
+    assert resp3.status_code == 409
+    data3 = resp3.json()
+    assert data3["code"] == "EMAIL_ALREADY_EXISTS"
+
+    # 4. Confirm only 1 user exists in the database
+    assert len(fake_db.users) == 1
+    persisted_user = list(fake_db.users.values())[0]
+    assert persisted_user.email == "john.doe@example.com"
+
+
+@pytest.mark.anyio
+async def test_wrong_password_generic_error_indistinguishable_from_nonexistent_user(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that incorrect credentials return a generic error without
+    revealing whether an account exists. Both wrong password for an existing account
+    and login for a non-existent account must return identical status codes,
+    error envelopes, codes, and sanitized messages.
+    """
+    # Create legitimate user
+    user = User(
+        id=uuid.uuid4(),
+        email="realuser@example.com",
+        name="Real User",
+        hashed_password=hash_password("LegitPassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    # Attempt 1: Existing user with WRONG password
+    resp_wrong_pw = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "realuser@example.com", "password": "WrongPassword999!"},
+    )
+
+    # Attempt 2: NON-EXISTENT user
+    resp_nonexistent = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "nonexistent@example.com", "password": "WrongPassword999!"},
+    )
+
+    # Both must return HTTP 401 Unauthorized
+    assert resp_wrong_pw.status_code == 401
+    assert resp_nonexistent.status_code == 401
+
+    data_wrong_pw = resp_wrong_pw.json()
+    data_nonexistent = resp_nonexistent.json()
+
+    # Exact payload identity: no timing/account disclosure leak
+    assert data_wrong_pw["code"] == "INVALID_CREDENTIALS"
+    assert data_nonexistent["code"] == "INVALID_CREDENTIALS"
+    assert data_wrong_pw["message"] == "Invalid email or password."
+    assert data_nonexistent["message"] == "Invalid email or password."
+    assert data_wrong_pw["detail"] is None
+    assert data_nonexistent["detail"] is None
+    assert data_wrong_pw["isRetryable"] is False
+    assert data_nonexistent["isRetryable"] is False
+
+    # Responses must be completely indistinguishable
+    assert data_wrong_pw == data_nonexistent
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_triggered_after_max_failed_attempts(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Check whether repeated failed login attempts are actually rate-limited.
+    Verify that repeated failed login attempts trigger HTTP 429 when the configured
+    limit (default: 5) is exceeded, returning the standardized error envelope
+    and Retry-After header.
+    """
+    user = User(
+        id=uuid.uuid4(),
+        email="ratelimit_target@example.com",
+        name="Target User",
+        hashed_password=hash_password("CorrectPassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    # Execute 5 consecutive failed login attempts (each returns 401)
+    for attempt in range(1, 6):
+        resp = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "ratelimit_target@example.com", "password": f"BadPassword{attempt}!"},
+        )
+        assert resp.status_code == 401, f"Attempt {attempt} should return 401, got {resp.status_code}"
+        assert resp.json()["code"] == "INVALID_CREDENTIALS"
+
+    # Attempt 6: Exceeds max attempts (5) -> must return HTTP 429 Too Many Requests
+    resp_rate_limited = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "ratelimit_target@example.com", "password": "BadPassword6!"},
+    )
+    assert resp_rate_limited.status_code == 429
+    data = resp_rate_limited.json()
+    assert data["code"] == "RATE_LIMIT_EXCEEDED"
+    assert "Too many failed login attempts" in data["message"]
+    assert data["isRetryable"] is False
+    assert "retry-after" in resp_rate_limited.headers
+    retry_after = int(resp_rate_limited.headers["retry-after"])
+    assert retry_after > 0
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_blocks_even_with_correct_password_while_locked(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that once an account is locked out by rate limiting,
+    subsequent attempts even with the CORRECT password are rejected with HTTP 429.
+    """
+    user = User(
+        id=uuid.uuid4(),
+        email="locked_user@example.com",
+        name="Locked User",
+        hashed_password=hash_password("SuperSecretPassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    # 5 failed attempts to lock account
+    for _ in range(5):
+        resp = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "locked_user@example.com", "password": "WrongPassword!"},
+        )
+        assert resp.status_code == 401
+
+    # Attempt with CORRECT password while rate limited
+    resp_correct_pw = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "locked_user@example.com", "password": "SuperSecretPassword123!"},
+    )
+    assert resp_correct_pw.status_code == 429
+    assert resp_correct_pw.json()["code"] == "RATE_LIMIT_EXCEEDED"
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_isolated_per_account(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that rate limiting on one account does not block or impact
+    login attempts for another legitimate account.
+    """
+    user_a = User(
+        id=uuid.uuid4(),
+        email="victim@example.com",
+        name="Victim",
+        hashed_password=hash_password("VictimPassword123!"),
+        is_active=True,
+    )
+    user_b = User(
+        id=uuid.uuid4(),
+        email="innocent@example.com",
+        name="Innocent",
+        hashed_password=hash_password("InnocentPassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user_a.id] = user_a
+    fake_db.users[user_b.id] = user_b
+
+    # Lock out user_a with 5 failed attempts
+    for _ in range(5):
+        await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "victim@example.com", "password": "WrongPassword!"},
+        )
+
+    # user_a is now rate-limited
+    res_a = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "victim@example.com", "password": "WrongPassword!"},
+    )
+    assert res_a.status_code == 429
+
+    # user_b logs in with correct password -> must succeed with 200
+    res_b = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "innocent@example.com", "password": "InnocentPassword123!"},
+    )
+    assert res_b.status_code == 200
+    assert res_b.json()["user"]["email"] == "innocent@example.com"
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_resets_on_successful_login(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that a successful login resets the failed attempts counter
+    so that intermittent mistakes do not build up to premature lockout.
+    """
+    user = User(
+        id=uuid.uuid4(),
+        email="clumsy_user@example.com",
+        name="Clumsy User",
+        hashed_password=hash_password("ClumsyPassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    # 3 failed attempts (below limit of 5)
+    for _ in range(3):
+        res = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "clumsy_user@example.com", "password": "TypoPassword!"},
+        )
+        assert res.status_code == 401
+
+    # Legitimate login -> 200 OK and counter reset
+    res_success = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "clumsy_user@example.com", "password": "ClumsyPassword123!"},
+    )
+    assert res_success.status_code == 200
+
+    # Rate limit record should be cleared or reset
+    assert "clumsy_user@example.com" not in fake_db.rate_limits
+
+    # Another 3 failed attempts must not trigger 429 because count was reset
+    for _ in range(3):
+        res = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "clumsy_user@example.com", "password": "TypoPassword!"},
+        )
+        assert res.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_lockout_expires_after_window(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that requests behave correctly after the lockout window has elapsed.
+    """
+    user = User(
+        id=uuid.uuid4(),
+        email="lockout_expiry@example.com",
+        name="Lockout Expiry",
+        hashed_password=hash_password("CorrectSecret123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    # Lock account with 5 failed attempts
+    for _ in range(5):
+        await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "lockout_expiry@example.com", "password": "WrongPassword!"},
+        )
+
+    # Verify locked
+    res_locked = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "lockout_expiry@example.com", "password": "WrongPassword!"},
+    )
+    assert res_locked.status_code == 429
+
+    # Simulate lockout window expiration (e.g. 901 seconds ago)
+    record = fake_db.rate_limits.get("lockout_expiry@example.com")
+    assert record is not None
+    record.last_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=901)
+
+    # Next attempt after window expiry should be allowed through (not 429)
+    res_after_window = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "lockout_expiry@example.com", "password": "CorrectSecret123!"},
+    )
+    assert res_after_window.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_applies_to_nonexistent_users(
+    auth_client: AsyncClient,
+):
+    """
+    US-01: Verify that rate limiting also protects non-existent accounts from
+    brute force/enumeration attacks without leaking account existence.
+    """
+    # 5 failed attempts for non-existent account
+    for _ in range(5):
+        res = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "nobody_special@example.com", "password": "WrongPassword!"},
+        )
+        assert res.status_code == 401
+        assert res.json()["code"] == "INVALID_CREDENTIALS"
+
+    # 6th attempt triggers 429
+    res_rate_limited = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "nobody_special@example.com", "password": "WrongPassword!"},
+    )
+    assert res_rate_limited.status_code == 429
+    assert res_rate_limited.json()["code"] == "RATE_LIMIT_EXCEEDED"
+
+
+@pytest.mark.anyio
+async def test_login_rate_limiting_case_insensitive(
+    auth_client: AsyncClient,
+    fake_db: FakeInMemoryDB,
+):
+    """
+    US-01: Verify that email normalization ensures varying capitalization
+    all contributes to the same rate limiting counter.
+    """
+    user = User(
+        id=uuid.uuid4(),
+        email="case_test@example.com",
+        name="Case Test",
+        hashed_password=hash_password("CasePassword123!"),
+        is_active=True,
+    )
+    fake_db.users[user.id] = user
+
+    cased_emails = [
+        "CASE_TEST@EXAMPLE.COM",
+        "Case_Test@Example.Com",
+        "case_TEST@example.com",
+        "cAsE_tEsT@eXaMpLe.CoM",
+        "case_test@example.com",
+    ]
+
+    for email_variant in cased_emails:
+        res = await auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": email_variant, "password": "WrongPassword!"},
+        )
+        assert res.status_code == 401
+
+    # 6th attempt with yet another casing variation must trigger 429
+    res_6 = await auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": "   CASE_test@EXAMPLE.com   ", "password": "WrongPassword!"},
+    )
+    assert res_6.status_code == 429
+    assert res_6.json()["code"] == "RATE_LIMIT_EXCEEDED"
+
 
 
