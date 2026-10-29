@@ -138,6 +138,21 @@ class FakeAsyncSession:
             if hash_val is not None:
                 matched = [t for t in self.db.tokens.values() if t.token_hash == hash_val]
                 return FakeResult(matched)
+            user_val = next((v for k, v in params.items() if "user_id" in k or "user_1" in k), None)
+            if user_val is not None and "is_revoked" in sql_str:
+                now_utc = datetime.now(timezone.utc)
+                matched = [
+                    t for t in self.db.tokens.values()
+                    if t.user_id == user_val and not t.is_revoked and t.expires_at > now_utc
+                ]
+                # Sort by last_seen descending
+                matched.sort(key=lambda t: getattr(t, "last_seen", t.created_at), reverse=True)
+                return FakeResult(matched)
+            fam_or_id = next((v for k, v in params.items() if isinstance(v, uuid.UUID) and "user" not in k), None)
+            if fam_or_id is not None:
+                matched = [t for t in self.db.tokens.values() if t.family_id == fam_or_id or t.id == fam_or_id]
+                return FakeResult(matched)
+            return FakeResult(list(self.db.tokens.values()))
 
         # 3. UPDATE RefreshToken queries
         if "update refresh_tokens" in sql_str:

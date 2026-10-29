@@ -54,6 +54,20 @@ class RefreshToken(Base):
         index=True,
         nullable=False,
     )
+    device_label: Mapped[Optional[str]] = mapped_column(
+        String(150),
+        nullable=True,
+    )
+    remember: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utcnow,

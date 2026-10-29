@@ -31,6 +31,8 @@ from app.schemas.auth import (
     LogoutRequest,
     MessageResponse,
     RefreshTokenRequest,
+    SessionListResponse,
+    SessionResponse,
     TokenBundle,
     TokenRefreshResponse,
     UserLoginRequest,
@@ -79,7 +81,10 @@ async def _handle_signup(payload: UserSignupRequest, db: AsyncSession) -> AuthRe
         token_hash = hash_refresh_token(raw_refresh_token)
         family_id = uuid.uuid4()
         now = datetime.now(timezone.utc)
-        expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        if payload.remember_me:
+            expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        else:
+            expires_at = now + timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS_WITHOUT_REMEMBER)
 
         refresh_token_row = RefreshToken(
             user_id=user.id,
@@ -88,6 +93,10 @@ async def _handle_signup(payload: UserSignupRequest, db: AsyncSession) -> AuthRe
             parent_id=None,
             is_revoked=False,
             expires_at=expires_at,
+            remember=payload.remember_me,
+            device_label=payload.device_label,
+            last_seen=now,
+            created_at=now,
         )
         db.add(refresh_token_row)
         await db.commit()
@@ -196,7 +205,10 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
     token_hash = hash_refresh_token(raw_refresh_token)
     family_id = uuid.uuid4()
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    if payload.remember_me:
+        expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    else:
+        expires_at = now + timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS_WITHOUT_REMEMBER)
 
     refresh_token_row = RefreshToken(
         user_id=user.id,
@@ -205,6 +217,10 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
         parent_id=None,
         is_revoked=False,
         expires_at=expires_at,
+        remember=payload.remember_me,
+        device_label=payload.device_label,
+        last_seen=now,
+        created_at=now,
     )
     db.add(refresh_token_row)
     await db.commit()
@@ -302,13 +318,21 @@ async def refresh_token(
             },
         )
 
-    # Invalidate the current refresh token
+    # Invalidate the current refresh token and update its last_seen timestamp
     current_token.is_revoked = True
+    current_token.last_seen = now
+
+    # Determine child token expiration and metadata from parent policy
+    parent_remember = getattr(current_token, "remember", False) or False
+    parent_device_label = getattr(current_token, "device_label", None)
+    if parent_remember:
+        new_expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    else:
+        new_expires_at = now + timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS_WITHOUT_REMEMBER)
 
     # Generate child refresh token within the same family
     new_raw_token = generate_refresh_token()
     new_token_hash = hash_refresh_token(new_raw_token)
-    new_expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     child_token = RefreshToken(
         user_id=current_token.user_id,
@@ -317,6 +341,10 @@ async def refresh_token(
         parent_id=current_token.id,
         is_revoked=False,
         expires_at=new_expires_at,
+        remember=parent_remember,
+        device_label=parent_device_label,
+        last_seen=now,
+        created_at=now,
     )
     db.add(child_token)
     await db.commit()
@@ -424,3 +452,112 @@ async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse
         name=current_user.name,
         email=current_user.email,
     )
+
+
+@router.get(
+    "/sessions",
+    response_model=SessionListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List active sessions for the authenticated user",
+)
+async def list_active_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionListResponse:
+    now = datetime.now(timezone.utc)
+    query = (
+        select(RefreshToken)
+        .where(
+            RefreshToken.user_id == current_user.id,
+            RefreshToken.is_revoked.is_(False),
+            RefreshToken.expires_at > now,
+        )
+        .order_by(RefreshToken.last_seen.desc())
+    )
+    result = await db.execute(query)
+    active_tokens = result.scalars().all()
+
+    # Deduplicate by family_id so each device session stream appears once
+    seen_families = set()
+    sessions: list[SessionResponse] = []
+    for token in active_tokens:
+        if token.family_id not in seen_families:
+            seen_families.add(token.family_id)
+            token_created = getattr(token, "created_at", None) or getattr(token, "last_seen", None) or datetime.now(timezone.utc)
+            token_last_seen = getattr(token, "last_seen", None) or token_created
+            sessions.append(
+                SessionResponse(
+                    id=str(token.family_id),
+                    device_label=token.device_label,
+                    created_at=token_created,
+                    last_seen=token_last_seen,
+                    expires_at=token.expires_at,
+                    remember=bool(token.remember),
+                    is_current=False,
+                )
+            )
+
+    return SessionListResponse(sessions=sessions)
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Revoke an active session belonging to the authenticated user",
+)
+async def revoke_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    try:
+        target_uuid = uuid.UUID(session_id.strip())
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "SESSION_NOT_FOUND",
+                "message": "Session not found.",
+            },
+        )
+
+    # Locate token matching target_uuid as either family_id or token id
+    query = select(RefreshToken).where(
+        (RefreshToken.family_id == target_uuid) | (RefreshToken.id == target_uuid)
+    )
+    result = await db.execute(query)
+    target_token = result.scalars().first()
+
+    if not target_token:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "SESSION_NOT_FOUND",
+                "message": "Session not found.",
+            },
+        )
+
+    # Enforce strict session ownership: user cannot view or revoke foreign sessions
+    if target_token.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "SESSION_NOT_FOUND",
+                "message": "Session not found.",
+            },
+        )
+
+    # Revoke all tokens belonging to this family
+    await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.family_id == target_token.family_id,
+            RefreshToken.user_id == current_user.id,
+        )
+        .values(is_revoked=True)
+    )
+    await db.commit()
+
+    return MessageResponse(message="Session successfully revoked.")
+
