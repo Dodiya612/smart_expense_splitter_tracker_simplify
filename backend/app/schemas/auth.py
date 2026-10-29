@@ -1,5 +1,6 @@
 import uuid
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any, List, Optional
 from pydantic import EmailStr, Field, field_validator
 from app.schemas.common import BaseSchema
 
@@ -8,6 +9,8 @@ class UserSignupRequest(BaseSchema):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
+    remember_me: bool = False
+    device_label: Optional[str] = Field(None, max_length=150)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -27,6 +30,8 @@ class UserSignupRequest(BaseSchema):
 class UserLoginRequest(BaseSchema):
     email: EmailStr
     password: str = Field(..., min_length=1)
+    remember_me: bool = False
+    device_label: Optional[str] = Field(None, max_length=150)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -86,3 +91,24 @@ class TokenRefreshResponse(BaseSchema):
 
 class MessageResponse(BaseSchema):
     message: str
+
+
+class SessionResponse(BaseSchema):
+    id: str
+    device_label: Optional[str] = None
+    created_at: datetime
+    last_seen: datetime
+    expires_at: datetime
+    remember: bool = False
+    is_current: bool = False
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_id(cls, v: Any) -> str:
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return str(v)
+
+
+class SessionListResponse(BaseSchema):
+    sessions: List[SessionResponse]
