@@ -8,12 +8,16 @@ export interface AuthErrorBannerProps {
   message: string;
   isRetryable?: boolean;
   onRetry?: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function AuthErrorBanner({
   message,
   isRetryable = false,
   onRetry,
+  actionLabel,
+  onAction,
 }: AuthErrorBannerProps) {
   const theme = useTheme();
 
@@ -40,6 +44,14 @@ export function AuthErrorBanner({
           variant="outline"
           onPress={onRetry}
           accessibilityLabel="Retry submission"
+        />
+      )}
+      {!isRetryable && actionLabel && onAction && (
+        <Button
+          label={actionLabel}
+          variant="outline"
+          onPress={onAction}
+          accessibilityLabel={actionLabel}
         />
       )}
     </View>

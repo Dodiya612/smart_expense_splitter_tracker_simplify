@@ -11,6 +11,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme';
 import { AppText } from './AppText';
 
@@ -102,6 +103,7 @@ export const AppInput = React.forwardRef<TextInput, AppInputProps>(function AppI
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
+            accessibilityHint={isPasswordVisible ? 'Hides password' : 'Shows password in plain text'}
             disabled={disabled}
             onPress={() => setIsPasswordVisible((v) => !v)}
             style={({ pressed }) => [
@@ -109,9 +111,11 @@ export const AppInput = React.forwardRef<TextInput, AppInputProps>(function AppI
               { minHeight: theme.minTouchTarget, minWidth: theme.minTouchTarget },
               pressed && styles.pressed,
             ]}>
-            <AppText variant="bodyStrong" color="textPrimary">
-              {isPasswordVisible ? 'Hide' : 'Show'}
-            </AppText>
+            <Ionicons
+              name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={isPasswordVisible ? theme.colors.primary : theme.colors.textSecondary}
+            />
           </Pressable>
         )}
       </View>
