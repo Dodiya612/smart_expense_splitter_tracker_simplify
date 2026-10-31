@@ -16,6 +16,9 @@ dependencies = [
     "argon2-cffi>=23.1.0",
     "pyjwt>=2.8.0",
     "email-validator>=2.0.0",
+    "scikit-learn>=1.4.0",
+    "joblib>=1.3.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -34,3 +37,7 @@ build-backend = "setuptools.build_meta"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = "test_*.py"
+pythonpath = [".", ".."]
+
+[tool.pyrefly]
+search-path = ["..", "."]
