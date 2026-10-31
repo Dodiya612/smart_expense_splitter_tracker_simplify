@@ -13,6 +13,14 @@ from app.schemas.auth import (
     UserResponse,
     UserSignupRequest,
 )
+from app.schemas.category_suggestion import (
+    CategoryFeedbackData,
+    CategoryFeedbackRequest,
+    CategoryFeedbackResponse,
+    CategorySuggestionData,
+    CategorySuggestionRequest,
+    CategorySuggestionResponse,
+)
 from app.schemas.common import (
     ApiErrorDetail,
     ApiErrorResponse,
@@ -37,6 +45,12 @@ __all__ = [
     "ApiErrorResponse",
     "AuthResponse",
     "BaseSchema",
+    "CategoryFeedbackData",
+    "CategoryFeedbackRequest",
+    "CategoryFeedbackResponse",
+    "CategorySuggestionData",
+    "CategorySuggestionRequest",
+    "CategorySuggestionResponse",
     "ExpenseCreate",
     "ExpenseDataResponse",
     "ExpenseDeleteResponse",
