@@ -1,13 +1,17 @@
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
+from app.services.category_suggestion_service import restore_user_history
 
 # Configure logging
 logging.basicConfig(
@@ -16,12 +20,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan managing startup tasks and background services."""
+    logger.info("Initializing application services...")
+    try:
+        restored = await restore_user_history()
+        logger.info("Restored %d historical category preferences from database", restored)
+    except (SQLAlchemyError, OSError, RuntimeError) as exc:
+        logger.warning("Startup user history restoration encountered an issue: %s", exc)
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url="/api/v1/openapi.json",
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
+    lifespan=lifespan,
 )
 
 # CORS Middleware with explicitly configured development origins
