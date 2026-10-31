@@ -108,9 +108,9 @@ export function ExpenseListScreen() {
 
   const handleEdit = (expense: Expense) => {
     router.push({
-      pathname: '/add-expense' as Href,
+      pathname: '/add-expense',
       params: { expense: JSON.stringify(expense) },
-    });
+    } as Href);
   };
 
   const handleAdd = () => {

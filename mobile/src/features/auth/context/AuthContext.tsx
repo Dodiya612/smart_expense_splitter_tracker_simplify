@@ -1,110 +1,151 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-
-import { ApiError, AuthUser } from '@/services/api/types';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import { registerAuthFailureListener } from '@/services/api/authInterceptor';
+import { getApiClient } from '@/services/api/client';
 import {
-  clearStoredAuthSession,
-  getStoredAuthSession,
-  setStoredAuthSession,
-} from '@/services/auth/secureStoreAdapter';
+  ApiError,
+  AuthResponse,
+  AuthUser,
+  LoginCredentials,
+  SignupPayload,
+} from '@/services/api/types';
+import { tokenStorage } from '@/services/auth/tokenStorage';
 
-interface AuthCredentials {
-  email: string;
-  password: string;
-}
-
-interface SignupPayload extends AuthCredentials {
-  name: string;
-}
-
-interface AuthResponse {
-  user: AuthUser;
-}
-
-interface AuthContextValue {
+export interface AuthContextValue {
+  user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  user: AuthUser | null;
-  login: (payload: AuthCredentials) => Promise<AuthResponse>;
+  login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   signup: (payload: SignupPayload) => Promise<AuthResponse>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-function createMockUser(name: string, email: string): AuthUser {
-  return {
-    id: email.trim().toLowerCase(),
-    name: name.trim() || email.split('@')[0] || 'User',
-    email: email.trim(),
-  };
-}
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Restore session on cold start
   useEffect(() => {
     let isMounted = true;
 
-    const hydrateAuth = async () => {
+    async function restoreSession() {
       try {
-        const session = await getStoredAuthSession();
-        if (isMounted && session) {
-          setUser({
-            id: session.userId,
-            name: 'User',
-            email: session.userId,
-          });
+        const [cachedUser, refreshToken] = await Promise.all([
+          tokenStorage.getUser(),
+          tokenStorage.getRefreshToken(),
+        ]);
+
+        if (!refreshToken) {
+          if (isMounted) {
+            setUser(null);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Set cached user optimistically to avoid flash
+        if (cachedUser && isMounted) {
+          setUser(cachedUser);
+        }
+
+        // Validate session with backend /me endpoint
+        const client = getApiClient();
+        const freshUser = await client.me();
+        if (isMounted) {
+          setUser(freshUser);
+          await tokenStorage.saveUser(freshUser);
+        }
+      } catch (err: unknown) {
+        // Distinguish definitive authentication failure from transient errors
+        const isTransient =
+          err instanceof ApiError
+            ? err.isRetryable
+            : err instanceof Error &&
+              (err.name === 'AbortError' ||
+                err.message.toLowerCase().includes('network') ||
+                err.message.toLowerCase().includes('fetch'));
+
+        if (!isTransient) {
+          // Definitive auth failure: session is invalid, expired, or revoked
+          if (isMounted) {
+            setUser(null);
+          }
+          await tokenStorage.clearAll();
+        } else {
+          // Transient failure (network drop, timeout, server 5xx):
+          // Preserve stored tokens and cached user data so the session survives.
+          // Note: If cachedUser was present, setUser(cachedUser) already occurred optimistically.
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
         }
       }
-    };
+    }
 
-    hydrateAuth();
+    restoreSession();
+
+    // Listen to background refresh token revocation / expiry events
+    const unregister = registerAuthFailureListener(() => {
+      if (isMounted) {
+        setUser(null);
+      }
+    });
 
     return () => {
       isMounted = false;
+      unregister();
     };
   }, []);
 
-  const login = useCallback(async ({ email, password }: AuthCredentials): Promise<AuthResponse> => {
-    if (!email.trim() || !password) {
-      throw new ApiError('INVALID_CREDENTIALS', 'Email and password are required.');
+  const login = useCallback(async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    const client = getApiClient();
+    const response = await client.login(credentials);
+    setUser(response.user);
+    return response;
+  }, []);
+
+  const signup = useCallback(async (payload: SignupPayload): Promise<AuthResponse> => {
+    const client = getApiClient();
+    const response = await client.signup(payload);
+    setUser(response.user);
+    return response;
+  }, []);
+
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      const client = getApiClient();
+      await client.logout();
+    } finally {
+      setUser(null);
+      await tokenStorage.clearAll();
     }
-
-    const nextUser = createMockUser('', email);
-    setUser(nextUser);
-    await setStoredAuthSession({ userId: nextUser.id });
-    return { user: nextUser };
   }, []);
 
-  const signup = useCallback(async ({ name, email, password }: SignupPayload): Promise<AuthResponse> => {
-    if (!name.trim() || !email.trim() || !password) {
-      throw new ApiError('INVALID_INPUT', 'Name, email, and password are required.');
-    }
-
-    const nextUser = createMockUser(name, email);
-    setUser(nextUser);
-    await setStoredAuthSession({ userId: nextUser.id });
-    return { user: nextUser };
+  const refreshUser = useCallback(async (): Promise<void> => {
+    const client = getApiClient();
+    const freshUser = await client.me();
+    setUser(freshUser);
+    await tokenStorage.saveUser(freshUser);
   }, []);
 
-  const logout = useCallback(async () => {
-    setUser(null);
-    await clearStoredAuthSession();
-  }, []);
-
-  const value = useMemo<AuthContextValue>(() => ({
-    isAuthenticated: Boolean(user),
-    isLoading,
+  const value: AuthContextValue = {
     user,
+    isAuthenticated: !!user,
+    isLoading,
     login,
     signup,
     logout,
-  }), [isLoading, login, logout, signup, user]);
+    refreshUser,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
