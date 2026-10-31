@@ -5,6 +5,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authorization import (
+    Action,
+    CategoryPolicy,
+    ExpensePolicy,
+    GroupPolicy,
+    GroupRole,
+    PROTECTED_FIELDS,
+    SessionPolicy,
+    validate_protected_fields_update,
+)
 from app.core.database import get_db
 from app.core.security import TokenExpiredError, TokenInvalidError, decode_access_token
 from app.models.user import User
@@ -114,3 +124,17 @@ async def get_current_user_optional(
         return user
     except Exception:
         return None
+
+
+__all__ = [
+    "Action",
+    "CategoryPolicy",
+    "ExpensePolicy",
+    "GroupPolicy",
+    "GroupRole",
+    "PROTECTED_FIELDS",
+    "SessionPolicy",
+    "get_current_user",
+    "get_current_user_optional",
+    "validate_protected_fields_update",
+]
