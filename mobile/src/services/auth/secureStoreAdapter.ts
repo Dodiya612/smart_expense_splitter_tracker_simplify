@@ -1,33 +1,63 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import { KeyValueStorage, setStorageAdapter } from './tokenStorage';
 
-const STORAGE_KEY = 'smart-expense-auth-session';
+export class SecureStoreAdapter implements KeyValueStorage {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          return window.localStorage.getItem(key);
+        }
+      } catch {
+        // Fallback to null
+      }
+      return null;
+    }
 
-export interface StoredAuthSession {
-  userId: string;
+    return await SecureStore.getItemAsync(key);
+  }
+
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(key, value);
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+      return;
+    }
+
+    await SecureStore.setItemAsync(key, value, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED,
+    });
+  }
+
+  async deleteItem(key: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+      return;
+    }
+
+    await SecureStore.deleteItemAsync(key);
+  }
 }
+
+let isInitialized = false;
 
 export function initializeSecureStorage(): void {
-  // Keep initialization explicit for app bootstrap and future migrations.
-}
-
-export async function getStoredAuthSession(): Promise<StoredAuthSession | null> {
-  const value = await SecureStore.getItemAsync(STORAGE_KEY);
-  if (!value) {
-    return null;
+  if (!isInitialized) {
+    setStorageAdapter(new SecureStoreAdapter());
+    isInitialized = true;
   }
-
-  try {
-    return JSON.parse(value) as StoredAuthSession;
-  } catch {
-    await SecureStore.deleteItemAsync(STORAGE_KEY);
-    return null;
-  }
-}
-
-export async function setStoredAuthSession(session: StoredAuthSession): Promise<void> {
-  await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(session));
-}
-
-export async function clearStoredAuthSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(STORAGE_KEY);
 }

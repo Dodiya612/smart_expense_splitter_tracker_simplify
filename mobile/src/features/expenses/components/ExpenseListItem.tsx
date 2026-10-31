@@ -55,7 +55,7 @@ export function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseListItemPr
           ...theme.shadows.card,
         },
       ]}
-      accessibilityRole="listitem"
+      accessibilityRole="none"
     >
       {/* ── Top row: category chip + amount ─────────────────────── */}
       <View style={styles.topRow}>

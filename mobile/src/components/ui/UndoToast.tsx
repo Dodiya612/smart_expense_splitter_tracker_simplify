@@ -142,14 +142,14 @@ export function UndoToast({
       <View
         style={[
           styles.barTrack,
-          { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: theme.radii.pill },
+          { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: theme.radii.pill }, // design-check-ignore: translucent white track on dark toast
         ]}
       >
         <Animated.View
           style={[
             styles.barFill,
             {
-              backgroundColor: 'rgba(255,255,255,0.7)',
+              backgroundColor: 'rgba(255,255,255,0.7)', // design-check-ignore: translucent white progress fill on dark toast
               borderRadius: theme.radii.pill,
               width: progressAnim.interpolate({
                 inputRange: [0, 1],
