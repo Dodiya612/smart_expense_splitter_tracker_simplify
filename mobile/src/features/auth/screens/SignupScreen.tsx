@@ -10,7 +10,7 @@ import { AuthHeader } from '@/features/auth/components/AuthHeader';
 import { useKeyboardAwareScroll } from '@/features/auth/hooks/useKeyboardAwareScroll';
 import { useSignup } from '@/features/auth/hooks/useSignup';
 import { AuthFormErrors, SignupFormValues } from '@/features/auth/types';
-import { validateSignup } from '@/features/auth/utils/validation';
+import { getPasswordStrength, validateSignup } from '@/features/auth/utils/validation';
 import { useTheme } from '@/theme';
 
 const INITIAL_VALUES: SignupFormValues = { name: '', email: '', password: '', confirmPassword: '' };
@@ -28,9 +28,20 @@ export function SignupScreen() {
   const [values, setValues] = useState<SignupFormValues>(INITIAL_VALUES);
   const [fieldErrors, setFieldErrors] = useState<AuthFormErrors<SignupFormValues>>({});
 
+  const passwordStrength = getPasswordStrength(values.password);
+
   const handleFieldChange = (field: keyof SignupFormValues, text: string) => {
     setValues((prev) => ({ ...prev, [field]: text }));
-    if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    setFieldErrors((prev) => {
+      if (!prev[field] && !(field === 'password' && prev.confirmPassword)) {
+        return prev;
+      }
+      const updated = { ...prev, [field]: undefined };
+      if (field === 'password') {
+        updated.confirmPassword = undefined;
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async () => {
@@ -100,13 +111,46 @@ export function SignupScreen() {
               onChangeText={(text) => handleFieldChange('password', text)}
               onContainerLayout={onContainerLayout('password')}
               onFocus={() => ensureFieldVisible('password')}
-              placeholder="At least 8 characters" helperText="Must be at least 8 characters"
+              placeholder="At least 8 characters"
+              helperText={values.password.length === 0 ? 'Must be at least 8 characters' : undefined}
               secureTextEntry autoCapitalize="none" autoCorrect={false}
               autoComplete="new-password" textContentType="newPassword"
               returnKeyType="next"
               onSubmitEditing={() => { confirmPasswordRef.current?.focus(); ensureFieldVisible('confirmPassword'); }}
               error={fieldErrors.password} disabled={isLoading}
             />
+            {passwordStrength && (
+              <View
+                style={styles.strengthContainer}
+                accessibilityRole="progressbar"
+                accessibilityLabel={`Password strength: ${passwordStrength.label}`}>
+                <View style={styles.strengthBars}>
+                  {[1, 2, 3].map((barIndex) => {
+                    const isActive = barIndex <= passwordStrength.score;
+                    let barColor: string = theme.colors.border;
+                    if (isActive) {
+                      if (passwordStrength.level === 'weak') barColor = theme.colors.negative.fill;
+                      else if (passwordStrength.level === 'fair') barColor = theme.colors.warning.fill;
+                      else barColor = theme.colors.positive.fill;
+                    }
+                    return (
+                      <View key={barIndex} style={[styles.strengthBar, { backgroundColor: barColor }]} />
+                    );
+                  })}
+                </View>
+                <AppText
+                  variant="caption"
+                  color={
+                    passwordStrength.level === 'weak'
+                      ? 'negative'
+                      : passwordStrength.level === 'fair'
+                      ? 'warning'
+                      : 'positive'
+                  }>
+                  {`Strength: ${passwordStrength.label}`}
+                </AppText>
+              </View>
+            )}
             <AppInput
               ref={confirmPasswordRef} label="Confirm password" value={values.confirmPassword}
               onChangeText={(text) => handleFieldChange('confirmPassword', text)}
@@ -118,6 +162,19 @@ export function SignupScreen() {
               returnKeyType="done" onSubmitEditing={handleSubmit}
               error={fieldErrors.confirmPassword} disabled={isLoading}
             />
+            {values.confirmPassword.length > 0 && !fieldErrors.confirmPassword && (
+              <View style={styles.confirmFeedback}>
+                {values.password === values.confirmPassword ? (
+                  <AppText variant="caption" color="positive" accessibilityLiveRegion="polite">
+                    ✓ Passwords match
+                  </AppText>
+                ) : (
+                  <AppText variant="caption" color="negative" accessibilityLiveRegion="polite">
+                    [!] Passwords do not match
+                  </AppText>
+                )}
+              </View>
+            )}
             <Button label="Create account" variant="primary" fullWidth loading={isLoading} disabled={isLoading} onPress={handleSubmit} />
             <Pressable
               accessibilityRole="button"
@@ -142,6 +199,10 @@ export function SignupScreen() {
   const styles = StyleSheet.create({
     contentWrapper: { width: '100%' },
     form: { width: '100%' },
+    strengthContainer: { gap: 4, marginTop: -4 },
+    strengthBars: { flexDirection: 'row', gap: 4, width: '100%' },
+    strengthBar: { flex: 1, height: 4, borderRadius: 2 },
+    confirmFeedback: { marginTop: -4 },
     navLink: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
     boldText: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
     pressed: { opacity: 0.7 },

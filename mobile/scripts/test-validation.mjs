@@ -15,7 +15,7 @@ const validationCompiled = typescript.transpileModule(validationSourceCode, {
 const validationModule = await import(
   `data:text/javascript;base64,${Buffer.from(validationCompiled.outputText).toString('base64')}`,
 );
-const { isValidEmail, validateLogin, validateSignup } = validationModule;
+const { getPasswordStrength, isValidEmail, validateLogin, validateSignup } = validationModule;
 
 test('isValidEmail', async (t) => {
   await t.test('accepts valid email addresses', () => {
@@ -113,5 +113,31 @@ test('validateSignup', async (t) => {
       confirmPassword: 'securePassword123',
     });
     assert.strictEqual(errors.email, undefined);
+  });
+});
+
+test('getPasswordStrength', async (t) => {
+  await t.test('returns null for empty password', () => {
+    assert.strictEqual(getPasswordStrength(''), null);
+  });
+
+  await t.test('returns weak for passwords shorter than 8 characters', () => {
+    const res = getPasswordStrength('pass');
+    assert.deepStrictEqual(res, { level: 'weak', label: 'Weak', score: 1 });
+  });
+
+  await t.test('returns fair for 8+ character basic passwords', () => {
+    const res = getPasswordStrength('password');
+    assert.deepStrictEqual(res, { level: 'fair', label: 'Fair', score: 2 });
+  });
+
+  await t.test('returns strong for 8+ characters with high variety', () => {
+    const res = getPasswordStrength('Pass1234!');
+    assert.deepStrictEqual(res, { level: 'strong', label: 'Strong', score: 3 });
+  });
+
+  await t.test('returns strong for passwords 12 characters or longer', () => {
+    const res = getPasswordStrength('longpassphrase');
+    assert.deepStrictEqual(res, { level: 'strong', label: 'Strong', score: 3 });
   });
 });
