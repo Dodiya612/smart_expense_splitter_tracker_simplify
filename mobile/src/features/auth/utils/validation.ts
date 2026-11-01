@@ -7,6 +7,36 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
 }
 
+export type PasswordStrengthLevel = 'weak' | 'fair' | 'strong';
+
+export interface PasswordStrength {
+  level: PasswordStrengthLevel;
+  label: 'Weak' | 'Fair' | 'Strong';
+  score: 1 | 2 | 3;
+}
+
+export function getPasswordStrength(password: string): PasswordStrength | null {
+  if (!password || password.length === 0) {
+    return null;
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { level: 'weak', label: 'Weak', score: 1 };
+  }
+
+  let varietyCount = 0;
+  if (/[a-z]/.test(password)) varietyCount++;
+  if (/[A-Z]/.test(password)) varietyCount++;
+  if (/[0-9]/.test(password)) varietyCount++;
+  if (/[^a-zA-Z0-9]/.test(password)) varietyCount++;
+
+  if (password.length >= 12 || varietyCount >= 3) {
+    return { level: 'strong', label: 'Strong', score: 3 };
+  }
+
+  return { level: 'fair', label: 'Fair', score: 2 };
+}
+
 export function validateLogin(values: LoginFormValues): AuthFormErrors<LoginFormValues> {
   const errors: AuthFormErrors<LoginFormValues> = {};
 
