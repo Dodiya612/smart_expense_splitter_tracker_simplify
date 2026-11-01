@@ -15,15 +15,22 @@ Also handles:
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, status
+from ml.classifier import CategoryClassifier
+from ml.fallback_rules import KeywordRuleBaseline
+from ml.history import UserHistoryLayer
+from ml.merchant_normalizer import MerchantNormalizer
 from sqlalchemy import or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.quota import AIQuotaService, get_quota_service, log_ai_usage
+from app.core.config import settings
 from app.models.category import Category
 from app.models.category_feedback import CategorySuggestionFeedback
 from app.schemas.category_suggestion import (
@@ -33,10 +40,6 @@ from app.schemas.category_suggestion import (
     CategorySuggestionRequest,
 )
 from app.services.groq_client import GroqClient
-from ml.classifier import CategoryClassifier
-from ml.fallback_rules import KeywordRuleBaseline
-from ml.history import UserHistoryLayer
-from ml.merchant_normalizer import MerchantNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +215,7 @@ async def suggest_category(
     classifier: CategoryClassifier | None = None,
     history_layer: UserHistoryLayer | None = None,
     groq_client: GroqClient | None = None,
+    quota_service: AIQuotaService | None = None,
 ) -> CategorySuggestionData:
     """Execute the three-layer suggestion pipeline.
 
@@ -219,13 +223,15 @@ async def suggest_category(
        Computes prediction and Bayesian-blended confidence using T-22 model.
     2. Layer 3 (Groq LLM Fallback):
        Triggered strictly when local confidence < 0.60.
-       Falls back to KeywordRuleBaseline if Groq is unconfigured or fails.
+       Checks global AI_ENABLED switch and daily categorize quota.
+       Falls back to KeywordRuleBaseline if Groq is unconfigured, disabled, quota-exhausted, or fails.
     3. Category Name to UUID Resolution:
        Maps category name to database category UUID.
     """
     clf = classifier or get_category_classifier()
     hist = history_layer if history_layer is not None else get_user_history_layer()
     llm = groq_client or get_groq_client()
+    qs = quota_service or get_quota_service()
 
     norm_merchant = MerchantNormalizer.normalize_merchant(req.merchant)
 
@@ -252,14 +258,59 @@ async def suggest_category(
 
     # 2. Check 60% confidence threshold for Groq LLM fallback
     # Confidence >= 0.60: never call Groq
-    # Confidence < 0.60: call Groq if configured, else safe rule baseline
+    # Confidence < 0.60: call Groq if configured, enabled, and within daily quota, else safe rule baseline
     if confidence < 0.60:
         llm_cat: str | None = None
-        if llm.is_configured():
-            llm_cat = await llm.classify_category(
-                description=req.description,
-                merchant=req.merchant,
-            )
+
+        if settings.AI_ENABLED and llm.is_configured():
+            async with qs.reserve(
+                user_id=user_id,
+                feature="categorize",
+                db=db,
+                provider="groq",
+                model=settings.GROQ_MODEL,
+                raise_on_exceeded=False,
+            ) as reservation:
+                if reservation.allowed:
+                    start_time = time.perf_counter()
+                    try:
+                        llm_cat = await llm.classify_category(
+                            description=req.description,
+                            merchant=req.merchant,
+                        )
+                        latency_ms = (time.perf_counter() - start_time) * 1000.0
+
+                        await reservation.finalize(
+                            status="success" if llm_cat is not None else "error",
+                            error_message=None if llm_cat is not None else "Groq returned unparseable or empty response",
+                            latency_ms=latency_ms,
+                            db=db,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - Resilient fallback to rules on unexpected provider error
+                        latency_ms = (time.perf_counter() - start_time) * 1000.0
+                        logger.warning("Groq classification invocation failed: %s", exc)
+                        await reservation.finalize(
+                            status="error",
+                            error_message=str(exc),
+                            latency_ms=latency_ms,
+                            db=db,
+                        )
+                else:
+                    logger.info(
+                        "AI categorization quota exceeded or disabled for user %s (%s/%s used). Falling back to rule baseline.",
+                        user_id,
+                        reservation.status.used_today,
+                        reservation.status.daily_limit,
+                    )
+                    await log_ai_usage(
+                        user_id=user_id,
+                        feature="categorize",
+                        provider="groq",
+                        model=settings.GROQ_MODEL,
+                        status="quota_exceeded",
+                        error_message="Daily quota exceeded; fallback to rule baseline",
+                        db=db,
+                    )
 
         if llm_cat is not None:
             predicted_cat = llm_cat

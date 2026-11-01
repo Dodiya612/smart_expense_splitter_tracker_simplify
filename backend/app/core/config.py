@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str | None = None
     GROQ_MODEL: str = "llama-3.1-8b-instant"
 
+    # AI Feature Flags and Daily Quotas (S2-AI-01)
+    AI_ENABLED: bool = True
+    AI_QUOTA_CATEGORIZE_DAILY: int = 50
+    AI_QUOTA_RECEIPT_DAILY: int = 10
+    AI_QUOTA_BUDGET_GOALS_DAILY: int = 5
+    AI_QUOTA_ASK_DAILY: int = 20
+
 
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":
