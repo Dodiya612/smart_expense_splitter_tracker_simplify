@@ -243,3 +243,10 @@ def test_jwt_secret_key_validation():
             JWT_SECRET_KEY="dev-secret-key-change-in-production-at-least-32-bytes-long",
         )
 
+
+    # 7. JWT_SECRET alias is accepted (preserves existing Render / .env compatibility without rotation)
+    alias_settings = Settings(
+        ENVIRONMENT="production",
+        JWT_SECRET="alias-secret-key-that-is-at-least-32-bytes-long",
+    )
+    assert alias_settings.JWT_SECRET_KEY == "alias-secret-key-that-is-at-least-32-bytes-long"

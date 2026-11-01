@@ -7,9 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
 from app.services.category_suggestion_service import restore_user_history
 
@@ -33,16 +35,34 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(
+# T-25: Conditionally mount interactive documentation endpoints based on environment/config
+docs_url = "/api/v1/docs" if settings.docs_enabled else None
+redoc_url = "/api/v1/redoc" if settings.docs_enabled else None
+openapi_url = "/api/v1/openapi.json" if settings.docs_enabled else None
+
+
+class CoinsciousApp(FastAPI):
+    """
+    Custom FastAPI subclass that wraps Starlette's build_middleware_stack
+    with SecurityHeadersMiddleware so that security headers are applied to
+    EVERY response, including unhandled 500 errors produced by ServerErrorMiddleware.
+    """
+
+    def build_middleware_stack(self) -> ASGIApp:
+        stack = super().build_middleware_stack()
+        return SecurityHeadersMiddleware(stack)
+
+
+app = CoinsciousApp(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url="/api/v1/openapi.json",
-    docs_url="/api/v1/docs",
-    redoc_url="/api/v1/redoc",
+    openapi_url=openapi_url,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
     lifespan=lifespan,
 )
 
-# CORS Middleware with explicitly configured development origins
+# CORS Middleware with explicitly configured origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -115,6 +135,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """
     Catch-all exception handler to avoid leaking tracebacks or internal details.
+    Ensures standardized error envelope and defense-in-depth security/CORS headers.
     """
     logger.exception(f"Unhandled error processing request {request.method} {request.url.path}: {exc}")
     error_response = ApiErrorResponse(
@@ -123,9 +144,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         detail=None,
         is_retryable=True,
     )
+    headers = get_security_headers_dict(request.url.path)
+    origin = request.headers.get("origin")
+    if origin and origin in settings.CORS_ORIGINS:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=error_response.model_dump(by_alias=True),
+        headers=headers,
     )
 
 
@@ -135,9 +163,11 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {
+    response = {
         "name": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "docsUrl": "/api/v1/docs",
         "healthUrl": "/api/v1/health",
     }
+    if settings.docs_enabled:
+        response["docsUrl"] = "/api/v1/docs"
+    return response

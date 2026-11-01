@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, List
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Stable paths relative to backend root directory independent of CWD
@@ -41,10 +41,26 @@ class Settings(BaseSettings):
         "http://localhost:8081",
         "http://127.0.0.1:8081",
         "http://10.0.2.2:8081",
+        "http://localhost:3000",
+        "http://localhost:19006",
     ]
 
+    # API Documentation Configuration (T-25)
+    # None = enabled in development, disabled in production unless explicitly overridden
+    ENABLE_DOCS: bool | None = None
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Determines whether OpenAPI/Swagger/ReDoc documentation endpoints should be mounted."""
+        if self.ENABLE_DOCS is not None:
+            return self.ENABLE_DOCS
+        return self.ENVIRONMENT == "development"
+
     # JWT Authentication Configuration
-    JWT_SECRET_KEY: str = "dev-secret-key-change-in-production-at-least-32-bytes-long"
+    JWT_SECRET_KEY: str = Field(
+        default="dev-secret-key-change-in-production-at-least-32-bytes-long",
+        validation_alias=AliasChoices("JWT_SECRET_KEY", "JWT_SECRET"),
+    )
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
