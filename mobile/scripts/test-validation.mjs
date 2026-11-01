@@ -94,4 +94,24 @@ test('validateSignup', async (t) => {
     });
     assert.deepStrictEqual(errors, {});
   });
+
+  await t.test('flags whitespace-only full name', () => {
+    const errors = validateSignup({
+      name: '    ',
+      email: 'priya@example.in',
+      password: 'securePassword123',
+      confirmPassword: 'securePassword123',
+    });
+    assert.strictEqual(errors.name, 'Full name is required.');
+  });
+
+  await t.test('trims email before validation check', () => {
+    const errors = validateSignup({
+      name: 'Priya Patel',
+      email: '  priya@example.in  ',
+      password: 'securePassword123',
+      confirmPassword: 'securePassword123',
+    });
+    assert.strictEqual(errors.email, undefined);
+  });
 });

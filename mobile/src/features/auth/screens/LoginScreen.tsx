@@ -108,6 +108,7 @@ export function LoginScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Don't have an account? Sign up"
+            accessibilityHint="Navigates to the sign up screen"
             disabled={isLoading}
             onPress={() => router.push('/signup' as Href)}
             style={({ pressed }) => [styles.navLink, { minHeight: theme.minTouchTarget }, pressed && styles.pressed]}>
@@ -126,6 +127,6 @@ const styles = StyleSheet.create({
   contentWrapper: { width: '100%' },
   form: { width: '100%' },
   navLink: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
-  boldText: { fontWeight: '600' },
+  boldText: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   pressed: { opacity: 0.7 },
 });
