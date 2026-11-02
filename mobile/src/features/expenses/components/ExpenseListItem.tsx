@@ -1,10 +1,11 @@
 /**
  * ExpenseListItem – T-20 / US-08 / US-13
  *
- * A single row in the expense list.  Shows date, category chip, amount and
- * notes summary.  Exposes delete and edit actions both as:
+ * A single row in the expense list. Shows date, category chip, amount and
+ * notes summary. Exposes delete and edit actions both as:
  *   • Visible buttons (for mouse and keyboard users, per US-13)
  *   • The `onDelete` / `onEdit` callbacks (for swipe actions on touch screens)
+ *   • Optional `onPress` callback for navigating to the Expense Detail View
  *
  * This component does NOT own the delete-confirm dialog or the undo toast;
  * those are managed by `useDeleteExpense` in the parent screen so one toast
@@ -15,6 +16,7 @@
  *     expense={expense}
  *     onEdit={handleEdit}
  *     onDelete={handleDelete}
+ *     onPress={handlePress}
  *   />
  */
 
@@ -29,9 +31,15 @@ export interface ExpenseListItemProps {
   expense: Expense;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
+  onPress?: (expense: Expense) => void;
 }
 
-export function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseListItemProps) {
+export function ExpenseListItem({
+  expense,
+  onEdit,
+  onDelete,
+  onPress,
+}: ExpenseListItemProps) {
   const theme = useTheme();
 
   const category = CATEGORIES.find((c) => c.id === expense.categoryId);
@@ -42,21 +50,8 @@ export function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseListItemPr
     minimumFractionDigits: 2,
   });
 
-  return (
-    <View
-      style={[
-        styles.row,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
-          borderRadius: theme.radii.lg,
-          padding: theme.spacing.md,
-          gap: theme.spacing.sm,
-          ...theme.shadows.card,
-        },
-      ]}
-      accessibilityRole="none"
-    >
+  const cardBody = (
+    <View style={{ gap: theme.spacing.sm }}>
       {/* ── Top row: category chip + amount ─────────────────────── */}
       <View style={styles.topRow}>
         {category && palette ? (
@@ -112,6 +107,37 @@ export function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseListItemPr
           {expense.notes}
         </AppText>
       ) : null}
+    </View>
+  );
+
+  return (
+    <View
+      style={[
+        styles.row,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radii.lg,
+          padding: theme.spacing.md,
+          gap: theme.spacing.sm,
+          ...theme.shadows.card,
+        },
+      ]}
+      accessibilityRole="none"
+    >
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View details for expense ${amountInr} on ${expense.date}`}
+          accessibilityHint="Navigates to expense details"
+          onPress={() => onPress(expense)}
+          style={({ pressed }) => [pressed && styles.pressed]}
+        >
+          {cardBody}
+        </Pressable>
+      ) : (
+        cardBody
+      )}
 
       {/* ── Action buttons (visible for mouse/keyboard – US-13) ─── */}
       <View style={[styles.actions, { gap: theme.spacing.sm }]}>

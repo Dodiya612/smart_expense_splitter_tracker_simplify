@@ -252,6 +252,13 @@ export class FastApiClient implements ApiClient {
       requiresAuth: !accessToken,
     });
   }
+
+  async get<T>(endpoint: string): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'GET',
+      requiresAuth: true,
+    });
+  }
 }
 
 export const fastApiClient = new FastApiClient();
