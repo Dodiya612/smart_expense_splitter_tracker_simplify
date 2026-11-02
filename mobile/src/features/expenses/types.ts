@@ -89,6 +89,8 @@ export interface Expense {
   version: number;
   createdAt: string;
   updatedAt: string;
+  description?: string;
+  merchant?: string;
 }
 
 // ── Submit payload ────────────────────────────────────────────────────────────

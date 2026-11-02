@@ -1,13 +1,13 @@
 /**
- * Expenses tab – hosts the ExpenseListScreen (T-20, US-08 / US-13).
+ * Expenses tab – hosts the ExpenseHistoryScreen (US-13).
  *
- * The list screen itself owns the ConfirmDialog and UndoToast so one
- * instance is shared across all items.
+ * Provides paginated transaction history, pull-to-refresh, filters,
+ * detail navigation, and T-20 delete/undo integration.
  */
 
 import React from 'react';
-import { ExpenseListScreen } from '@/features/expenses/screens/ExpenseListScreen';
+import { ExpenseHistoryScreen } from '@/features/expenses/screens/ExpenseHistoryScreen';
 
 export default function ExpensesTab() {
-  return <ExpenseListScreen />;
+  return <ExpenseHistoryScreen />;
 }

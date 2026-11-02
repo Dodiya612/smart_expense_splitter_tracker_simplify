@@ -100,6 +100,16 @@ export class MockApiClient implements ApiClient {
       email: 'aarav.sharma@example.in',
     };
   }
+
+  async get<T>(endpoint: string): Promise<T> {
+    await sleep(config.mockApiLatencyMs);
+
+    throw new ApiError(
+      'NOT_IMPLEMENTED',
+      `Mock GET endpoint "${endpoint}" is not supported.`,
+      false
+    );
+  }
 }
 
 export const mockApiClient = new MockApiClient();

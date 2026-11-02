@@ -88,4 +88,5 @@ export interface ApiClient {
   refresh(payload: RefreshTokenPayload): Promise<TokenBundle>;
   logout(payload?: LogoutPayload, accessToken?: string | null): Promise<void>;
   me(accessToken?: string | null): Promise<AuthUser>;
+  get<T>(endpoint: string): Promise<T>;
 }
