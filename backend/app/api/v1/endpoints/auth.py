@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_user_optional
+from app.core.authorization import Action, SessionPolicy
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import (
@@ -538,15 +539,8 @@ async def revoke_session(
             },
         )
 
-    # Enforce strict session ownership: user cannot view or revoke foreign sessions
-    if target_token.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "code": "SESSION_NOT_FOUND",
-                "message": "Session not found.",
-            },
-        )
+    # Enforce strict session ownership via shared authorization policy
+    SessionPolicy.authorize(current_user, target_token, Action.DELETE)
 
     # Revoke all tokens belonging to this family
     await db.execute(

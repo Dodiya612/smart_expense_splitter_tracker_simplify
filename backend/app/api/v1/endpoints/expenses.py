@@ -3,10 +3,14 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.authorization import (
+    ALLOWED_EXPENSE_UPDATE_FIELDS,
+    validate_protected_fields_update,
+)
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.expense import (
@@ -49,11 +53,29 @@ def parse_if_match_header(if_match: str | None) -> int | None:
 )
 async def create_expense_endpoint(
     data: ExpenseCreate,
+    request: Request,
     response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExpenseDataResponse:
+    # Reject client-supplied ownership tampering in request body
+    try:
+        raw_body = await request.json()
+    except Exception:
+        raw_body = None
+
+    if isinstance(raw_body, dict):
+        client_user_id = raw_body.get("user_id") or raw_body.get("userId")
+        if client_user_id is not None and str(client_user_id).strip() != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "PROTECTED_FIELD_MODIFICATION",
+                    "message": "Cannot specify or modify record ownership (user_id). Record is bound to authenticated user.",
+                },
+            )
+
     expense, is_cached = await expense_service.create_expense(
         db=db,
         user_id=current_user.id,
@@ -76,6 +98,7 @@ async def create_expense_endpoint(
     "Soft-deleted records are automatically excluded.",
 )
 async def list_expenses_endpoint(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     category_id: Annotated[uuid.UUID | None, Query(description="Filter by category UUID")] = None,
@@ -85,6 +108,17 @@ async def list_expenses_endpoint(
     limit: Annotated[int, Query(ge=1, le=100, description="Page limit (1-100)")] = 50,
     offset: Annotated[int, Query(ge=0, description="Page offset")] = 0,
 ) -> ExpenseListResponse:
+    # Disallow foreign user_id query parameter tampering
+    foreign_user = request.query_params.get("user_id") or request.query_params.get("userId")
+    if foreign_user and foreign_user.strip() != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Accessing another user's expenses via query parameters is not permitted.",
+            },
+        )
+
     expenses, total = await expense_service.list_expenses(
         db=db,
         user_id=current_user.id,
@@ -114,11 +148,23 @@ async def list_expenses_endpoint(
     "Soft-deleted expenses are strictly excluded.",
 )
 async def get_expense_totals_endpoint(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date | None, Query(alias="from", description="Start date for totals")] = None,
     to_date: Annotated[date | None, Query(alias="to", description="End date for totals")] = None,
 ) -> ExpenseTotalResponse:
+    # Disallow foreign user_id query parameter tampering
+    foreign_user = request.query_params.get("user_id") or request.query_params.get("userId")
+    if foreign_user and foreign_user.strip() != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Accessing another user's expense totals via query parameters is not permitted.",
+            },
+        )
+
     total_paise, count = await expense_service.get_user_expense_total(
         db=db,
         user_id=current_user.id,
@@ -168,10 +214,20 @@ async def get_expense_endpoint(
 async def update_expense_endpoint(
     expense_id: uuid.UUID,
     data: ExpenseUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     if_match: Annotated[str | None, Header(alias="If-Match")] = None,
 ) -> ExpenseDataResponse:
+    # 1. Enforce rejection of protected/disallowed fields in update payload
+    try:
+        raw_body = await request.json()
+    except Exception:
+        raw_body = None
+
+    if isinstance(raw_body, dict):
+        validate_protected_fields_update(raw_body, allowed_fields=ALLOWED_EXPENSE_UPDATE_FIELDS)
+
     header_version = parse_if_match_header(if_match)
     expected_version = header_version if header_version is not None else data.version
 
