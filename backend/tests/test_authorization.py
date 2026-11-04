@@ -568,17 +568,20 @@ async def test_public_health_endpoint_accessible_to_all_actors(
     Accessible to Stranger (unauthenticated), Owner, Member, and Admin.
     Verifies no database credentials, internal IPs, or secrets are leaked.
     """
-    for headers in [None, headers_a, headers_b, headers_c, headers_admin]:
-        resp = await client_auth.get("/api/v1/health", headers=headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] in ("ok", "healthy")
-        assert "database" in data
-        # Data leakage check: no secrets
-        text = resp.text.lower()
-        assert "password" not in text
-        assert "secret" not in text
-        assert "token" not in text
+    from unittest.mock import patch
+
+    with patch("app.api.v1.endpoints.health.check_database_connection", return_value=(True, None)):
+        for headers in [None, headers_a, headers_b, headers_c, headers_admin]:
+            resp = await client_auth.get("/api/v1/health", headers=headers)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] in ("ok", "healthy")
+            assert "database" in data
+            # Data leakage check: no secrets
+            text = resp.text.lower()
+            assert "password" not in text
+            assert "secret" not in text
+            assert "token" not in text
 
 
 @pytest.mark.anyio
