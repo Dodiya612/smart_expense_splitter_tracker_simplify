@@ -78,8 +78,15 @@ class FakeAsyncSession:
                 self.db.expenses[obj.id] = obj
             elif isinstance(obj, IdempotencyRecord):
                 k = (obj.user_id, obj.key)
-                if k in self.db.idempotency_records and self.db.idempotency_records[k].id != obj.id:
-                    raise IntegrityError("unique constraint uq_idempotency_records_user_key", params={}, orig=Exception())
+                if (
+                    k in self.db.idempotency_records
+                    and self.db.idempotency_records[k].id != obj.id
+                ):
+                    raise IntegrityError(
+                        "unique constraint uq_idempotency_records_user_key",
+                        params={},
+                        orig=Exception(),
+                    )
                 self.db.idempotency_records[k] = obj
         self.pending.clear()
 
@@ -110,8 +117,12 @@ class FakeAsyncSession:
 
         # 2. SELECT Category
         if "from categories" in sql_str:
-            cat_id = next((v for k, v in params.items() if "id_1" in k or "id" in k), None)
-            user_id = next((v for k, v in params.items() if "owner_id" in k or "user" in k), None)
+            cat_id = next(
+                (v for k, v in params.items() if "id_1" in k or "id" in k), None
+            )
+            user_id = next(
+                (v for k, v in params.items() if "owner_id" in k or "user" in k), None
+            )
             matched = []
             for c in self.db.categories.values():
                 if cat_id is not None and c.id != cat_id:
@@ -126,7 +137,9 @@ class FakeAsyncSession:
             key_val = next((v for k, v in params.items() if "key" in k), None)
             matched = []
             for (uid, k), rec in self.db.idempotency_records.items():
-                if (user_id is None or uid == user_id) and (key_val is None or k == key_val):
+                if (user_id is None or uid == user_id) and (
+                    key_val is None or k == key_val
+                ):
                     matched.append(rec)
             return FakeResult(matched)
 
@@ -134,7 +147,11 @@ class FakeAsyncSession:
         if sql_str.startswith("update expenses"):
             exp_id = params.get("id_1") or params.get("id")
             user_id = params.get("user_id_1") or params.get("user_id")
-            exp_version = params.get("version_1") if "version_1" in params else params.get("version")
+            exp_version = (
+                params.get("version_1")
+                if "version_1" in params
+                else params.get("version")
+            )
 
             target = None
             for e in self.db.expenses.values():
@@ -154,19 +171,38 @@ class FakeAsyncSession:
 
             # Apply updates
             for col, val in params.items():
-                if col in ("amount_minor", "description", "category_id", "expense_date", "notes", "merchant", "payment_mode", "receipt_id", "version", "updated_at"):
+                if col in (
+                    "amount_minor",
+                    "description",
+                    "category_id",
+                    "expense_date",
+                    "notes",
+                    "merchant",
+                    "payment_mode",
+                    "receipt_id",
+                    "version",
+                    "updated_at",
+                ):
                     setattr(target, col, val)
             return FakeResult(rowcount=1)
 
         # 5. Count / Sum aggregate query
-        if "count(expenses.id)" in sql_str or "coalesce(sum(expenses.amount_minor)" in sql_str:
+        if (
+            "count(expenses.id)" in sql_str
+            or "coalesce(sum(expenses.amount_minor)" in sql_str
+        ):
             user_id = params.get("user_id_1") or params.get("user_id")
             from_d = params.get("expense_date_1") or params.get("expense_date")
             to_d = params.get("expense_date_2")
-            search_pattern = params.get("description_1") or params.get("merchant_1")
+            search_pattern = (
+                params.get("description_1")
+                or params.get("merchant_1")
+                or params.get("notes_1")
+            )
 
             matched = [
-                e for e in self.db.expenses.values()
+                e
+                for e in self.db.expenses.values()
                 if e.user_id == user_id and e.deleted_at is None
             ]
             if from_d:
@@ -176,9 +212,33 @@ class FakeAsyncSession:
             if search_pattern:
                 query_str = search_pattern.strip("%").lower()
                 matched = [
-                    e for e in matched
-                    if query_str in (e.description or "").lower() or query_str in (e.merchant or "").lower()
+                    e
+                    for e in matched
+                    if query_str in (e.description or "").lower()
+                    or query_str in (e.merchant or "").lower()
+                    or query_str in (e.notes or "").lower()
                 ]
+
+            pm_val = next(
+                (
+                    v
+                    for k, v in params.items()
+                    if "payment_mode" in k and isinstance(v, str)
+                ),
+                None,
+            )
+            if pm_val is not None:
+                pm_clean = pm_val.strip("%").lower()
+                matched = [
+                    e for e in matched if (e.payment_mode or "").lower() == pm_clean
+                ]
+
+            for k, v in params.items():
+                if "amount_minor" in k and isinstance(v, int):
+                    if f"amount_minor >= :{k}" in sql_str:
+                        matched = [e for e in matched if e.amount_minor >= v]
+                    elif f"amount_minor <= :{k}" in sql_str:
+                        matched = [e for e in matched if e.amount_minor <= v]
 
             total_paise = sum(e.amount_minor for e in matched)
             count = len(matched)
@@ -188,12 +248,18 @@ class FakeAsyncSession:
 
         # 6. SELECT Expense
         if "from expenses" in sql_str:
-            exp_id = params.get("id_1") or (params.get("id") if "expenses.id" in sql_str else None)
+            exp_id = params.get("id_1") or (
+                params.get("id") if "expenses.id" in sql_str else None
+            )
             user_id = params.get("user_id_1") or params.get("user_id")
             cat_id = params.get("category_id_1") or params.get("category_id")
             from_d = params.get("expense_date_1") or params.get("expense_date")
             to_d = params.get("expense_date_2")
-            search_pattern = params.get("description_1") or params.get("merchant_1")
+            search_pattern = (
+                params.get("description_1")
+                or params.get("merchant_1")
+                or params.get("notes_1")
+            )
 
             matched = list(self.db.expenses.values())
             if exp_id is not None:
@@ -211,9 +277,33 @@ class FakeAsyncSession:
             if search_pattern:
                 query_str = search_pattern.strip("%").lower()
                 matched = [
-                    e for e in matched
-                    if query_str in (e.description or "").lower() or query_str in (e.merchant or "").lower()
+                    e
+                    for e in matched
+                    if query_str in (e.description or "").lower()
+                    or query_str in (e.merchant or "").lower()
+                    or query_str in (e.notes or "").lower()
                 ]
+
+            pm_val = next(
+                (
+                    v
+                    for k, v in params.items()
+                    if "payment_mode" in k and isinstance(v, str)
+                ),
+                None,
+            )
+            if pm_val is not None:
+                pm_clean = pm_val.strip("%").lower()
+                matched = [
+                    e for e in matched if (e.payment_mode or "").lower() == pm_clean
+                ]
+
+            for k, v in params.items():
+                if "amount_minor" in k and isinstance(v, int):
+                    if f"amount_minor >= :{k}" in sql_str:
+                        matched = [e for e in matched if e.amount_minor >= v]
+                    elif f"amount_minor <= :{k}" in sql_str:
+                        matched = [e for e in matched if e.amount_minor <= v]
 
             # Sort descending by date, then created_at
             matched.sort(key=lambda x: (x.expense_date, x.created_at), reverse=True)
@@ -307,7 +397,9 @@ async def test_create_expense_success(async_client, auth_headers):
         "merchant": "Bawarchi",
         "payment_mode": "upi",
     }
-    resp = await async_client.post("/api/v1/expenses", json=payload, headers=auth_headers)
+    resp = await async_client.post(
+        "/api/v1/expenses", json=payload, headers=auth_headers
+    )
     assert resp.status_code == 201
     data = resp.json()["data"]
     assert data["amountMinor"] == 25000
@@ -413,13 +505,17 @@ async def test_idempotency_workflow(async_client, auth_headers, other_auth_heade
         "description": "Different expensive ride",
         "category_id": "00000000-0000-4000-8000-000000000001",
     }
-    resp3 = await async_client.post("/api/v1/expenses", json=diff_payload, headers=headers)
+    resp3 = await async_client.post(
+        "/api/v1/expenses", json=diff_payload, headers=headers
+    )
     assert resp3.status_code == 409
     assert resp3.json()["code"] == "IDEMPOTENCY_CONFLICT"
 
     # 4. Another user with the same idempotency key succeeds (separate user namespace)
     other_headers = {**other_auth_headers, "Idempotency-Key": key}
-    resp4 = await async_client.post("/api/v1/expenses", json=payload, headers=other_headers)
+    resp4 = await async_client.post(
+        "/api/v1/expenses", json=payload, headers=other_headers
+    )
     assert resp4.status_code == 201
     assert resp4.json()["data"]["id"] != exp_id
 
@@ -437,7 +533,9 @@ async def test_get_and_list_expenses(async_client, auth_headers, other_auth_head
         "description": "Groceries B",
         "category_id": "00000000-0000-4000-8000-000000000001",
     }
-    r1 = await async_client.post("/api/v1/expenses", json=payload1, headers=auth_headers)
+    r1 = await async_client.post(
+        "/api/v1/expenses", json=payload1, headers=auth_headers
+    )
     await async_client.post("/api/v1/expenses", json=payload2, headers=auth_headers)
     id1 = r1.json()["data"]["id"]
 
@@ -447,7 +545,9 @@ async def test_get_and_list_expenses(async_client, auth_headers, other_auth_head
     assert get_res.json()["data"]["id"] == id1
 
     # 2. Other user accessing this expense receives 404
-    other_res = await async_client.get(f"/api/v1/expenses/{id1}", headers=other_auth_headers)
+    other_res = await async_client.get(
+        f"/api/v1/expenses/{id1}", headers=other_auth_headers
+    )
     assert other_res.status_code == 404
 
     # 3. List expenses
@@ -464,7 +564,9 @@ async def test_get_and_list_expenses(async_client, auth_headers, other_auth_head
 
 
 @pytest.mark.anyio
-async def test_update_expense_and_version_checks(async_client, auth_headers, other_auth_headers):
+async def test_update_expense_and_version_checks(
+    async_client, auth_headers, other_auth_headers
+):
     create_res = await async_client.post(
         "/api/v1/expenses",
         json={
@@ -536,17 +638,23 @@ async def test_soft_delete_and_restore(async_client, auth_headers, other_auth_he
     exp_id = create_res.json()["data"]["id"]
 
     # Verify spending totals before delete
-    totals_before = await async_client.get("/api/v1/expenses/totals", headers=auth_headers)
+    totals_before = await async_client.get(
+        "/api/v1/expenses/totals", headers=auth_headers
+    )
     assert totals_before.status_code == 200
     assert totals_before.json()["data"]["totalPaise"] == 50000
     assert totals_before.json()["data"]["count"] == 1
 
     # 1. Other user cannot delete
-    other_del = await async_client.delete(f"/api/v1/expenses/{exp_id}", headers=other_auth_headers)
+    other_del = await async_client.delete(
+        f"/api/v1/expenses/{exp_id}", headers=other_auth_headers
+    )
     assert other_del.status_code == 404
 
     # 2. Soft delete expense
-    del_res = await async_client.delete(f"/api/v1/expenses/{exp_id}", headers=auth_headers)
+    del_res = await async_client.delete(
+        f"/api/v1/expenses/{exp_id}", headers=auth_headers
+    )
     assert del_res.status_code == 200
     assert del_res.json()["data"]["deleted"] is True
 
@@ -558,29 +666,41 @@ async def test_soft_delete_and_restore(async_client, auth_headers, other_auth_he
     assert len(list_res.json()["data"]) == 0
 
     # 4. Deleted expense is excluded from totals
-    totals_after = await async_client.get("/api/v1/expenses/totals", headers=auth_headers)
+    totals_after = await async_client.get(
+        "/api/v1/expenses/totals", headers=auth_headers
+    )
     assert totals_after.json()["data"]["totalPaise"] == 0
     assert totals_after.json()["data"]["count"] == 0
 
     # 5. Another user cannot restore
-    other_restore = await async_client.post(f"/api/v1/expenses/{exp_id}/restore", headers=other_auth_headers)
+    other_restore = await async_client.post(
+        f"/api/v1/expenses/{exp_id}/restore", headers=other_auth_headers
+    )
     assert other_restore.status_code == 404
 
     # 6. Restore expense
-    restore_res = await async_client.post(f"/api/v1/expenses/{exp_id}/restore", headers=auth_headers)
+    restore_res = await async_client.post(
+        f"/api/v1/expenses/{exp_id}/restore", headers=auth_headers
+    )
     assert restore_res.status_code == 200
     assert restore_res.json()["data"]["id"] == exp_id
     assert restore_res.json()["data"]["deletedAt"] is None
 
     # 7. Restored expense is visible in GET and totals again
-    get_restored = await async_client.get(f"/api/v1/expenses/{exp_id}", headers=auth_headers)
+    get_restored = await async_client.get(
+        f"/api/v1/expenses/{exp_id}", headers=auth_headers
+    )
     assert get_restored.status_code == 200
 
-    totals_restored = await async_client.get("/api/v1/expenses/totals", headers=auth_headers)
+    totals_restored = await async_client.get(
+        "/api/v1/expenses/totals", headers=auth_headers
+    )
     assert totals_restored.json()["data"]["totalPaise"] == 50000
 
     # 8. Restoring an active expense returns 400
-    dup_restore = await async_client.post(f"/api/v1/expenses/{exp_id}/restore", headers=auth_headers)
+    dup_restore = await async_client.post(
+        f"/api/v1/expenses/{exp_id}/restore", headers=auth_headers
+    )
     assert dup_restore.status_code == 400
     assert dup_restore.json()["code"] == "EXPENSE_NOT_DELETED"
 
@@ -593,12 +713,16 @@ async def test_unauthenticated_requests(async_client):
     assert r1.json()["code"] == "UNAUTHORIZED"
 
     # Unauthenticated POST
-    r2 = await async_client.post("/api/v1/expenses", json={"amount_minor": 1000, "description": "Coffee"})
+    r2 = await async_client.post(
+        "/api/v1/expenses", json={"amount_minor": 1000, "description": "Coffee"}
+    )
     assert r2.status_code == 401
 
 
 @pytest.mark.anyio
-async def test_custom_category_authorization(async_client, fake_db, test_user, other_user, auth_headers, other_auth_headers):
+async def test_custom_category_authorization(
+    async_client, fake_db, test_user, other_user, auth_headers, other_auth_headers
+):
     # 1. Create a custom category owned by test_user
     cat_user1 = Category(
         id=uuid.uuid4(),
@@ -675,19 +799,25 @@ async def test_filter_and_search_expenses(async_client, auth_headers):
     )
 
     # 1. Search by text "Starbucks"
-    res_search = await async_client.get("/api/v1/expenses?q=Starbucks", headers=auth_headers)
+    res_search = await async_client.get(
+        "/api/v1/expenses?q=Starbucks", headers=auth_headers
+    )
     assert res_search.status_code == 200
     assert len(res_search.json()["data"]) == 1
     assert res_search.json()["data"][0]["merchant"] == "Starbucks"
 
     # 2. Filter by date range (from 2026-10-18 to 2026-10-25)
-    res_date = await async_client.get("/api/v1/expenses?from=2026-10-18&to=2026-10-25", headers=auth_headers)
+    res_date = await async_client.get(
+        "/api/v1/expenses?from=2026-10-18&to=2026-10-25", headers=auth_headers
+    )
     assert res_date.status_code == 200
     assert len(res_date.json()["data"]) == 1
     assert res_date.json()["data"][0]["description"] == "Starbucks Coffee"
 
     # 3. Pagination limit
-    res_paged = await async_client.get("/api/v1/expenses?limit=2&offset=0", headers=auth_headers)
+    res_paged = await async_client.get(
+        "/api/v1/expenses?limit=2&offset=0", headers=auth_headers
+    )
     assert res_paged.status_code == 200
     assert len(res_paged.json()["data"]) == 2
     assert res_paged.json()["meta"]["total"] == 3
