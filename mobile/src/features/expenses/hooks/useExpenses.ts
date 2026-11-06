@@ -28,6 +28,9 @@ export interface UseExpensesOptions {
   /** Optional search text in description or merchant */
   query?: string;
   /** Whether to automatically fetch on mount or parameter change (default: true). */
+  minAmount?: number;
+  maxAmount?: number;
+  paymentMode?: string;
   autoFetch?: boolean;
 }
 
@@ -50,6 +53,9 @@ export function useExpenses({
   from,
   to,
   query,
+  minAmount,
+  maxAmount,
+  paymentMode,
   autoFetch = true,
 }: UseExpensesOptions = {}): UseExpensesReturn {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -75,17 +81,23 @@ export function useExpenses({
     from,
     to,
     query,
+    minAmount,
+    maxAmount,
+    paymentMode,
   });
 
-  useEffect(() => {
+    useEffect(() => {
     filterParamsRef.current = {
       limit,
       categoryId,
       from,
       to,
       query,
+      minAmount,
+      maxAmount,
+      paymentMode,
     };
-  }, [limit, categoryId, from, to, query]);
+  }, [limit, categoryId, from, to, query, minAmount, maxAmount, paymentMode]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -140,6 +152,9 @@ export function useExpenses({
           from: filterParamsRef.current.from,
           to: filterParamsRef.current.to,
           query: filterParamsRef.current.query,
+          minAmount: filterParamsRef.current.minAmount,
+          maxAmount: filterParamsRef.current.maxAmount,
+          paymentMode: filterParamsRef.current.paymentMode,
         });
 
         // Guard against stale requests and unmounted components
@@ -151,7 +166,7 @@ export function useExpenses({
           setExpenses(result.expenses);
           offsetRef.current = result.expenses.length;
         } else {
-          setExpenses((prev) => {
+            setExpenses((prev: Expense[]) => {
             const existingIds = new Set(prev.map((e) => e.id));
             const uniqueIncoming = result.expenses.filter((e) => !existingIds.has(e.id));
             return [...prev, ...uniqueIncoming];
@@ -221,7 +236,7 @@ export function useExpenses({
         await executeFetch({ isRefresh: false, isNextPage: false });
       })();
     }
-  }, [limit, categoryId, from, to, query, autoFetch, executeFetch]);
+  }, [limit, categoryId, from, to, query, minAmount, maxAmount, paymentMode, autoFetch, executeFetch]);
 
   return {
     expenses,

@@ -74,6 +74,9 @@ export interface FetchExpensesParams {
   from?: string;
   to?: string;
   query?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  paymentMode?: string;
 }
 
 export interface FetchExpensesResult {
@@ -122,6 +125,9 @@ export async function fetchExpenses({
   from,
   to,
   query,
+  minAmount,
+  maxAmount,
+  paymentMode,
 }: FetchExpensesParams = {}): Promise<FetchExpensesResult> {
   const queryParams = new URLSearchParams();
   queryParams.set('limit', String(limit));
@@ -138,6 +144,15 @@ export async function fetchExpenses({
   }
   if (query && query.trim()) {
     queryParams.set('q', query.trim());
+  }
+  if (typeof minAmount === 'number') {
+    queryParams.set('min_amount', String(minAmount));
+  }
+  if (typeof maxAmount === 'number') {
+    queryParams.set('max_amount', String(maxAmount));
+  }
+  if (paymentMode && paymentMode.trim()) {
+    queryParams.set('payment_mode', paymentMode.trim());
   }
 
   const endpoint = `/api/v1/expenses?${queryParams.toString()}`;

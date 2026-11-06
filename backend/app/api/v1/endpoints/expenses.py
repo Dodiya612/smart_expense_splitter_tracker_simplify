@@ -3,7 +3,16 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -62,12 +71,14 @@ async def create_expense_endpoint(
     # Reject client-supplied ownership tampering in request body
     try:
         raw_body = await request.json()
-    except Exception:
+    except Exception:  # noqa: BLE001
         raw_body = None
 
     if isinstance(raw_body, dict):
         client_user_id = raw_body.get("user_id") or raw_body.get("userId")
-        if client_user_id is not None and str(client_user_id).strip() != str(current_user.id):
+        if client_user_id is not None and str(client_user_id).strip() != str(
+            current_user.id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -94,28 +105,81 @@ async def create_expense_endpoint(
     response_model=ExpenseListResponse,
     status_code=status.HTTP_200_OK,
     summary="List personal expenses",
-    description="Returns a paginated list of personal expenses owned by the authenticated user. "
+    description="Returns a paginated list of personal expenses owned by the authenticated user with search and multi-filter support. "
     "Soft-deleted records are automatically excluded.",
 )
 async def list_expenses_endpoint(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    category_id: Annotated[uuid.UUID | None, Query(description="Filter by category UUID")] = None,
-    from_date: Annotated[date | None, Query(alias="from", description="Filter expenses on or after this date")] = None,
-    to_date: Annotated[date | None, Query(alias="to", description="Filter expenses on or before this date")] = None,
-    query: Annotated[str | None, Query(alias="q", description="Search text in description or merchant")] = None,
+    category_id: Annotated[
+        uuid.UUID | None, Query(description="Filter by category UUID")
+    ] = None,
+    from_date: Annotated[
+        date | None,
+        Query(alias="from", description="Filter expenses on or after this date"),
+    ] = None,
+    to_date: Annotated[
+        date | None,
+        Query(alias="to", description="Filter expenses on or before this date"),
+    ] = None,
+    query: Annotated[
+        str | None,
+        Query(
+            alias="q", description="Search text across description, merchant, or notes"
+        ),
+    ] = None,
+    min_amount: Annotated[
+        int | None,
+        Query(alias="min_amount", ge=1, description="Minimum amount in integer paise"),
+    ] = None,
+    max_amount: Annotated[
+        int | None,
+        Query(alias="max_amount", ge=1, description="Maximum amount in integer paise"),
+    ] = None,
+    payment_mode: Annotated[
+        str | None,
+        Query(
+            alias="payment_mode",
+            description="Filter by payment mode (upi, card, cash, etc.)",
+        ),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=100, description="Page limit (1-100)")] = 50,
     offset: Annotated[int, Query(ge=0, description="Page offset")] = 0,
 ) -> ExpenseListResponse:
     # Disallow foreign user_id query parameter tampering
-    foreign_user = request.query_params.get("user_id") or request.query_params.get("userId")
+    foreign_user = request.query_params.get("user_id") or request.query_params.get(
+        "userId"
+    )
     if foreign_user and foreign_user.strip() != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "FORBIDDEN",
                 "message": "Accessing another user's expenses via query parameters is not permitted.",
+            },
+        )
+
+    # Check alias compatibility if min_paise / max_paise used by client
+    if min_amount is None:
+        raw_min = request.query_params.get("min_paise") or request.query_params.get(
+            "minAmount"
+        )
+        if raw_min and raw_min.isdigit():
+            min_amount = int(raw_min)
+    if max_amount is None:
+        raw_max = request.query_params.get("max_paise") or request.query_params.get(
+            "maxAmount"
+        )
+        if raw_max and raw_max.isdigit():
+            max_amount = int(raw_max)
+
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": "min_amount cannot be strictly greater than max_amount.",
             },
         )
 
@@ -126,6 +190,9 @@ async def list_expenses_endpoint(
         from_date=from_date,
         to_date=to_date,
         query=query,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        payment_mode=payment_mode,
         limit=limit,
         offset=offset,
     )
@@ -151,11 +218,17 @@ async def get_expense_totals_endpoint(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    from_date: Annotated[date | None, Query(alias="from", description="Start date for totals")] = None,
-    to_date: Annotated[date | None, Query(alias="to", description="End date for totals")] = None,
+    from_date: Annotated[
+        date | None, Query(alias="from", description="Start date for totals")
+    ] = None,
+    to_date: Annotated[
+        date | None, Query(alias="to", description="End date for totals")
+    ] = None,
 ) -> ExpenseTotalResponse:
     # Disallow foreign user_id query parameter tampering
-    foreign_user = request.query_params.get("user_id") or request.query_params.get("userId")
+    foreign_user = request.query_params.get("user_id") or request.query_params.get(
+        "userId"
+    )
     if foreign_user and foreign_user.strip() != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -222,11 +295,13 @@ async def update_expense_endpoint(
     # 1. Enforce rejection of protected/disallowed fields in update payload
     try:
         raw_body = await request.json()
-    except Exception:
+    except Exception:  # noqa: BLE001
         raw_body = None
 
     if isinstance(raw_body, dict):
-        validate_protected_fields_update(raw_body, allowed_fields=ALLOWED_EXPENSE_UPDATE_FIELDS)
+        validate_protected_fields_update(
+            raw_body, allowed_fields=ALLOWED_EXPENSE_UPDATE_FIELDS
+        )
 
     header_version = parse_if_match_header(if_match)
     expected_version = header_version if header_version is not None else data.version

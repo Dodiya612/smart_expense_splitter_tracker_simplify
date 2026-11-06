@@ -263,12 +263,16 @@ async def list_expenses(
     from_date: date | None = None,
     to_date: date | None = None,
     query: str | None = None,
+    min_amount: int | None = None,
+    max_amount: int | None = None,
+    payment_mode: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[Expense], int]:
     """
     List personal expenses for the authenticated user, excluding soft-deleted items.
-    Supports filtering by category, date range, search query, and pagination.
+    Supports combined filtering by category, date range, amount range, payment mode,
+    trigram/substring search across description, merchant, and notes, and pagination.
     Returns:
       (expenses: List[Expense], total_count: int)
     """
@@ -283,13 +287,26 @@ async def list_expenses(
         base_where.append(Expense.expense_date >= from_date)
     if to_date:
         base_where.append(Expense.expense_date <= to_date)
+
+    # Search matches description, merchant, OR notes
     if query:
         q_clean = query.strip()
         if q_clean:
             base_where.append(
                 (Expense.description.ilike(f"%{q_clean}%"))
                 | (Expense.merchant.ilike(f"%{q_clean}%"))
+                | (Expense.notes.ilike(f"%{q_clean}%"))
             )
+
+    # Filter by amount range in integer paise
+    if min_amount is not None:
+        base_where.append(Expense.amount_minor >= min_amount)
+    if max_amount is not None:
+        base_where.append(Expense.amount_minor <= max_amount)
+
+    # Filter by payment mode
+    if payment_mode:
+        base_where.append(Expense.payment_mode.ilike(payment_mode.strip()))
 
     # 1. Total count
     count_stmt = select(func.count(Expense.id)).where(*base_where)
@@ -301,8 +318,8 @@ async def list_expenses(
         select(Expense)
         .where(*base_where)
         .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
-        .offset(max(0, offset))
-        .limit(min(max(1, limit), 100))
+        .limit(limit)
+        .offset(offset)
     )
     result = await db.execute(stmt)
     expenses = list(result.scalars().all())
@@ -328,7 +345,9 @@ async def update_expense(
     current_expense = await get_expense(db, user_id, expense_id, include_deleted=False)
 
     # Determine expected version (from argument or data payload)
-    version_to_check = expected_version if expected_version is not None else data.version
+    version_to_check = (
+        expected_version if expected_version is not None else data.version
+    )
     if version_to_check is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
