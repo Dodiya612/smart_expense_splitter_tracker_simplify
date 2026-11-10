@@ -22,7 +22,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
@@ -49,11 +49,13 @@ export function ExpenseHistoryScreen({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  // ── Filters State ───────────────────────────────────────────────────────────
+  const urlParams = useLocalSearchParams<{ q?: string; categoryId?: string }>();
+
+  // ── Filters State (Reflected in URL – US-15) ────────────────────────────────
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    initialCategoryId ?? null
+    urlParams.categoryId ?? initialCategoryId ?? null
   );
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlParams.q ?? '');
 
   // ── Data Hook ───────────────────────────────────────────────────────────────
   const {
@@ -140,9 +142,20 @@ export function ExpenseHistoryScreen({
     router.push('/add-expense');
   }, []);
 
+  const handleCategoryPress = useCallback((categoryId: string | null) => {
+    setSelectedCategoryId(categoryId);
+    router.setParams({ categoryId: categoryId || undefined });
+  }, []);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    router.setParams({ q: text.trim() || undefined });
+  }, []);
+
   const handleClearFilters = useCallback(() => {
     setSelectedCategoryId(null);
     setSearchQuery('');
+    router.setParams({ q: undefined, categoryId: undefined });
   }, []);
 
   const isFiltered = Boolean(selectedCategoryId || searchQuery.trim());
@@ -176,7 +189,7 @@ export function ExpenseHistoryScreen({
         label="Search transactions"
         placeholder="Search description, notes or merchant..."
         value={searchQuery}
-        onChangeText={setSearchQuery}
+        onChangeText={handleSearchChange}
         accessibilityLabel="Search transactions"
       />
 
@@ -192,7 +205,7 @@ export function ExpenseHistoryScreen({
             accessibilityRole="button"
             accessibilityLabel="Filter by all categories"
             accessibilityState={{ selected: selectedCategoryId === null }}
-            onPress={() => setSelectedCategoryId(null)}
+            onPress={() => handleCategoryPress(null)}
             style={({ pressed }) => [
               styles.filterChip,
               {
@@ -232,7 +245,7 @@ export function ExpenseHistoryScreen({
                 accessibilityRole="button"
                 accessibilityLabel={`Filter by ${cat.label}`}
                 accessibilityState={{ selected: isSelected }}
-                onPress={() => setSelectedCategoryId(isSelected ? null : cat.id)}
+                onPress={() => handleCategoryPress(isSelected ? null : cat.id)}
                 style={({ pressed }) => [
                   styles.filterChip,
                   {
