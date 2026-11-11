@@ -1,8 +1,8 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.core.database import engine
+from app.main import app
 
 
 @pytest.fixture
@@ -14,7 +14,17 @@ async def client():
 
 
 @pytest.fixture(autouse=True)
-async def dispose_engine_between_tests():
+def dispose_engine_between_tests(request):
     """Ensure SQLAlchemy connection pool does not leak connections across pytest-asyncio event loops."""
     yield
-    await engine.dispose()
+    if request.node.get_closest_marker("anyio") or request.node.get_closest_marker(
+        "asyncio"
+    ):
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+            if not loop.is_closed():
+                loop.run_until_complete(engine.dispose())
+        except Exception:  # noqa: BLE001, S110
+            pass
