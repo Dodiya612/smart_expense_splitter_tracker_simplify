@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,11 @@ from app.schemas.group import (
     JoinGroupRequest,
     JoinGroupResponse,
 )
-from app.services import group_service
+from app.schemas.shared_expense import (
+    SharedExpenseCreateRequest,
+    SharedExpenseResponse,
+)
+from app.services import group_service, shared_expense_service
 
 router = APIRouter()
 
@@ -172,4 +176,58 @@ async def remove_member(
     Removal is soft, setting status to 'removed' to preserve financial history.
     """
     await group_service.remove_member(db, group_id, user_id, current_user)
+
+
+@router.post(
+    "/{group_id}/expenses",
+    response_model=SharedExpenseResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a shared expense to group",
+)
+async def create_shared_expense(
+    group_id: uuid.UUID,
+    payload: SharedExpenseCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a shared expense within the specified group.
+    Supports equal, exact, percentage, and parts-based split modes using the pure ledger engine.
+    Ensures all payments, shares, and audit logs are recorded in one atomic transaction.
+    """
+    return await shared_expense_service.create_shared_expense(db, group_id, current_user, payload)
+
+
+@router.get(
+    "/{group_id}/expenses",
+    response_model=List[SharedExpenseResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List shared expenses of group",
+)
+async def list_shared_expenses(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all shared expenses for this group, ordered from newest to oldest."""
+    return await shared_expense_service.list_shared_expenses(db, group_id, current_user)
+
+
+@router.get(
+    "/{group_id}/balances",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Get group balances and suggested settlements",
+)
+async def get_group_balances(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Calculate dynamic net member balances and suggested minimal settlement transfers
+    using the pure ledger engine.
+    """
+    return await shared_expense_service.get_group_balances(db, group_id, current_user)
+
 
