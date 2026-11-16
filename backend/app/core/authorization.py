@@ -53,6 +53,8 @@ PROTECTED_FIELDS: Set[str] = {
     "ownerId",
     "creator_id",
     "creatorId",
+    "created_by",
+    "createdBy",
     # Audit timestamps
     "created_at",
     "createdAt",

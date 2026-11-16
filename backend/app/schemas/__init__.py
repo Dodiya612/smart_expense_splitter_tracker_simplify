@@ -39,6 +39,18 @@ from app.schemas.expense import (
     ExpenseTotalResponse,
     ExpenseUpdate,
 )
+from app.schemas.group import (
+    CreateInvitationRequest,
+    GroupCreateRequest,
+    GroupListItemResponse,
+    GroupMemberResponse,
+    GroupResponse,
+    GroupUpdateRequest,
+    InvitationResponse,
+    JoinCodeResponse,
+    JoinGroupRequest,
+    JoinGroupResponse,
+)
 
 __all__ = [
     "ApiErrorDetail",
@@ -51,6 +63,7 @@ __all__ = [
     "CategorySuggestionData",
     "CategorySuggestionRequest",
     "CategorySuggestionResponse",
+    "CreateInvitationRequest",
     "ExpenseCreate",
     "ExpenseDataResponse",
     "ExpenseDeleteResponse",
@@ -61,7 +74,16 @@ __all__ = [
     "ExpenseTotalData",
     "ExpenseTotalResponse",
     "ExpenseUpdate",
+    "GroupCreateRequest",
+    "GroupListItemResponse",
+    "GroupMemberResponse",
+    "GroupResponse",
+    "GroupUpdateRequest",
     "HealthResponse",
+    "InvitationResponse",
+    "JoinCodeResponse",
+    "JoinGroupRequest",
+    "JoinGroupResponse",
     "LogoutRequest",
     "MessageResponse",
     "RefreshTokenRequest",
