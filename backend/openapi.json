@@ -412,7 +412,7 @@
           "Expenses"
         ],
         "summary": "List personal expenses",
-        "description": "Returns a paginated list of personal expenses owned by the authenticated user. Soft-deleted records are automatically excluded.",
+        "description": "Returns a paginated list of personal expenses owned by the authenticated user with search and multi-filter support. Soft-deleted records are automatically excluded.",
         "operationId": "list_expenses_endpoint_api_v1_expenses_get",
         "security": [
           {
@@ -490,10 +490,66 @@
                   "type": "null"
                 }
               ],
-              "description": "Search text in description or merchant",
+              "description": "Search text across description, merchant, or notes",
               "title": "Q"
             },
-            "description": "Search text in description or merchant"
+            "description": "Search text across description, merchant, or notes"
+          },
+          {
+            "name": "min_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum amount in integer paise",
+              "title": "Min Amount"
+            },
+            "description": "Minimum amount in integer paise"
+          },
+          {
+            "name": "max_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum amount in integer paise",
+              "title": "Max Amount"
+            },
+            "description": "Maximum amount in integer paise"
+          },
+          {
+            "name": "payment_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by payment mode (upi, card, cash, etc.)",
+              "title": "Payment Mode"
+            },
+            "description": "Filter by payment mode (upi, card, cash, etc.)"
           },
           {
             "name": "limit",
@@ -841,6 +897,645 @@
           }
         }
       }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List current user's groups",
+        "description": "List all active groups that the authenticated user is a member of.",
+        "operationId": "list_groups_api_v1_groups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GroupListItemResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Groups Api V1 Groups Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Create a new group",
+        "description": "Create a new group with the specified group type.\nThe creator is assigned as admin, and an initial 7-day join code is generated and returned securely.",
+        "operationId": "create_group_api_v1_groups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/groups/join": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Join group with code",
+        "description": "Join a group using a valid, unexpired, and unrevoked join code.\nPrevents duplicate active memberships.",
+        "operationId": "join_group_api_v1_groups_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinGroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get group details",
+        "description": "Fetch group details and member list. Restricted to group members and admins.",
+        "operationId": "get_group_api_v1_groups__group_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/join-code": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Generate or rotate join code",
+        "description": "Owner/admin generates a new cryptographically secure 8-character join code.\nRevokes any previously active join codes for this group.",
+        "operationId": "generate_join_code_api_v1_groups__group_id__join_code_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinCodeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Revoke join code",
+        "description": "Owner/admin revokes the active join code for this group.",
+        "operationId": "revoke_join_code_api_v1_groups__group_id__join_code_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/invitations": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Invite a member",
+        "description": "Owner/admin creates an in-app invitation for a user by email, phone, or user_id.",
+        "operationId": "invite_member_api_v1_groups__group_id__invitations_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List group invitations",
+        "description": "Owner/admin lists all invitations issued for this group.",
+        "operationId": "list_group_invitations_api_v1_groups__group_id__invitations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  },
+                  "title": "Response List Group Invitations Api V1 Groups  Group Id  Invitations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Remove a group member",
+        "description": "Owner/admin removes a member from the group.\nThe group owner cannot be removed.\nRemoval is soft, setting status to 'removed' to preserve financial history.",
+        "operationId": "remove_member_api_v1_groups__group_id__members__user_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invitations": {
+      "get": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "List pending invitations for current user",
+        "description": "List pending in-app invitations addressed to the current authenticated user.",
+        "operationId": "list_my_invitations_api_v1_invitations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List My Invitations Api V1 Invitations Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invitations/{invitation_id}/accept": {
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "Accept an invitation",
+        "description": "Accept an in-app invitation and join the group as an active member.\nThe invitation must belong to the authenticated user and be in pending status.",
+        "operationId": "accept_invitation_api_v1_invitations__invitation_id__accept_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinGroupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invitations/{invitation_id}/decline": {
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "Decline an invitation",
+        "description": "Decline an in-app invitation.\nThe invitation status transitions to declined.",
+        "operationId": "decline_invitation_api_v1_invitations__invitation_id__decline_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/category-suggestion": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "Suggest expense category",
+        "description": "Suggests an expense category for a given description and optional merchant using a 3-layer pipeline (user history -> local ML classifier -> Groq LLM fallback).",
+        "operationId": "suggest_category_endpoint_api_v1_ai_category_suggestion_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategorySuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorySuggestionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/category-suggestion/feedback": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "Submit category suggestion feedback",
+        "description": "Records user confirmation or manual category override. Persists the feedback and updates the user's historical profile for future personalization.",
+        "operationId": "feedback_endpoint_api_v1_ai_category_suggestion_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryFeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryFeedbackResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -860,6 +1555,252 @@
           "tokens"
         ],
         "title": "AuthResponse"
+      },
+      "CategoryFeedbackData": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Feedback recorded successfully"
+          }
+        },
+        "type": "object",
+        "title": "CategoryFeedbackData",
+        "description": "Feedback confirmation details."
+      },
+      "CategoryFeedbackRequest": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Description",
+            "description": "Expense description that triggered suggestion"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant",
+            "description": "Optional merchant name"
+          },
+          "suggestedCategoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Suggestedcategoryid",
+            "description": "Category ID originally suggested by system"
+          },
+          "chosenCategoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Chosencategoryid",
+            "description": "Category ID confirmed or chosen by user"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence",
+            "description": "Confidence at suggestion time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "history",
+              "classifier",
+              "llm",
+              "rule_fallback"
+            ],
+            "title": "Source",
+            "description": "Source of the original suggestion",
+            "default": "classifier"
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted",
+            "description": "True if user accepted suggestion, False if user changed/overrode it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "description",
+          "suggestedCategoryId",
+          "chosenCategoryId",
+          "accepted"
+        ],
+        "title": "CategoryFeedbackRequest",
+        "description": "Payload for recording category feedback and manual selection."
+      },
+      "CategoryFeedbackResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CategoryFeedbackData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CategoryFeedbackResponse",
+        "description": "Enveloped feedback response."
+      },
+      "CategorySuggestionData": {
+        "properties": {
+          "suggestedCategoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Suggestedcategoryid",
+            "description": "Primary category UUID matching API Contract"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid",
+            "description": "Alias category UUID matching mobile client expectation"
+          },
+          "categoryName": {
+            "type": "string",
+            "title": "Categoryname",
+            "description": "Canonical category display name"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "description": "Confidence score between 0.0 and 1.0"
+          },
+          "requiresConfirmation": {
+            "type": "boolean",
+            "title": "Requiresconfirmation",
+            "description": "Flag indicating whether user confirmation is required"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "history",
+              "classifier",
+              "llm",
+              "rule_fallback"
+            ],
+            "title": "Source",
+            "description": "Pipeline layer that produced the suggestion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestedCategoryId",
+          "categoryId",
+          "categoryName",
+          "confidence",
+          "requiresConfirmation",
+          "source"
+        ],
+        "title": "CategorySuggestionData",
+        "description": "Suggestion response payload."
+      },
+      "CategorySuggestionRequest": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Description",
+            "description": "Expense description text"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant",
+            "description": "Optional merchant name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "description"
+        ],
+        "title": "CategorySuggestionRequest",
+        "description": "Payload for category suggestion."
+      },
+      "CategorySuggestionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CategorySuggestionData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CategorySuggestionResponse",
+        "description": "Enveloped suggestion response."
+      },
+      "CreateInvitationRequest": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Userid"
+          }
+        },
+        "type": "object",
+        "title": "CreateInvitationRequest"
       },
       "ExpenseCreate": {
         "properties": {
@@ -1407,6 +2348,239 @@
         "title": "ExpenseUpdate",
         "description": "Payload for updating an existing personal expense (supports partial updates)."
       },
+      "GroupCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "type": {
+            "$ref": "#/components/schemas/GroupType"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "GroupCreateRequest"
+      },
+      "GroupListItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Createdby"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "memberCount": {
+            "type": "integer",
+            "title": "Membercount"
+          },
+          "currentUserRole": {
+            "type": "string",
+            "title": "Currentuserrole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "createdBy",
+          "createdAt",
+          "memberCount",
+          "currentUserRole"
+        ],
+        "title": "GroupListItemResponse"
+      },
+      "GroupMemberResponse": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Userid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joinedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "name",
+          "email",
+          "role",
+          "status",
+          "joinedAt"
+        ],
+        "title": "GroupMemberResponse"
+      },
+      "GroupResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Createdby"
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archivedat"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/GroupMemberResponse"
+            },
+            "type": "array",
+            "title": "Members",
+            "default": []
+          },
+          "currentUserRole": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currentuserrole"
+          },
+          "joinCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joincode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "GroupResponse"
+      },
+      "GroupType": {
+        "type": "string",
+        "enum": [
+          "friends",
+          "flat",
+          "trip",
+          "family"
+        ],
+        "title": "GroupType"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1448,6 +2622,150 @@
         ],
         "title": "HealthResponse",
         "description": "Health check response schema."
+      },
+      "InvitationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Groupid"
+          },
+          "groupName": {
+            "type": "string",
+            "title": "Groupname"
+          },
+          "groupType": {
+            "type": "string",
+            "title": "Grouptype"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "invitedUserId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inviteduserid"
+          },
+          "invitedEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invitedemail"
+          },
+          "invitedPhone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invitedphone"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Createdby"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expiresat"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "groupId",
+          "groupName",
+          "groupType",
+          "status",
+          "createdBy",
+          "expiresAt",
+          "createdAt"
+        ],
+        "title": "InvitationResponse"
+      },
+      "JoinCodeResponse": {
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Groupid"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expiresat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groupId",
+          "code",
+          "expiresAt"
+        ],
+        "title": "JoinCodeResponse"
+      },
+      "JoinGroupRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 6,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "JoinGroupRequest"
+      },
+      "JoinGroupResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "group"
+        ],
+        "title": "JoinGroupResponse"
       },
       "LogoutRequest": {
         "properties": {

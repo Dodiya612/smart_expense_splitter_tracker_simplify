@@ -3,6 +3,15 @@ from app.models.ai_usage_log import AIUsageLog
 from app.models.category import Category
 from app.models.category_feedback import CategorySuggestionFeedback
 from app.models.expense import Expense
+from app.models.group import (
+    Group,
+    GroupInvitation,
+    GroupMember,
+    GroupMemberRole,
+    GroupMemberStatus,
+    GroupType,
+    InvitationStatus,
+)
 from app.models.idempotency import IdempotencyRecord
 from app.models.rate_limit import LoginRateLimit
 from app.models.refresh_token import RefreshToken
@@ -14,7 +23,14 @@ __all__ = [
     "Category",
     "CategorySuggestionFeedback",
     "Expense",
+    "Group",
+    "GroupInvitation",
+    "GroupMember",
+    "GroupMemberRole",
+    "GroupMemberStatus",
+    "GroupType",
     "IdempotencyRecord",
+    "InvitationStatus",
     "LoginRateLimit",
     "RefreshToken",
     "User",
