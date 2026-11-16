@@ -1321,6 +1321,167 @@
         }
       }
     },
+    "/api/v1/groups/{group_id}/expenses": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Add a shared expense to group",
+        "description": "Create a shared expense within the specified group.\nSupports equal, exact, percentage, and parts-based split modes using the pure ledger engine.\nEnsures all payments, shares, and audit logs are recorded in one atomic transaction.",
+        "operationId": "create_shared_expense_api_v1_groups__group_id__expenses_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedExpenseCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpenseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List shared expenses of group",
+        "description": "List all shared expenses for this group, ordered from newest to oldest.",
+        "operationId": "list_shared_expenses_api_v1_groups__group_id__expenses_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SharedExpenseResponse"
+                  },
+                  "title": "Response List Shared Expenses Api V1 Groups  Group Id  Expenses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/balances": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get group balances and suggested settlements",
+        "description": "Calculate dynamic net member balances and suggested minimal settlement transfers\nusing the pure ledger engine.",
+        "operationId": "get_group_balances_api_v1_groups__group_id__balances_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Group Balances Api V1 Groups  Group Id  Balances Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/invitations": {
       "get": {
         "tags": [
@@ -2017,6 +2178,29 @@
         "title": "ExpenseListResponse",
         "description": "Standard envelope for a list of expenses: { \"data\": [ ... ], \"meta\": { ... } }."
       },
+      "ExpensePaymentItem": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Userid",
+            "description": "UUID of the payer."
+          },
+          "amountPaise": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Amountpaise",
+            "description": "Amount paid in integer paise (> 0)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "amountPaise"
+        ],
+        "title": "ExpensePaymentItem",
+        "description": "Payment record indicating who paid how much in paise."
+      },
       "ExpenseResponse": {
         "properties": {
           "id": {
@@ -2162,6 +2346,47 @@
         ],
         "title": "ExpenseRestoreResponse",
         "description": "Response returned upon restoring a soft-deleted expense."
+      },
+      "ExpenseShareItem": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Userid",
+            "description": "UUID of the participant."
+          },
+          "amountPaise": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Amountpaise",
+            "description": "Share amount in integer paise (>= 0)."
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "description": "Split rule used (e.g. equal, exact, percentage, parts).",
+            "default": "equal"
+          },
+          "ruleValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rulevalue",
+            "description": "Optional weight/value associated with the split rule."
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "amountPaise"
+        ],
+        "title": "ExpenseShareItem",
+        "description": "Share record indicating who owes how much in paise."
       },
       "ExpenseTotalData": {
         "properties": {
@@ -2878,6 +3103,312 @@
           "expiresAt"
         ],
         "title": "SessionResponse"
+      },
+      "SharedExpenseCreateRequest": {
+        "properties": {
+          "amountMinor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountminor",
+            "description": "Amount in integer paise (> 0)."
+          },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise",
+            "description": "Alias for amount_minor."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Description",
+            "description": "Brief description of the expense."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid",
+            "description": "UUID of the category."
+          },
+          "expenseDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expensedate",
+            "description": "Date of the expense (YYYY-MM-DD)."
+          },
+          "occurredOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurredon",
+            "description": "Alias for expense_date."
+          },
+          "paidByUserId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidbyuserid",
+            "description": "Single payer UUID if single payer."
+          },
+          "payments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payments",
+            "description": "Map of user UUID to paise paid (for multiple payers or explicit payments)."
+          },
+          "participantUserIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participantuserids",
+            "description": "Explicit list of participant UUIDs. Defaults to all active group members."
+          },
+          "splitMode": {
+            "$ref": "#/components/schemas/SplitMode",
+            "description": "Split calculation strategy (equal, exact, percentage, parts).",
+            "default": "equal"
+          },
+          "splitWeights": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitweights",
+            "description": "Weights for exact, percentage, or parts split modes mapped by user UUID string."
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes."
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant",
+            "description": "Optional merchant name."
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode",
+            "description": "Optional payment mode."
+          }
+        },
+        "type": "object",
+        "required": [
+          "description",
+          "categoryId"
+        ],
+        "title": "SharedExpenseCreateRequest",
+        "description": "Payload for creating a shared expense within a group."
+      },
+      "SharedExpenseResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Groupid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Userid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "title": "Amountminor"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "expenseDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Expensedate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "splitMode": {
+            "type": "string",
+            "title": "Splitmode"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/ExpensePaymentItem"
+            },
+            "type": "array",
+            "title": "Payments"
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseShareItem"
+            },
+            "type": "array",
+            "title": "Shares"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "groupId",
+          "userId",
+          "categoryId",
+          "amountPaise",
+          "amountMinor",
+          "description",
+          "expenseDate",
+          "splitMode",
+          "payments",
+          "shares",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "SharedExpenseResponse",
+        "description": "Response returned when a shared expense is created or fetched."
+      },
+      "SplitMode": {
+        "type": "string",
+        "enum": [
+          "equal",
+          "exact",
+          "percentage",
+          "parts"
+        ],
+        "title": "SplitMode",
+        "description": "Supported split modes for shared expenses."
       },
       "TokenBundle": {
         "properties": {
