@@ -1,7 +1,8 @@
+import re
 import uuid
-from typing import Any, Dict, List
+from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -18,12 +19,28 @@ from app.schemas.group import (
     JoinGroupResponse,
 )
 from app.schemas.shared_expense import (
+    GroupHistoryItemResponse,
     SharedExpenseCreateRequest,
+    SharedExpenseDeleteResponse,
     SharedExpenseResponse,
+    SharedExpenseUpdateRequest,
 )
 from app.services import group_service, shared_expense_service
 
 router = APIRouter()
+
+
+def parse_if_match_header(if_match: str | None) -> int | None:
+    """Parse integer version from HTTP If-Match header (e.g. '1', '"1"', 'W/"1"')."""
+    if not if_match:
+        return None
+    match = re.search(r"\d+", if_match)
+    if match:
+        try:
+            return int(match.group(0))
+        except ValueError:
+            return None
+    return None
 
 
 @router.post(
@@ -229,5 +246,130 @@ async def get_group_balances(
     using the pure ledger engine.
     """
     return await shared_expense_service.get_group_balances(db, group_id, current_user)
+
+
+@router.get(
+    "/{group_id}/expenses/{expense_id}",
+    response_model=SharedExpenseResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get shared expense details",
+)
+async def get_shared_expense(
+    group_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch details of a single shared expense including payments, shares, and current version."""
+    return await shared_expense_service.get_shared_expense(
+        db, group_id, expense_id, current_user
+    )
+
+
+@router.patch(
+    "/{group_id}/expenses/{expense_id}",
+    response_model=SharedExpenseResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update a shared expense",
+)
+async def update_shared_expense(
+    group_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    payload: SharedExpenseUpdateRequest,
+    if_match: Annotated[Optional[str], Header(alias="If-Match")] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update an existing shared expense with optimistic concurrency and balance recalculation.
+    Only the original expense creator or a group admin can edit.
+    Recalculates group member balances and stores before-and-after audit logs atomically.
+    Sends notifications to all active members only after commit.
+    """
+    header_version = parse_if_match_header(if_match)
+    expected_version = header_version if header_version is not None else payload.version
+    return await shared_expense_service.update_shared_expense(
+        db=db,
+        group_id=group_id,
+        expense_id=expense_id,
+        current_user=current_user,
+        payload=payload,
+        expected_version=expected_version,
+    )
+
+
+@router.put(
+    "/{group_id}/expenses/{expense_id}",
+    response_model=SharedExpenseResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update a shared expense (full)",
+)
+async def update_shared_expense_put(
+    group_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    payload: SharedExpenseUpdateRequest,
+    if_match: Annotated[Optional[str], Header(alias="If-Match")] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Full update alias for shared expense."""
+    header_version = parse_if_match_header(if_match)
+    expected_version = header_version if header_version is not None else payload.version
+    return await shared_expense_service.update_shared_expense(
+        db=db,
+        group_id=group_id,
+        expense_id=expense_id,
+        current_user=current_user,
+        payload=payload,
+        expected_version=expected_version,
+    )
+
+
+@router.delete(
+    "/{group_id}/expenses/{expense_id}",
+    response_model=SharedExpenseDeleteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete a shared expense",
+)
+async def delete_shared_expense(
+    group_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    version: Annotated[Optional[int], Query(description="Expected version for optimistic concurrency")] = None,
+    if_match: Annotated[Optional[str], Header(alias="If-Match")] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Soft-delete a shared expense with optimistic concurrency and balance recalculation.
+    Only the original expense creator or a group admin can delete.
+    Preserves audit history and dispatches notifications to group members only after commit.
+    """
+    header_version = parse_if_match_header(if_match)
+    expected_version = header_version if header_version is not None else version
+    result = await shared_expense_service.delete_shared_expense(
+        db=db,
+        group_id=group_id,
+        expense_id=expense_id,
+        current_user=current_user,
+        expected_version=expected_version,
+    )
+    return SharedExpenseDeleteResponse(**result)
+
+
+@router.get(
+    "/{group_id}/history",
+    response_model=List[GroupHistoryItemResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get group transaction and audit history",
+)
+async def get_group_history(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve full audit log and transaction history for this group."""
+    items = await shared_expense_service.get_group_history(db, group_id, current_user)
+    return [GroupHistoryItemResponse(**item) for item in items]
+
 
 

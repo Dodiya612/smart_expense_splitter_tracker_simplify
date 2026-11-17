@@ -259,6 +259,56 @@ export class FastApiClient implements ApiClient {
       requiresAuth: true,
     });
   }
+
+  async post<T>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'POST',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+      requiresAuth: true,
+    });
+  }
+
+  async patch<T>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+      requiresAuth: true,
+    });
+  }
+
+  async put<T>(
+    endpoint: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'PUT',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+      requiresAuth: true,
+    });
+  }
+
+  async delete<T>(
+    endpoint: string,
+    headers?: Record<string, string>
+  ): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'DELETE',
+      headers,
+      requiresAuth: true,
+    });
+  }
 }
 
 export const fastApiClient = new FastApiClient();
