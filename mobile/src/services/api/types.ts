@@ -89,4 +89,8 @@ export interface ApiClient {
   logout(payload?: LogoutPayload, accessToken?: string | null): Promise<void>;
   me(accessToken?: string | null): Promise<AuthUser>;
   get<T>(endpoint: string): Promise<T>;
+  post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  patch<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  put<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T>;
 }

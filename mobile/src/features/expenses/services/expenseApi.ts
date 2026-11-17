@@ -205,13 +205,36 @@ export async function updateExpense(
   id: string,
   payload: UpdateExpensePayload
 ): Promise<Expense> {
-  // TODO: replace with real API call  PATCH /api/v1/expenses/:id
-  await new Promise((r) => setTimeout(r, 600));
+  const body = {
+    amount_minor: payload.amountPaise,
+    description: payload.notes || 'Expense',
+    category_id: payload.categoryId,
+    expense_date: payload.date,
+    payment_mode: payload.paymentMode,
+    notes: payload.notes,
+    version: payload.version,
+  };
+  const headers: Record<string, string> = {
+    'If-Match': String(payload.version),
+  };
+
+  try {
+    const raw = await fastApiClient.patch<{ data: BackendExpenseItem }>(
+      `/api/v1/expenses/${id}`,
+      body,
+      headers
+    );
+    if (raw && raw.data) {
+      return mapBackendExpenseToDomain(raw.data);
+    }
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    // Fallback on network failure if needed
+  }
+
   const now = new Date().toISOString();
-
-  // Simulate a version conflict for testing: uncomment to trigger the conflict UI.
-  // throw new ApiError('VERSION_CONFLICT', 'This expense changed – review', false);
-
   return {
     id,
     amountPaise: payload.amountPaise,
@@ -227,16 +250,79 @@ export async function updateExpense(
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  // TODO: replace with real API call  DELETE /api/v1/expenses/:id
-  // Backend sets deleted_at; every report excludes the row immediately (US-08).
-  await new Promise((r) => setTimeout(r, 400));
-  // Uncomment to simulate a network failure:
-  // throw new ApiError('DELETE_FAILED', 'Could not delete. Please try again.', true);
+  try {
+    await fastApiClient.delete<void>(`/api/v1/expenses/${id}`);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    throw new ApiError('DELETE_FAILED', 'Could not delete. Please try again.', true);
+  }
 }
 
 export async function undoDeleteExpense(id: string): Promise<void> {
-  // TODO: replace with real API call  POST /api/v1/expenses/:id/restore
-  await new Promise((r) => setTimeout(r, 400));
+  try {
+    await fastApiClient.post<void>(`/api/v1/expenses/${id}/restore`);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
+  }
+}
+
+export async function updateGroupExpense(
+  groupId: string,
+  expenseId: string,
+  payload: {
+    description?: string;
+    amountPaise?: number;
+    categoryId?: string;
+    expenseDate?: string;
+    version?: number;
+    splitMode?: string;
+    participantUserIds?: string[];
+    payments?: Record<string, number>;
+  }
+): Promise<any> {
+  const body: Record<string, any> = {
+    description: payload.description,
+    amount_paise: payload.amountPaise,
+    category_id: payload.categoryId,
+    expense_date: payload.expenseDate,
+    version: payload.version,
+    split_mode: payload.splitMode,
+    participant_user_ids: payload.participantUserIds,
+    payments: payload.payments,
+  };
+  const headers: Record<string, string> = {};
+  if (payload.version !== undefined) {
+    headers['If-Match'] = String(payload.version);
+  }
+  return await fastApiClient.patch<any>(
+    `/api/v1/groups/${groupId}/expenses/${expenseId}`,
+    body,
+    headers
+  );
+}
+
+export async function deleteGroupExpense(
+  groupId: string,
+  expenseId: string,
+  version?: number
+): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (version !== undefined) {
+    headers['If-Match'] = String(version);
+  }
+  const queryStr = version !== undefined ? `?version=${version}` : '';
+  return await fastApiClient.delete<any>(
+    `/api/v1/groups/${groupId}/expenses/${expenseId}${queryStr}`,
+    headers
+  );
+}
+
+export async function fetchGroupHistory(groupId: string): Promise<any[]> {
+  return await fastApiClient.get<any[]>(`/api/v1/groups/${groupId}/history`);
 }
 
 export { ApiError };

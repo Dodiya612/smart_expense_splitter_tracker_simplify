@@ -110,6 +110,42 @@ export class MockApiClient implements ApiClient {
       false
     );
   }
+
+  async post<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+    await sleep(config.mockApiLatencyMs);
+    throw new ApiError(
+      'NOT_IMPLEMENTED',
+      `Mock POST endpoint "${endpoint}" is not supported.`,
+      false
+    );
+  }
+
+  async patch<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+    await sleep(config.mockApiLatencyMs);
+    throw new ApiError(
+      'NOT_IMPLEMENTED',
+      `Mock PATCH endpoint "${endpoint}" is not supported.`,
+      false
+    );
+  }
+
+  async put<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+    await sleep(config.mockApiLatencyMs);
+    throw new ApiError(
+      'NOT_IMPLEMENTED',
+      `Mock PUT endpoint "${endpoint}" is not supported.`,
+      false
+    );
+  }
+
+  async delete<T>(endpoint: string, _headers?: Record<string, string>): Promise<T> {
+    await sleep(config.mockApiLatencyMs);
+    throw new ApiError(
+      'NOT_IMPLEMENTED',
+      `Mock DELETE endpoint "${endpoint}" is not supported.`,
+      false
+    );
+  }
 }
 
 export const mockApiClient = new MockApiClient();

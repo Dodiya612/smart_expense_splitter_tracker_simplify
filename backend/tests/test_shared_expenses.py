@@ -76,6 +76,7 @@ class FakeSharedExpenseAsyncSession:
         self.db = db
         self.pending: list[object] = []
         self.fail_on_commit = False
+        self._snapshots: list[tuple[Expense, dict]] = []
 
     def add(self, obj):
         if hasattr(obj, "id") and obj.id is None:
@@ -97,6 +98,7 @@ class FakeSharedExpenseAsyncSession:
     async def commit(self):
         if self.fail_on_commit:
             raise RuntimeError("Simulated database failure during flush/commit")
+        self._snapshots.clear()
         for obj in self.pending:
             if isinstance(obj, User):
                 self.db.users[obj.id] = obj
@@ -128,6 +130,10 @@ class FakeSharedExpenseAsyncSession:
 
     async def rollback(self):
         self.pending.clear()
+        for target, orig_state in self._snapshots:
+            for col, val in orig_state.items():
+                setattr(target, col, val)
+        self._snapshots.clear()
 
     async def get(self, entity_cls, ident):
         if entity_cls == Category:
@@ -195,15 +201,140 @@ class FakeSharedExpenseAsyncSession:
                 (v for k, v in params.items() if "group_id" in k and isinstance(v, uuid.UUID)),
                 None,
             )
+            eid = next(
+                (v for k, v in params.items() if (k.startswith("id_") or k == "id") and isinstance(v, uuid.UUID)),
+                None,
+            )
             matched = [e for e in self.db.expenses.values() if e.deleted_at is None]
             if gid is not None:
                 matched = [e for e in matched if e.group_id == gid]
+            if eid is not None:
+                matched = [e for e in matched if e.id == eid]
             # Attach payments and shares
             for e in matched:
                 e.payments = [p for p in self.db.expense_payments.values() if p.expense_id == e.id]
                 e.shares = [s for s in self.db.expense_shares.values() if s.expense_id == e.id]
             # Order reverse chronological
             matched.sort(key=lambda e: (e.expense_date, e.created_at), reverse=True)
+            return FakeResult(matched)
+
+        # 5. UPDATE Expense
+        if sql_str.startswith("update expenses"):
+            exp_id = params.get("id_1") or params.get("expenses_id") or params.get("id")
+            if exp_id is None:
+                exp_id = next(
+                    (v for k, v in params.items() if ("id" in k and isinstance(v, uuid.UUID))),
+                    None,
+                )
+            exp_version = params.get("version_1") if "version_1" in params else params.get("expenses_version")
+
+            target = None
+            for e in self.db.expenses.values():
+                if exp_id and e.id != exp_id:
+                    continue
+                if exp_version is not None and e.version != exp_version:
+                    continue
+                if e.deleted_at is not None:
+                    continue
+                target = e
+                break
+
+            if not target:
+                return FakeResult(rowcount=0)
+
+            # Record snapshot for rollback
+            orig_state = {
+                col: getattr(target, col)
+                for col in (
+                    "amount_minor",
+                    "description",
+                    "category_id",
+                    "user_id",
+                    "expense_date",
+                    "notes",
+                    "merchant",
+                    "payment_mode",
+                    "receipt_id",
+                    "version",
+                    "updated_at",
+                    "deleted_at",
+                )
+                if hasattr(target, col)
+            }
+            self._snapshots.append((target, orig_state))
+
+            for col, val in params.items():
+                if col in (
+                    "amount_minor",
+                    "description",
+                    "category_id",
+                    "user_id",
+                    "expense_date",
+                    "notes",
+                    "merchant",
+                    "payment_mode",
+                    "receipt_id",
+                    "version",
+                    "updated_at",
+                    "deleted_at",
+                ):
+                    setattr(target, col, val)
+            return FakeResult(rowcount=1)
+
+        # 6. DELETE ExpensePayment
+        if "delete from expense_payments" in sql_str:
+            exp_id = next(
+                (v for k, v in params.items() if "expense_id" in k and isinstance(v, uuid.UUID)),
+                None,
+            )
+            to_remove = [k for k, p in self.db.expense_payments.items() if exp_id is None or p.expense_id == exp_id]
+            for k in to_remove:
+                del self.db.expense_payments[k]
+            return FakeResult(rowcount=len(to_remove))
+
+        # 7. DELETE ExpenseShare
+        if "delete from expense_shares" in sql_str:
+            exp_id = next(
+                (v for k, v in params.items() if "expense_id" in k and isinstance(v, uuid.UUID)),
+                None,
+            )
+            to_remove = [k for k, s in self.db.expense_shares.items() if exp_id is None or s.expense_id == exp_id]
+            for k in to_remove:
+                del self.db.expense_shares[k]
+            return FakeResult(rowcount=len(to_remove))
+
+        # 8. SELECT AuditEvent
+        if "from audit_events" in sql_str:
+            gid = next(
+                (v for k, v in params.items() if "group_id" in k and isinstance(v, uuid.UUID)),
+                None,
+            )
+            if gid is not None or "join expenses" in sql_str or "expenses.group_id" in sql_str:
+                group_expense_ids = {e.id for e in self.db.expenses.values() if gid is None or e.group_id == gid}
+                matched = [
+                    a for a in self.db.audit_events.values()
+                    if (gid is not None and a.entity_id == gid) or a.entity_id in group_expense_ids
+                ]
+                matched.sort(key=lambda a: a.created_at, reverse=True)
+                return FakeResult(matched)
+
+            ent_id = next(
+                (v for k, v in params.items() if "entity_id" in k and isinstance(v, uuid.UUID)),
+                None,
+            )
+            act_val = next(
+                (v for k, v in params.items() if "action" in k and isinstance(v, str)),
+                None,
+            )
+            matched = list(self.db.audit_events.values())
+            if ent_id is not None:
+                matched = [a for a in matched if a.entity_id == ent_id]
+            if act_val is not None:
+                matched = [a for a in matched if a.action == act_val]
+
+            if "actor_id" in sql_str:
+                return FakeResult([a.actor_id for a in matched])
+            matched.sort(key=lambda a: a.created_at, reverse=True)
             return FakeResult(matched)
 
         return FakeResult([])

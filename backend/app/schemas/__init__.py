@@ -60,8 +60,11 @@ from app.schemas.ledger import (
 from app.schemas.shared_expense import (
     ExpensePaymentItem,
     ExpenseShareItem,
+    GroupHistoryItemResponse,
     SharedExpenseCreateRequest,
+    SharedExpenseDeleteResponse,
     SharedExpenseResponse,
+    SharedExpenseUpdateRequest,
 )
 
 __all__ = [
@@ -90,6 +93,7 @@ __all__ = [
     "ExpenseTotalResponse",
     "ExpenseUpdate",
     "GroupCreateRequest",
+    "GroupHistoryItemResponse",
     "GroupListItemResponse",
     "GroupMemberResponse",
     "GroupResponse",
@@ -106,7 +110,9 @@ __all__ = [
     "SessionResponse",
     "SettlementRecord",
     "SharedExpenseCreateRequest",
+    "SharedExpenseDeleteResponse",
     "SharedExpenseResponse",
+    "SharedExpenseUpdateRequest",
     "SplitMode",
     "SuggestedTransfer",
     "TokenBundle",
