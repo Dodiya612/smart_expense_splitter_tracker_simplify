@@ -326,3 +326,24 @@ class GroupPolicy:
                     "message": "Administrator privileges required for this action.",
                 },
             )
+
+    @staticmethod
+    def authorize_member_or_404(
+        current_user: User,
+        group_id: uuid.UUID,
+        member_user_ids: Sequence[uuid.UUID] | Set[uuid.UUID],
+    ) -> None:
+        """
+        Ensures the authenticated user is an active member of the group, hiding the
+        group's existence from strangers: a non-member gets the same HTTP 404
+        GROUP_NOT_FOUND as a group that does not exist (used by balances and
+        settlements, US-20).
+        """
+        if current_user.id not in member_user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "GROUP_NOT_FOUND",
+                    "message": "Group not found.",
+                },
+            )

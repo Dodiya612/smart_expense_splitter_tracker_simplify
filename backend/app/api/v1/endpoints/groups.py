@@ -1,8 +1,8 @@
 import re
 import uuid
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -18,6 +18,12 @@ from app.schemas.group import (
     JoinGroupRequest,
     JoinGroupResponse,
 )
+from app.schemas.settlement import (
+    GroupBalancesResponse,
+    SettlementCreateRequest,
+    SettlementResponse,
+    SimplifiedRepaymentsResponse,
+)
 from app.schemas.shared_expense import (
     GroupHistoryItemResponse,
     SharedExpenseCreateRequest,
@@ -25,7 +31,7 @@ from app.schemas.shared_expense import (
     SharedExpenseResponse,
     SharedExpenseUpdateRequest,
 )
-from app.services import group_service, shared_expense_service
+from app.services import group_service, settlement_service, shared_expense_service
 
 router = APIRouter()
 
@@ -232,7 +238,7 @@ async def list_shared_expenses(
 
 @router.get(
     "/{group_id}/balances",
-    response_model=Dict[str, Any],
+    response_model=GroupBalancesResponse,
     status_code=status.HTTP_200_OK,
     summary="Get group balances and suggested settlements",
 )
@@ -242,10 +248,68 @@ async def get_group_balances(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Calculate dynamic net member balances and suggested minimal settlement transfers
-    using the pure ledger engine.
+    Net position per member (expenses and settlements) and simplified transfers,
+    computed only by the pure ledger engine. Non-members get 404.
     """
-    return await shared_expense_service.get_group_balances(db, group_id, current_user)
+    return await settlement_service.get_group_balances(db, group_id, current_user)
+
+
+@router.get(
+    "/{group_id}/balances/simplified",
+    response_model=SimplifiedRepaymentsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get simplified repayment suggestions",
+)
+async def get_simplified_repayments(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Greedy 'who pays whom' suggestions from ledger.simplify(). Non-members get 404."""
+    return await settlement_service.get_simplified_repayments(db, group_id, current_user)
+
+
+@router.post(
+    "/{group_id}/settlements",
+    response_model=SettlementResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record a full or partial settlement",
+    description="Records that one member repaid another. Never counted as spending or income. "
+    "Supports idempotent retries via the Idempotency-Key header.",
+)
+async def create_settlement(
+    group_id: uuid.UUID,
+    payload: SettlementCreateRequest,
+    response: Response,
+    idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Payer and payee must be different active members; the amount cannot exceed what the
+    payer owes the payee. The settlement and its audit event are written in one transaction.
+    """
+    result, is_replay = await settlement_service.create_settlement(
+        db, group_id, current_user, payload, idempotency_key=idempotency_key
+    )
+    if is_replay:
+        response.headers["X-Idempotent-Replay"] = "true"
+    return result
+
+
+@router.get(
+    "/{group_id}/settlements",
+    response_model=List[SettlementResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List settlements of group",
+)
+async def list_settlements(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all settlements recorded in this group, newest first. Non-members get 404."""
+    return await settlement_service.list_settlements(db, group_id, current_user)
 
 
 @router.get(
