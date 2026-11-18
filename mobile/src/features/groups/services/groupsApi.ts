@@ -8,6 +8,7 @@
  * - POST   /api/v1/groups/join                join with a code
  * - POST   /api/v1/groups/:groupId/join-code  new code (revokes the old one; admin only)
  * - DELETE /api/v1/groups/:groupId/join-code  revoke the active code (admin only)
+ * - DELETE /api/v1/groups/:groupId/members/:me leave the group (T-35; status becomes 'left')
  *
  * The backend sends camelCase; snake_case fallbacks are kept, matching balancesApi.ts.
  */
@@ -115,4 +116,11 @@ export async function rotateJoinCode(groupId: string): Promise<JoinCode> {
 
 export async function revokeJoinCode(groupId: string): Promise<void> {
   await fastApiClient.delete<void>(`/api/v1/groups/${encodeURIComponent(groupId)}/join-code`);
+}
+
+/** Leave a group: the member removes themselves (T-35 / US-22). */
+export async function leaveGroup(groupId: string, currentUserId: string): Promise<void> {
+  await fastApiClient.delete<void>(
+    `/api/v1/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(currentUserId)}`
+  );
 }

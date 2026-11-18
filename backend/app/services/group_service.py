@@ -406,17 +406,29 @@ async def remove_member(
     current_user: User,
 ) -> None:
     """
-    Owner/admin removes a member from the group.
-    Sets status to 'removed' to preserve ledger history.
-    Cannot remove group owner/creator.
+    Removes a member from the group, or lets a member leave (US-17 AC5, US-22).
+
+    - Owner/admin removing someone else: status becomes 'removed'.
+    - A member removing themselves (leaving): any active member may do this;
+      status becomes 'left'. A balance does not block leaving; the app warns first.
+    - The group owner can be neither removed nor leave, so an admin always remains.
+
+    Membership rows are never deleted, so past shares and history stay intact,
+    and people who left can no longer be added to new expenses.
     """
     group = await get_group_or_404(db, group_id)
-    check_group_membership(group, current_user, require_admin=True)
+    is_leaving = target_user_id == current_user.id
+    check_group_membership(group, current_user, require_admin=not is_leaving)
 
     if target_user_id == group.created_by:
+        message = (
+            "The group owner cannot leave the group."
+            if is_leaving
+            else "The group owner cannot be removed."
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "CANNOT_REMOVE_OWNER", "message": "The group owner cannot be removed."},
+            detail={"code": "CANNOT_REMOVE_OWNER", "message": message},
         )
 
     res = await db.execute(
@@ -433,8 +445,10 @@ async def remove_member(
             detail={"code": "MEMBER_NOT_FOUND", "message": "Member not found in this group."},
         )
 
-    # Soft removal per CF-08 and CF-16
-    member.status = GroupMemberStatus.REMOVED.value
+    # Soft removal per CF-08 and CF-16: leaving -> 'left', removal -> 'removed'
+    member.status = (
+        GroupMemberStatus.LEFT.value if is_leaving else GroupMemberStatus.REMOVED.value
+    )
     member.updated_at = utcnow()
     await db.commit()
 

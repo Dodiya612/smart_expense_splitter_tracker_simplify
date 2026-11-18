@@ -185,7 +185,7 @@ async def list_group_invitations(
 @router.delete(
     "/{group_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Remove a group member",
+    summary="Remove a group member, or leave the group",
 )
 async def remove_member(
     group_id: uuid.UUID,
@@ -194,9 +194,10 @@ async def remove_member(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Owner/admin removes a member from the group.
-    The group owner cannot be removed.
-    Removal is soft, setting status to 'removed' to preserve financial history.
+    Owner/admin removes a member from the group (status 'removed').
+    Any active member may pass their own user ID to leave (status 'left').
+    The group owner can be neither removed nor leave.
+    Both are soft changes, so financial history is preserved.
     """
     await group_service.remove_member(db, group_id, user_id, current_user)
 

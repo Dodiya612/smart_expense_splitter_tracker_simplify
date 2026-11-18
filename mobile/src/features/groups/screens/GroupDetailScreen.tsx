@@ -1,6 +1,6 @@
 /**
  * Group screen (T-29 / US-17): group info, invite card for admins, member list,
- * a link to the group's balances (T-33), and Add group expense (T-31).
+ * a link to the group's balances (T-33), Add group expense (T-31) and Leave group (T-35).
  */
 
 import React from 'react';
@@ -14,6 +14,7 @@ import { useTheme } from '@/theme';
 import { GroupScreenHeader } from '../components/GroupScreenHeader';
 import { GroupStateView } from '../components/GroupStateView';
 import { InviteCodeCard } from '../components/InviteCodeCard';
+import { LeaveGroupSection } from '../components/LeaveGroupSection';
 import { MemberListItem } from '../components/MemberListItem';
 import { useGroupDetail } from '../hooks/useGroupDetail';
 import { groupTypeInfo, isAdminRole, memberCountLabel } from '../utils/groupDisplay';
@@ -103,6 +104,7 @@ export function GroupDetailScreen({ groupId }: GroupDetailScreenProps) {
       keyExtractor={(m) => m.userId}
       renderItem={({ item }) => <MemberListItem member={item} isCurrentUser={item.userId === user?.id} />}
       ListHeaderComponent={header}
+      ListFooterComponent={<LeaveGroupSection group={group} currentUserId={user?.id} />}
       ListEmptyComponent={
         <AppText variant="small" color="textSecondary">
           No active members.
