@@ -1,12 +1,11 @@
 /**
- * Groups tab entry point – hosts the GroupBalancesScreen (T-33 / US-10).
- *
- * Provides primary access to group balances and settlements in the main tab navigation.
+ * Groups tab (T-29 / US-17): list of my groups with Create group and Join with code.
+ * Group balances (T-33) open from each group's screen via /group-balances.
  */
 
 import React from 'react';
-import { GroupBalancesScreen } from '@/features/balances/screens/GroupBalancesScreen';
+import { GroupListScreen } from '@/features/groups/screens/GroupListScreen';
 
 export default function GroupsTab() {
-  return <GroupBalancesScreen />;
+  return <GroupListScreen />;
 }
