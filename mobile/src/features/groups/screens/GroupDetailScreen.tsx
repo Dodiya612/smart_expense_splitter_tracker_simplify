@@ -1,6 +1,6 @@
 /**
  * Group screen (T-29 / US-17): group info, invite card for admins, member list,
- * and a link to the group's balances (T-33).
+ * a link to the group's balances (T-33), and Add group expense (T-31).
  */
 
 import React from 'react';
@@ -61,6 +61,8 @@ export function GroupDetailScreen({ groupId }: GroupDetailScreenProps) {
   }
 
   const type = groupTypeInfo(group.type);
+  const openAddExpense = () =>
+    router.push({ pathname: '/groups/add-expense', params: { groupId: group.id } } as Href);
   const openBalances = () =>
     router.push({
       pathname: '/group-balances',
@@ -85,6 +87,7 @@ export function GroupDetailScreen({ groupId }: GroupDetailScreenProps) {
           To invite someone, ask a group admin for an invite code.
         </AppText>
       )}
+      <Button label="Add group expense" fullWidth onPress={openAddExpense} />
       <Button label="View balances" variant="secondary" fullWidth onPress={openBalances} />
       <AppText variant="bodyStrong" accessibilityRole="header" style={{ marginTop: theme.spacing.sm }}>
         {`Members (${group.members.length})`}
