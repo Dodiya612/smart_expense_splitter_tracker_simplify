@@ -1437,7 +1437,7 @@
           "Groups"
         ],
         "summary": "Get group balances and suggested settlements",
-        "description": "Calculate dynamic net member balances and suggested minimal settlement transfers\nusing the pure ledger engine.",
+        "description": "Net position per member (expenses and settlements) and simplified transfers,\ncomputed only by the pure ledger engine. Non-members get 404.",
         "operationId": "get_group_balances_api_v1_groups__group_id__balances_get",
         "security": [
           {
@@ -1462,9 +1462,182 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Group Balances Api V1 Groups  Group Id  Balances Get"
+                  "$ref": "#/components/schemas/GroupBalancesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/balances/simplified": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get simplified repayment suggestions",
+        "description": "Greedy 'who pays whom' suggestions from ledger.simplify(). Non-members get 404.",
+        "operationId": "get_simplified_repayments_api_v1_groups__group_id__balances_simplified_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimplifiedRepaymentsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/settlements": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Record a full or partial settlement",
+        "description": "Records that one member repaid another. Never counted as spending or income. Supports idempotent retries via the Idempotency-Key header.",
+        "operationId": "create_settlement_api_v1_groups__group_id__settlements_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List settlements of group",
+        "description": "List all settlements recorded in this group, newest first. Non-members get 404.",
+        "operationId": "list_settlements_api_v1_groups__group_id__settlements_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SettlementResponse"
+                  },
+                  "title": "Response List Settlements Api V1 Groups  Group Id  Settlements Get"
                 }
               }
             }
@@ -2942,6 +3115,56 @@
         "title": "ExpenseUpdate",
         "description": "Payload for updating an existing personal expense (supports partial updates)."
       },
+      "GroupBalancesResponse": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "net_positions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Net Positions"
+          },
+          "suggested_transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferItem"
+            },
+            "type": "array",
+            "title": "Suggested Transfers"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberBalanceItem"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "total_debt_paise": {
+            "type": "integer",
+            "title": "Total Debt Paise",
+            "description": "Sum of all creditors' positions (equals the sum owed by debtors)."
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "INR"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "net_positions",
+          "suggested_transfers",
+          "members",
+          "total_debt_paise"
+        ],
+        "title": "GroupBalancesResponse",
+        "description": "Balances for a group, from ledger.net_positions() and ledger.simplify().\n\nKeeps the original `group_id`, `net_positions` and `suggested_transfers`\nkeys of this endpoint and adds `members`, `total_debt_paise` and `currency`."
+      },
       "GroupCreateRequest": {
         "properties": {
           "name": {
@@ -3445,6 +3668,47 @@
         "type": "object",
         "title": "LogoutRequest"
       },
+      "MemberBalanceItem": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "net_balance_paise": {
+            "type": "integer",
+            "title": "Net Balance Paise",
+            "description": "> 0: others owe this member; < 0: this member owes others."
+          },
+          "owes_paise": {
+            "type": "integer",
+            "title": "Owes Paise"
+          },
+          "receives_paise": {
+            "type": "integer",
+            "title": "Receives Paise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "creditor",
+              "debtor",
+              "settled"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "net_balance_paise",
+          "owes_paise",
+          "receives_paise",
+          "status"
+        ],
+        "title": "MemberBalanceItem",
+        "description": "Net position for one group member."
+      },
       "MessageResponse": {
         "properties": {
           "message": {
@@ -3539,6 +3803,189 @@
           "expiresAt"
         ],
         "title": "SessionResponse"
+      },
+      "SettlementCreateRequest": {
+        "properties": {
+          "payer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payer Id",
+            "description": "UUID of the member making the repayment (debtor)."
+          },
+          "payee_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payee Id",
+            "description": "UUID of the member receiving the repayment (creditor)."
+          },
+          "amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.223372036854776e+18,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Paise",
+            "description": "Repayment amount in positive integer paise. Required unless is_full_settlement is true."
+          },
+          "is_full_settlement": {
+            "type": "boolean",
+            "title": "Is Full Settlement",
+            "description": "Settle everything the payer currently owes the payee. If amount_paise is also given it must equal that outstanding amount.",
+            "default": false
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method",
+            "description": "Payment channel (e.g. upi, cash, bank_transfer)."
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes about the settlement."
+          },
+          "settlement_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement Date",
+            "description": "Date of repayment (YYYY-MM-DD). Defaults to today in Asia/Kolkata."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "payer_id",
+          "payee_id"
+        ],
+        "title": "SettlementCreateRequest",
+        "description": "Payload to record a full or partial settlement between two group members."
+      },
+      "SettlementResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "payer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payer Id"
+          },
+          "payee_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payee Id"
+          },
+          "amount_paise": {
+            "type": "integer",
+            "title": "Amount Paise"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "settlement_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Settlement Date"
+          },
+          "is_partial": {
+            "type": "boolean",
+            "title": "Is Partial",
+            "default": false
+          },
+          "remaining_debt_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Debt Paise",
+            "description": "What the payer still owed the payee right after this settlement (only set on the create response)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "group_id",
+          "payer_id",
+          "payee_id",
+          "amount_paise",
+          "status",
+          "settlement_date",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SettlementResponse",
+        "description": "A recorded settlement."
       },
       "SharedExpenseCreateRequest": {
         "properties": {
@@ -4096,6 +4543,39 @@
         "title": "SharedExpenseUpdateRequest",
         "description": "Payload for updating an existing shared expense within a group."
       },
+      "SimplifiedRepaymentsResponse": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "suggested_transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferItem"
+            },
+            "type": "array",
+            "title": "Suggested Transfers"
+          },
+          "total_transfers": {
+            "type": "integer",
+            "title": "Total Transfers"
+          },
+          "total_amount_paise": {
+            "type": "integer",
+            "title": "Total Amount Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "suggested_transfers",
+          "total_transfers",
+          "total_amount_paise"
+        ],
+        "title": "SimplifiedRepaymentsResponse",
+        "description": "Greedy simplified repayment suggestions (ledger.simplify())."
+      },
       "SplitMode": {
         "type": "string",
         "enum": [
@@ -4162,6 +4642,30 @@
           "refreshToken"
         ],
         "title": "TokenRefreshResponse"
+      },
+      "TransferItem": {
+        "properties": {
+          "from_user": {
+            "type": "string",
+            "title": "From User"
+          },
+          "to_user": {
+            "type": "string",
+            "title": "To User"
+          },
+          "amount_paise": {
+            "type": "integer",
+            "title": "Amount Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_user",
+          "to_user",
+          "amount_paise"
+        ],
+        "title": "TransferItem",
+        "description": "Suggested repayment produced by ledger.simplify()."
       },
       "UserLoginRequest": {
         "properties": {

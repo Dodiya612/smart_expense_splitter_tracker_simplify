@@ -13,8 +13,9 @@ from sqlalchemy.orm import selectinload
 from app.models.category import Category
 from app.models.expense import AuditEvent, Expense, ExpensePayment, ExpenseShare
 from app.models.group import Group, GroupMember, GroupMemberRole, GroupMemberStatus
+from app.models.settlement import Settlement
 from app.models.user import User
-from app.schemas.ledger import ExpenseRecord, SplitMode, SuggestedTransfer
+from app.schemas.ledger import SplitMode, SuggestedTransfer
 from app.schemas.shared_expense import (
     ExpensePaymentItem,
     ExpenseShareItem,
@@ -23,7 +24,8 @@ from app.schemas.shared_expense import (
     SharedExpenseUpdateRequest,
 )
 from app.services.group_service import check_group_membership, get_group_or_404
-from app.services.ledger import allocate, net_positions, simplify
+from app.services import settlement_service
+from app.services.ledger import allocate, simplify
 from app.services.notifications import notify_group_members
 
 
@@ -343,87 +345,16 @@ async def list_shared_expenses(
     return [format_shared_expense_response(e) for e in expenses]
 
 
-async def get_group_balances(
-    db: AsyncSession,
-    group_id: uuid.UUID,
-    current_user: User,
-) -> Dict[str, Any]:
-    """Calculate dynamic net balances and suggested settlement transfers for a group.
-
-    Integrates with the pure ledger engine net_positions() and simplify().
-    """
-    group = await get_group_or_404(db, group_id)
-    check_group_membership(group, current_user, require_admin=False)
-
-    result = await db.execute(
-        select(Expense)
-        .options(
-            selectinload(Expense.payments),
-            selectinload(Expense.shares),
-        )
-        .where(
-            Expense.group_id == group_id,
-            Expense.deleted_at.is_(None),
-        )
-    )
-    expenses = result.scalars().all()
-
-    expense_records: List[ExpenseRecord] = []
-    for exp in expenses:
-        payments = {str(p.user_id): p.amount_paise for p in exp.payments}
-        shares = {str(s.user_id): s.amount_paise for s in exp.shares}
-        expense_records.append(
-            ExpenseRecord(
-                expense_id=str(exp.id),
-                description=exp.description,
-                amount_paise=exp.amount_minor,
-                payments=payments,
-                shares=shares,
-            )
-        )
-
-    balances = net_positions(expense_records, [])
-    transfers = simplify(balances)
-
-    return {
-        "group_id": str(group_id),
-        "net_positions": balances,
-        "suggested_transfers": [t.model_dump() for t in transfers],
-    }
-
-
 async def compute_group_net_positions(
     db: AsyncSession,
     group_id: uuid.UUID,
 ) -> Dict[str, int]:
-    """Helper to recalculate member net positions dynamically from all active expenses."""
-    result = await db.execute(
-        select(Expense)
-        .options(
-            selectinload(Expense.payments),
-            selectinload(Expense.shares),
-        )
-        .where(
-            Expense.group_id == group_id,
-            Expense.deleted_at.is_(None),
-        )
-    )
-    expenses = result.scalars().all()
+    """Member net positions from all live group expenses and completed settlements.
 
-    expense_records: List[ExpenseRecord] = []
-    for exp in expenses:
-        payments = {str(p.user_id): p.amount_paise for p in exp.payments}
-        shares = {str(s.user_id): s.amount_paise for s in exp.shares}
-        expense_records.append(
-            ExpenseRecord(
-                expense_id=str(exp.id),
-                description=exp.description,
-                amount_paise=exp.amount_minor,
-                payments=payments,
-                shares=shares,
-            )
-        )
-    return net_positions(expense_records, [])
+    Delegates to settlement_service.compute_net_positions so balances are computed
+    one way only (ledger.net_positions over expenses and settlements, US-20).
+    """
+    return await settlement_service.compute_net_positions(db, group_id)
 
 
 async def get_shared_expense(
@@ -1057,10 +988,12 @@ async def get_group_history(
     stmt = (
         select(AuditEvent)
         .outerjoin(Expense, AuditEvent.entity_id == Expense.id)
+        .outerjoin(Settlement, AuditEvent.entity_id == Settlement.id)
         .where(
             or_(
                 Expense.group_id == group_id,
                 AuditEvent.entity_id == group_id,
+                Settlement.group_id == group_id,
             )
         )
         .order_by(AuditEvent.created_at.desc())

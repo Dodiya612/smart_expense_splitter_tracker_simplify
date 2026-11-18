@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "010_create_settlements"
-down_revision: str | None = "009_shared_expenses_ledger"
+down_revision: str | None = "009_create_shared_expenses_and_ledger"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
