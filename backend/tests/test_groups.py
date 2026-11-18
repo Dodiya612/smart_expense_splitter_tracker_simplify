@@ -879,3 +879,134 @@ async def test_list_user_groups_isolation(client, user_owner, user_member, user_
     stranger_list = await client.get("/api/v1/groups", headers=auth_headers(user_stranger))
     assert stranger_list.status_code == 200
     assert len(stranger_list.json()) == 0
+
+
+# ==============================================================================
+# 7. Leaving a Group (US-22 / T-35)
+# ==============================================================================
+
+async def _group_with_member(client, owner, member):
+    create_resp = await client.post(
+        "/api/v1/groups",
+        json={"name": "Flat 302", "type": "flat"},
+        headers=auth_headers(owner),
+    )
+    group_id = create_resp.json()["id"]
+    await client.post(
+        "/api/v1/groups/join",
+        json={"code": create_resp.json()["joinCode"]},
+        headers=auth_headers(member),
+    )
+    return group_id, create_resp.json()["joinCode"]
+
+
+@pytest.mark.asyncio
+async def test_member_leaves_group_status_left_and_history_kept(client, user_owner, user_member, group_db):
+    """US-22: a plain member can leave; membership becomes 'left', never deleted."""
+    group_id, _ = await _group_with_member(client, user_owner, user_member)
+
+    resp = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_member.id}",
+        headers=auth_headers(user_member),
+    )
+    assert resp.status_code == 204
+
+    membership = group_db.group_members[(uuid.UUID(group_id), user_member.id)]
+    assert membership.status == "left"
+
+    # No longer an active member for the owner
+    get_resp = await client.get(f"/api/v1/groups/{group_id}", headers=auth_headers(user_owner))
+    assert str(user_member.id) not in [m["userId"] for m in get_resp.json()["members"]]
+
+    # The group disappears from the leaver's list and they lose access
+    list_resp = await client.get("/api/v1/groups", headers=auth_headers(user_member))
+    assert group_id not in [g["id"] for g in list_resp.json()]
+    detail_resp = await client.get(f"/api/v1/groups/{group_id}", headers=auth_headers(user_member))
+    assert detail_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_owner_cannot_leave_group(client, user_owner, group_db):
+    """The owner can't leave, so the group always keeps an admin."""
+    create_resp = await client.post(
+        "/api/v1/groups",
+        json={"name": "Flat 302", "type": "flat"},
+        headers=auth_headers(user_owner),
+    )
+    group_id = create_resp.json()["id"]
+
+    resp = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_owner.id}",
+        headers=auth_headers(user_owner),
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "CANNOT_REMOVE_OWNER"
+    assert "cannot leave" in resp.json()["message"]
+    assert group_db.group_members[(uuid.UUID(group_id), user_owner.id)].status == "active"
+
+
+@pytest.mark.asyncio
+async def test_stranger_cannot_leave_group_they_are_not_in(client, user_owner, user_stranger, group_db):
+    """A non-member passing their own ID is refused and nothing is written."""
+    create_resp = await client.post(
+        "/api/v1/groups",
+        json={"name": "Private Club", "type": "friends"},
+        headers=auth_headers(user_owner),
+    )
+    group_id = create_resp.json()["id"]
+
+    resp = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_stranger.id}",
+        headers=auth_headers(user_stranger),
+    )
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "GROUP_ACCESS_DENIED"
+    assert (uuid.UUID(group_id), user_stranger.id) not in group_db.group_members
+
+
+@pytest.mark.asyncio
+async def test_member_cannot_leave_twice(client, user_owner, user_member):
+    """After leaving, the person is no longer an active member, so a second leave is refused."""
+    group_id, _ = await _group_with_member(client, user_owner, user_member)
+    first = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_member.id}",
+        headers=auth_headers(user_member),
+    )
+    assert first.status_code == 204
+    second = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_member.id}",
+        headers=auth_headers(user_member),
+    )
+    assert second.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_member_who_left_can_rejoin_with_code(client, user_owner, user_member, group_db):
+    """Leaving keeps the row; joining again with a valid code reactivates it."""
+    group_id, join_code = await _group_with_member(client, user_owner, user_member)
+    await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_member.id}",
+        headers=auth_headers(user_member),
+    )
+
+    rejoin = await client.post(
+        "/api/v1/groups/join",
+        json={"code": join_code},
+        headers=auth_headers(user_member),
+    )
+    assert rejoin.status_code == 200
+    membership = group_db.group_members[(uuid.UUID(group_id), user_member.id)]
+    assert membership.status == "active"
+    assert membership.role == "member"
+
+
+@pytest.mark.asyncio
+async def test_admin_removing_someone_else_still_marks_removed(client, user_owner, user_member, group_db):
+    """Removal by an admin is unchanged: status 'removed', not 'left'."""
+    group_id, _ = await _group_with_member(client, user_owner, user_member)
+    resp = await client.delete(
+        f"/api/v1/groups/{group_id}/members/{user_member.id}",
+        headers=auth_headers(user_owner),
+    )
+    assert resp.status_code == 204
+    assert group_db.group_members[(uuid.UUID(group_id), user_member.id)].status == "removed"

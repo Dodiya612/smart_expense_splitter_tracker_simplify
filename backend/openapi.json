@@ -1274,8 +1274,8 @@
         "tags": [
           "Groups"
         ],
-        "summary": "Remove a group member",
-        "description": "Owner/admin removes a member from the group.\nThe group owner cannot be removed.\nRemoval is soft, setting status to 'removed' to preserve financial history.",
+        "summary": "Remove a group member, or leave the group",
+        "description": "Owner/admin removes a member from the group (status 'removed').\nAny active member may pass their own user ID to leave (status 'left').\nThe group owner can be neither removed nor leave.\nBoth are soft changes, so financial history is preserved.",
         "operationId": "remove_member_api_v1_groups__group_id__members__user_id__delete",
         "security": [
           {
