@@ -57,7 +57,8 @@ from app.models.group import (
     InvitationStatus,
 )
 from app.models.idempotency import IdempotencyRecord
-from app.models.rate_limit import LoginRateLimit
+from app.core import rate_limiter
+from tests import rate_limit_fakes
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.services import notifications
@@ -419,11 +420,10 @@ async def test_register_failure_after_user_insert_leaves_no_user_or_token():
 
 @pytest.mark.asyncio
 async def test_login_failure_keeps_failed_attempt_counter_and_creates_no_session():
+    # T-39: counters live in the shared limiter (their own session), not in the login transaction.
     session, db, user = auth_world()
-    db.rate_limits[user.email] = LoginRateLimit(
-        id=uuid.uuid4(), key=user.email, attempts=2,
-        last_attempt_at=datetime.now(UTC) - timedelta(seconds=30),
-    )
+    for _ in range(2):
+        await rate_limiter.hit(rate_limiter.get_policy("login_account"), user.email)
     session.mark_committed()
     before = rows(db)
     session.arm(types=(RefreshToken,))
@@ -431,40 +431,39 @@ async def test_login_failure_keeps_failed_attempt_counter_and_creates_no_session
         resp = await client.post("/api/v1/auth/login", json={"email": user.email, "password": PASSWORD})
     assert_retryable_error(resp)
     assert rows(db) == before
-    assert db.rate_limits[user.email].attempts == 2
+    # The two earlier attempts and this one stay counted: nothing is given back when no session was saved.
+    assert rate_limit_fakes.count_for("login_account") == 3
     assert db.tokens == {}
 
 
 @pytest.mark.asyncio
 async def test_login_failure_after_expired_lockout_window_writes_nothing():
     session, db, user = auth_world()
-    db.rate_limits[user.email] = LoginRateLimit(
-        id=uuid.uuid4(), key=user.email, attempts=5,
-        last_attempt_at=datetime.now(UTC) - timedelta(hours=2),
-    )
+    for _ in range(5):
+        await rate_limiter.hit(rate_limiter.get_policy("login_account"), user.email)
+    rate_limit_fakes.advance(2 * 3600)  # the old window is long over; counting starts afresh
     session.mark_committed()
     before = rows(db)
     session.arm(types=(RefreshToken,))
     async with api(session) as client:
         resp = await client.post("/api/v1/auth/login", json={"email": user.email, "password": PASSWORD})
     assert_retryable_error(resp)
-    assert rows(db) == before
-    assert db.rate_limits[user.email].attempts == 5
+    assert rows(db) == before  # no business row changed
+    assert db.tokens == {}
 
 
 @pytest.mark.asyncio
-async def test_login_success_still_clears_counter_and_creates_session():
+async def test_login_success_still_clears_the_account_counter_and_creates_session():
     """Regression guard for the login fix: the happy path is unchanged."""
     session, db, user = auth_world()
-    db.rate_limits[user.email] = LoginRateLimit(
-        id=uuid.uuid4(), key=user.email, attempts=2,
-        last_attempt_at=datetime.now(UTC) - timedelta(seconds=30),
-    )
+    for _ in range(2):
+        await rate_limiter.hit(rate_limiter.get_policy("login_account"), user.email)
     session.mark_committed()
     async with api(session) as client:
         resp = await client.post("/api/v1/auth/login", json={"email": user.email, "password": PASSWORD})
     assert resp.status_code == 200, resp.text
-    assert user.email not in db.rate_limits
+    # Reserved before the password check; cleared once the session was saved.
+    assert rate_limit_fakes.count_for("login_account") == 0
     assert len(db.tokens) == 1
     assert session.commits == 1
 
