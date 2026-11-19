@@ -120,12 +120,21 @@ def test_migration_and_model_agree_on_kinds():
     import importlib.util
     from pathlib import Path
 
-    path = Path(__file__).resolve().parent.parent / "alembic" / "versions" / "011_create_notifications.py"
-    spec = importlib.util.spec_from_file_location("m011", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert tuple(module.KINDS) == notification_models.NOTIFICATION_KINDS
-    assert module.down_revision == "010_create_settlements"
+    versions = Path(__file__).resolve().parent.parent / "alembic" / "versions"
+
+    def load(name: str, filename: str):
+        spec = importlib.util.spec_from_file_location(name, versions / filename)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    m011 = load("m011", "011_create_notifications.py")
+    m014 = load("m014", "014_password_change.py")
+    assert m011.down_revision == "010_create_settlements"
+    # 014 (T-50) replaces 011's CHECK constraints: it must start from 011's list and end at the model's.
+    assert tuple(m014.OLD_KINDS) == tuple(m011.KINDS)
+    assert tuple(m014.NEW_KINDS) == notification_models.NOTIFICATION_KINDS
+    assert m014.down_revision == "013_merge_rate_limit_and_receipts"
 
 
 # ==============================================================================

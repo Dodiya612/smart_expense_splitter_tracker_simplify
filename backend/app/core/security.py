@@ -58,6 +58,17 @@ def verify_dummy_password(plain_password: str = "dummy_password") -> bool:
     return False
 
 
+def token_version_from_claims(payload: Dict[str, Any]) -> int:
+    """The ``tv`` claim as an int. Tokens issued before T-50 have none and count as 0.
+
+    Raises TokenInvalidError for a present but malformed claim (never trust it loosely).
+    """
+    value = payload.get("tv", 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise TokenInvalidError("Invalid token version claim.")
+    return value
+
+
 def validate_password_length(password: str) -> bool:
     """Validates that a password satisfies minimum and maximum length bounds (8-128)."""
     if len(password) < 8:
@@ -71,10 +82,16 @@ def create_access_token(
     user_id: UUID | str,
     email: str,
     expires_delta: Optional[timedelta] = None,
+    *,
+    session_id: UUID | str | None = None,
+    token_version: int = 0,
 ) -> str:
     """
     Creates a signed JWT access token.
-    Claims include sub, email, type ('access'), iss, aud, iat, exp, and jti.
+    Claims include sub, email, type ('access'), iss, aud, iat, exp, and jti, plus (T-50):
+      * ``tv``  - the user's token_version; a token with a stale version is rejected;
+      * ``sid`` - the refresh-token family (device session) the token was issued for, when
+        known. It identifies "this device" so a password change can keep it signed in.
     """
     now = datetime.now(timezone.utc)
     if expires_delta is not None:
@@ -91,7 +108,10 @@ def create_access_token(
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
         "jti": str(uuid4()),
+        "tv": int(token_version),
     }
+    if session_id is not None:
+        payload["sid"] = str(session_id)
 
     return jwt.encode(
         payload,

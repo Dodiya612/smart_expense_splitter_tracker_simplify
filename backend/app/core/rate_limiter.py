@@ -100,6 +100,10 @@ def get_policy(name: str) -> Policy:
         "login_account": (s.RATE_LIMIT_LOGIN_ACCOUNT_MAX, s.LOGIN_RATE_LIMIT_WINDOW_SECONDS),
         "signup_ip": (s.RATE_LIMIT_SIGNUP_IP_MAX, s.RATE_LIMIT_SIGNUP_WINDOW_SECONDS),
         "refresh_ip": (s.RATE_LIMIT_REFRESH_IP_MAX, s.RATE_LIMIT_REFRESH_WINDOW_SECONDS),
+        "password_change_user": (
+            s.RATE_LIMIT_PASSWORD_CHANGE_USER_MAX,
+            s.RATE_LIMIT_PASSWORD_CHANGE_WINDOW_SECONDS,
+        ),
         "invite_user": (s.RATE_LIMIT_INVITE_USER_MAX, s.RATE_LIMIT_INVITE_WINDOW_SECONDS),
         "join_user": (s.RATE_LIMIT_JOIN_USER_MAX, s.RATE_LIMIT_JOIN_WINDOW_SECONDS),
         "join_code_user": (s.RATE_LIMIT_JOIN_CODE_USER_MAX, s.RATE_LIMIT_JOIN_CODE_WINDOW_SECONDS),

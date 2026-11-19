@@ -34,7 +34,7 @@ from sqlalchemy.types import JSON
 from app.core.database import Base
 
 # Every kind maps to a real operation in the app. Keep in sync with the CHECK
-# constraints created by alembic/versions/011_create_notifications.py.
+# constraints created by alembic/versions/011_create_notifications.py (and updated by 014_password_change.py).
 NOTIFICATION_KINDS: tuple[str, ...] = (
     "group_expense_created",
     "group_expense_updated",
@@ -46,11 +46,12 @@ NOTIFICATION_KINDS: tuple[str, ...] = (
     "invitation_declined",
     "member_removed",
     "member_left",
+    # T-50: account security notice. Added by alembic/versions/014_password_change.py.
+    "password_changed",
 )
 
-# Kinds a user may never switch off. None exist yet; the preference API and emit()
-# both honour this set so a security notice added later cannot be silenced.
-SECURITY_KINDS: frozenset[str] = frozenset()
+# Kinds a user may never switch off; the preference API and emit() both honour this set.
+SECURITY_KINDS: frozenset[str] = frozenset({"password_changed"})
 
 
 def utcnow() -> datetime:

@@ -19,6 +19,7 @@ const KIND_ICONS: Record<string, IconName> = {
   invitation_declined: 'close-circle-outline',
   member_removed: 'person-remove-outline',
   member_left: 'exit-outline',
+  password_changed: 'lock-closed-outline',
 };
 
 export interface NotificationRowProps {
