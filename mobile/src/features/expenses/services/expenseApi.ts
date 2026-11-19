@@ -218,35 +218,30 @@ export async function updateExpense(
     'If-Match': String(payload.version),
   };
 
+  // US-34: never report an unconfirmed edit as saved. Any failure surfaces as a
+  // retryable error so the form keeps its values and offers "Try again".
+  const saveFailed = new ApiError(
+    'UPDATE_FAILED',
+    'Could not save your changes. Your form has been kept – please try again.',
+    true
+  );
+  let raw: { data?: BackendExpenseItem } | undefined;
   try {
-    const raw = await fastApiClient.patch<{ data: BackendExpenseItem }>(
+    raw = await fastApiClient.patch<{ data: BackendExpenseItem }>(
       `/api/v1/expenses/${id}`,
       body,
       headers
     );
-    if (raw && raw.data) {
-      return mapBackendExpenseToDomain(raw.data);
-    }
   } catch (err) {
     if (err instanceof ApiError) {
       throw err;
     }
-    // Fallback on network failure if needed
+    throw saveFailed;
   }
-
-  const now = new Date().toISOString();
-  return {
-    id,
-    amountPaise: payload.amountPaise,
-    categoryId: payload.categoryId,
-    date: payload.date,
-    paymentMode: payload.paymentMode,
-    notes: payload.notes,
-    isRecurring: payload.isRecurring,
-    version: payload.version + 1,
-    createdAt: now,
-    updatedAt: now,
-  };
+  if (!raw || !raw.data) {
+    throw saveFailed;
+  }
+  return mapBackendExpenseToDomain(raw.data);
 }
 
 export async function deleteExpense(id: string): Promise<void> {
