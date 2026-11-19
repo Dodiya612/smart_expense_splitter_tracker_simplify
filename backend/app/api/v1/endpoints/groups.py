@@ -54,9 +54,13 @@ def parse_if_match_header(if_match: str | None) -> int | None:
     response_model=GroupResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new group",
+    description="Supports idempotent retries via the Idempotency-Key header. A replayed response "
+    "does not repeat the join code (codes are stored only as hashes); generate a new one if needed.",
 )
 async def create_group(
     payload: GroupCreateRequest,
+    response: Response,
+    idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -64,8 +68,12 @@ async def create_group(
     Create a new group with the specified group type.
     The creator is assigned as admin, and an initial 7-day join code is generated and returned securely.
     """
-    group, raw_join_code = await group_service.create_group(db, current_user, payload)
-    return group_service.format_group_response(group, current_user.id, join_code=raw_join_code)
+    result, is_replay = await group_service.create_group(
+        db, current_user, payload, idempotency_key=idempotency_key
+    )
+    if is_replay:
+        response.headers["X-Idempotent-Replay"] = "true"
+    return result
 
 
 @router.get(
@@ -207,10 +215,13 @@ async def remove_member(
     response_model=SharedExpenseResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add a shared expense to group",
+    description="Supports idempotent retries via the Idempotency-Key header.",
 )
 async def create_shared_expense(
     group_id: uuid.UUID,
     payload: SharedExpenseCreateRequest,
+    response: Response,
+    idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -219,7 +230,12 @@ async def create_shared_expense(
     Supports equal, exact, percentage, and parts-based split modes using the pure ledger engine.
     Ensures all payments, shares, and audit logs are recorded in one atomic transaction.
     """
-    return await shared_expense_service.create_shared_expense(db, group_id, current_user, payload)
+    result, is_replay = await shared_expense_service.create_shared_expense(
+        db, group_id, current_user, payload, idempotency_key=idempotency_key
+    )
+    if is_replay:
+        response.headers["X-Idempotent-Replay"] = "true"
+    return result
 
 
 @router.get(

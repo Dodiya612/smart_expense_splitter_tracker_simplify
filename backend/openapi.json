@@ -899,51 +899,45 @@
       }
     },
     "/api/v1/groups": {
-      "get": {
-        "tags": [
-          "Groups"
-        ],
-        "summary": "List current user's groups",
-        "description": "List all active groups that the authenticated user is a member of.",
-        "operationId": "list_groups_api_v1_groups_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupListItemResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Groups Api V1 Groups Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
       "post": {
         "tags": [
           "Groups"
         ],
         "summary": "Create a new group",
-        "description": "Create a new group with the specified group type.\nThe creator is assigned as admin, and an initial 7-day join code is generated and returned securely.",
+        "description": "Supports idempotent retries via the Idempotency-Key header. A replayed response does not repeat the join code (codes are stored only as hashes); generate a new one if needed.",
         "operationId": "create_group_api_v1_groups_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GroupCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -966,12 +960,36 @@
               }
             }
           }
-        },
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List current user's groups",
+        "description": "List all active groups that the authenticated user is a member of.",
+        "operationId": "list_groups_api_v1_groups_get",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupListItemResponse"
+                  },
+                  "title": "Response List Groups Api V1 Groups Get"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/groups/join": {
@@ -1327,7 +1345,7 @@
           "Groups"
         ],
         "summary": "Add a shared expense to group",
-        "description": "Create a shared expense within the specified group.\nSupports equal, exact, percentage, and parts-based split modes using the pure ledger engine.\nEnsures all payments, shares, and audit logs are recorded in one atomic transaction.",
+        "description": "Supports idempotent retries via the Idempotency-Key header.",
         "operationId": "create_shared_expense_api_v1_groups__group_id__expenses_post",
         "security": [
           {
@@ -1343,6 +1361,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Group Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],

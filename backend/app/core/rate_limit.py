@@ -46,10 +46,11 @@ async def check_login_rate_limit(
         elapsed = (now - last_attempt).total_seconds()
 
         if elapsed >= win_sec:
-            # Lockout/window window expired; reset count
+            # Lockout/window window expired; reset count. Not committed here: the
+            # change is saved by the caller's single commit (US-34), so a login that
+            # fails later leaves the row untouched.
             record.attempts = 0
             record.last_attempt_at = now
-            await db.commit()
             return
 
         if record.attempts >= max_att:
@@ -114,6 +115,8 @@ async def reset_login_rate_limit(
 ) -> None:
     """
     Clears failed login attempts for the key upon a successful login.
+    The delete is committed by the caller together with the new session (US-34):
+    if creating the session fails, the counter is kept.
     """
     try:
         query = select(LoginRateLimit).where(LoginRateLimit.key == key)
@@ -121,7 +124,6 @@ async def reset_login_rate_limit(
         record = result.scalar_one_or_none()
         if record:
             await db.delete(record)
-            await db.commit()
     except Exception as exc:
         logger.warning(f"Error resetting login rate limit for '{key}': {exc}")
         await db.rollback()
