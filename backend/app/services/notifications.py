@@ -93,6 +93,9 @@ def notify_group_members(
     """Notify relevant group members after a committed transaction.
 
     Emits one notification per active member using a unique deduplication key.
+    Callers run this after their commit, so a failure here must never turn a saved
+    record into an error response (US-34): it is logged and the remaining members
+    are still notified.
     """
     from app.models.group import GroupMemberStatus
 
@@ -107,13 +110,22 @@ def notify_group_members(
         member_payload["group_id"] = str(group.id)
         member_payload["actor_id"] = str(actor_id) if actor_id else None
 
-        success = emit(
-            user=member.user_id,
-            kind=kind,
-            ref=ref,
-            dedupe_key=dedupe_key,
-            payload=member_payload,
-        )
+        try:
+            success = emit(
+                user=member.user_id,
+                kind=kind,
+                ref=ref,
+                dedupe_key=dedupe_key,
+                payload=member_payload,
+            )
+        except Exception:  # noqa: BLE001 - the record is already committed; never fail the request
+            logger.exception(
+                "Notification failed after commit (kind='%s', ref='%s', user='%s'); record kept.",
+                kind,
+                ref,
+                member.user_id,
+            )
+            continue
         if success:
             emitted.append(_emitted_notifications[-1])
 

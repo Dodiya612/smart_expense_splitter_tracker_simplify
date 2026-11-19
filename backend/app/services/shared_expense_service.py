@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,7 +25,7 @@ from app.schemas.shared_expense import (
     SharedExpenseUpdateRequest,
 )
 from app.services.group_service import check_group_membership, get_group_or_404
-from app.services import settlement_service
+from app.services import idempotency, settlement_service
 from app.services.ledger import allocate, simplify
 from app.services.notifications import notify_group_members
 
@@ -32,11 +33,19 @@ from app.services.notifications import notify_group_members
 def format_shared_expense_response(
     expense: Expense,
     split_mode: Optional[str] = None,
+    payments: Optional[List[ExpensePayment]] = None,
+    shares: Optional[List[ExpenseShare]] = None,
 ) -> SharedExpenseResponse:
-    """Format an Expense entity into a SharedExpenseResponse DTO."""
+    """Format an Expense entity into a SharedExpenseResponse DTO.
+
+    `payments` / `shares` may be passed explicitly to format rows that are not yet
+    committed, without touching the relationship collections (US-34 idempotency).
+    """
+    payment_rows = payments if payments is not None else (expense.payments or [])
+    share_rows = shares if shares is not None else (expense.shares or [])
     payments_dto = [
         ExpensePaymentItem(user_id=p.user_id, amount_paise=p.amount_paise)
-        for p in (expense.payments or [])
+        for p in payment_rows
     ]
     shares_dto = [
         ExpenseShareItem(
@@ -45,12 +54,12 @@ def format_shared_expense_response(
             rule=s.rule,
             rule_value=float(s.rule_value) if s.rule_value is not None else None,
         )
-        for s in (expense.shares or [])
+        for s in share_rows
     ]
 
     inferred_split_mode = split_mode
-    if not inferred_split_mode and expense.shares:
-        inferred_split_mode = expense.shares[0].rule
+    if not inferred_split_mode and share_rows:
+        inferred_split_mode = share_rows[0].rule
 
     return SharedExpenseResponse(
         id=expense.id,
@@ -73,20 +82,56 @@ def format_shared_expense_response(
     )
 
 
+def _notify_expense_created(
+    group: Group,
+    current_user: User,
+    expense_id: uuid.UUID,
+    description: str,
+    amount_paise: int,
+) -> None:
+    """Post-commit notice for a new shared expense (deduplicated per expense and member)."""
+    notify_group_members(
+        group=group,
+        actor_id=current_user.id,
+        kind="group_expense_created",
+        ref=str(expense_id),
+        payload={
+            "expense_id": str(expense_id),
+            "group_id": str(group.id),
+            "description": description,
+            "amount_paise": amount_paise,
+            "created_by": str(current_user.id),
+        },
+    )
+
+
 async def create_shared_expense(
     db: AsyncSession,
     group_id: uuid.UUID,
     current_user: User,
     payload: SharedExpenseCreateRequest,
-) -> SharedExpenseResponse:
+    idempotency_key: Optional[str] = None,
+) -> Tuple[SharedExpenseResponse, bool]:
     """Create a shared expense in an existing group atomically.
 
     Integrates with the pure ledger engine to calculate and validate participant shares.
-    Ensures expense, payments, shares, and audit records are committed together in one transaction.
+    Ensures expense, payments, shares, audit and (with a key) idempotency records are
+    committed together in one transaction. Returns (response, is_replay).
     """
     # 1. Authorize caller is an active group member
     group = await get_group_or_404(db, group_id)
     check_group_membership(group, current_user, require_admin=False)
+
+    # 1b. Idempotent retry (US-34): same key + same body replays the original response.
+    idempotency_key, hashed_request, replay = await idempotency.prepare(
+        db, current_user.id, idempotency_key, "shared_expense_create", group_id,
+        payload, SharedExpenseResponse,
+    )
+    if replay is not None:
+        # If the original response was lost after commit, its notifications may not
+        # have been sent; dedupe keys make this a no-op for anyone already notified.
+        _notify_expense_created(group, current_user, replay.id, replay.description, replay.amount_paise)
+        return replay, True
 
     # 2. Check category exists
     category = await db.get(Category, payload.category_id)
@@ -294,30 +339,39 @@ async def create_shared_expense(
         )
         db.add(audit_event)
 
+        if idempotency_key and hashed_request:
+            idempotency.stage_record(
+                db,
+                current_user.id,
+                idempotency_key,
+                hashed_request,
+                format_shared_expense_response(
+                    expense, split_mode=mode_str, payments=payment_records, shares=share_records
+                ),
+                expense.id,
+            )
+
         await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        # Concurrent retry with the same key: return the winner's response.
+        replay = await idempotency.replay_after_conflict(
+            db, current_user.id, idempotency_key, hashed_request, SharedExpenseResponse
+        )
+        if replay is None:
+            raise
+        return replay, True
     except Exception:
         await db.rollback()
         raise
 
     # Notify active group members after transaction commits
-    notify_group_members(
-        group=group,
-        actor_id=current_user.id,
-        kind="group_expense_created",
-        ref=str(expense.id),
-        payload={
-            "expense_id": str(expense.id),
-            "group_id": str(group_id),
-            "description": expense.description,
-            "amount_paise": payload.amount_paise,
-            "created_by": str(current_user.id),
-        },
-    )
+    _notify_expense_created(group, current_user, expense.id, expense.description, payload.amount_paise)
 
     # Attach loaded collections for response formatting
     expense.payments = payment_records
     expense.shares = share_records
-    return format_shared_expense_response(expense, split_mode=mode_str)
+    return format_shared_expense_response(expense, split_mode=mode_str), False
 
 
 async def list_shared_expenses(

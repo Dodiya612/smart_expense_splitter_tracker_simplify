@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -30,6 +31,7 @@ from app.schemas.group import (
     InvitationResponse,
     JoinCodeResponse,
 )
+from app.services import idempotency
 
 
 def utcnow() -> datetime:
@@ -143,11 +145,23 @@ async def create_group(
     db: AsyncSession,
     user: User,
     payload: GroupCreateRequest,
-) -> Tuple[Group, str]:
+    idempotency_key: Optional[str] = None,
+) -> Tuple[GroupResponse, bool]:
     """
     Creates a new group, makes the user owner/admin, and creates an initial join code.
-    Returns the created Group and the single-use plaintext join code.
+    Returns (response with the single-use plaintext join code, is_replay).
+
+    With an Idempotency-Key (US-34): a retry with the same body replays the original
+    response (is_replay=True); the same key with a different body is 409. The stored
+    replay never contains the plaintext join code, because join codes are kept only
+    as hashes; a replay therefore returns join_code=None.
     """
+    idempotency_key, hashed_request, replay = await idempotency.prepare(
+        db, user.id, idempotency_key, "group_create", None, payload, GroupResponse
+    )
+    if replay is not None:
+        return replay, True
+
     now = utcnow()
     group = Group(
         name=payload.name,
@@ -184,10 +198,48 @@ async def create_group(
     )
     db.add(invitation)
 
-    await db.commit()
+    if idempotency_key and hashed_request:
+        # Built from the in-memory rows (no lazy loads before commit); no join code.
+        stored_response = GroupResponse(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            type=group.type,
+            created_by=group.created_by,
+            archived_at=None,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+            members=[
+                GroupMemberResponse(
+                    user_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    role=member.role,
+                    status=member.status,
+                    joined_at=member.joined_at,
+                )
+            ],
+            current_user_role=member.role,
+            join_code=None,
+        )
+        idempotency.stage_record(
+            db, user.id, idempotency_key, hashed_request, stored_response, group.id
+        )
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        # Concurrent retry with the same key: return the winner's response.
+        replay = await idempotency.replay_after_conflict(
+            db, user.id, idempotency_key, hashed_request, GroupResponse
+        )
+        if replay is None:
+            raise
+        return replay, True
     # Refresh group with relationships loaded
     group = await get_group_or_404(db, group.id)
-    return group, raw_code
+    return format_group_response(group, user.id, join_code=raw_code), False
 
 
 async def list_user_groups(
