@@ -14,6 +14,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '@/services/api/types';
 import { createExpense, newIdempotencyKey, updateExpense } from '../services/expenseApi';
 import type { Expense, ExpenseFormErrors, ExpenseFormValues, PaymentMode } from '../types';
+import { createSubmissionKeyTracker, runSubmission } from '../utils/submission';
 import { amountToPaise, validateExpenseForm } from '../utils/validation';
 
 export interface UseExpenseFormOptions {
@@ -82,8 +83,8 @@ export function useExpenseForm({
   const [submitError, setSubmitError] = useState<ApiError | null>(null);
   const [hasConflict, setHasConflict] = useState(false);
 
-  // Keep the idempotency key stable across retries (US-07).
-  const idempotencyKeyRef = useRef<string>(newIdempotencyKey());
+  // Same submission (retry) → same idempotency key; changed values → new key (US-07, US-34).
+  const keyTrackerRef = useRef(createSubmissionKeyTracker(newIdempotencyKey));
 
   const handleFieldChange = useCallback(
     <K extends keyof ExpenseFormValues>(field: K, value: ExpenseFormValues[K]) => {
@@ -104,49 +105,39 @@ export function useExpenseForm({
       setIsLoading(true);
       setSubmitError(null);
 
-      try {
-        const paise = amountToPaise(formValues.amountRaw);
-        const base = {
-          amountPaise: paise,
-          categoryId: formValues.categoryId,
-          date: formValues.date,
-          paymentMode: formValues.paymentMode,
-          notes: formValues.notes.trim(),
-          isRecurring: formValues.isRecurring,
-          idempotencyKey: idempotencyKeyRef.current,
-        };
-
-        let saved: Expense;
-        if (isEditMode && existingExpense) {
-          saved = await updateExpense(existingExpense.id, {
-            ...base,
-            version: existingExpense.version,
-          });
-        } else {
-          saved = await createExpense(base);
-          // Rotate the key so a second "add" gets a fresh key.
-          idempotencyKeyRef.current = newIdempotencyKey();
-        }
-
-        onSuccess(saved);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (err.code === 'VERSION_CONFLICT') {
-            setHasConflict(true);
-          } else {
-            setSubmitError(err);
+      // Values are only read here: a failed save keeps the form exactly as typed.
+      const outcome = await runSubmission(
+        formValues,
+        keyTrackerRef.current,
+        async (submitted, idempotencyKey): Promise<Expense> => {
+          const base = {
+            amountPaise: amountToPaise(submitted.amountRaw),
+            categoryId: submitted.categoryId,
+            date: submitted.date,
+            paymentMode: submitted.paymentMode,
+            notes: submitted.notes.trim(),
+            isRecurring: submitted.isRecurring,
+            idempotencyKey,
+          };
+          if (isEditMode && existingExpense) {
+            return updateExpense(existingExpense.id, {
+              ...base,
+              version: existingExpense.version,
+            });
           }
-        } else {
-          setSubmitError(
-            new ApiError(
-              'UNKNOWN_ERROR',
-              'Something went wrong. Your form has been kept – please try again.',
-              true
-            )
-          );
+          return createExpense(base);
         }
-      } finally {
-        setIsLoading(false);
+      );
+      setIsLoading(false);
+
+      if (outcome.ok) {
+        // The next "add" is a new submission with a fresh key.
+        if (!isEditMode) keyTrackerRef.current.reset();
+        onSuccess(outcome.saved);
+      } else if (outcome.error.code === 'VERSION_CONFLICT') {
+        setHasConflict(true);
+      } else {
+        setSubmitError(outcome.error);
       }
     },
     [existingExpense, isEditMode, onSuccess]
