@@ -10,7 +10,10 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    # T-39: no --forwarded-allow-ips='*'. uvicorn then trusts forwarded headers only from loopback
+    # (its default), so a caller cannot choose the client address via X-Forwarded-For. The app
+    # reads the client address only from TRUSTED_CLIENT_IP_HEADER (docs/RATE_LIMITING_AND_CSRF.md).
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/v1/health
     plan: free
     autoDeploy: true

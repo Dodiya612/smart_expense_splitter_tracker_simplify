@@ -55,6 +55,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -92,6 +121,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -137,6 +195,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -174,6 +261,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TokenRefreshResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -1115,6 +1231,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1218,6 +1363,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1313,6 +1487,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -2219,6 +2422,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2261,6 +2493,35 @@
           "204": {
             "description": "Successful Response"
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2299,6 +2560,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategorySuggestionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -2346,6 +2636,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategoryFeedbackResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -2618,6 +2937,78 @@
   },
   "components": {
     "schemas": {
+      "ApiErrorDetail": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Msg"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ApiErrorDetail",
+        "description": "Specific validation error entry."
+      },
+      "ApiErrorResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ApiErrorDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "isRetryable": {
+            "type": "boolean",
+            "title": "Isretryable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiErrorResponse",
+        "description": "Standardized API Error envelope matching mobile ApiError expectations:\n{ \"code\": \"...\", \"message\": \"...\", \"detail\": [...], \"isRetryable\": false }"
+      },
       "AuthResponse": {
         "properties": {
           "user": {

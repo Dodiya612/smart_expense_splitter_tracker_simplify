@@ -1,3 +1,10 @@
+"""Legacy account-only login limiter (table ``login_rate_limits``).
+
+SUPERSEDED (T-39): the login route now uses the shared limiter in app/core/rate_limiter.py
+(table ``rate_limit_buckets``). These functions are no longer called by any route; they remain
+only because tests/test_auth_integration.py and the unused copy app/api/auth.py still import
+them. Remove them together with ``login_rate_limits`` in a later cleanup.
+"""
 import logging
 from datetime import datetime, timezone
 from typing import Optional

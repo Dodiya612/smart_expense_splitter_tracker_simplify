@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.rate_limit_deps import limit_by_user
+from app.core.rate_limiter import RATE_LIMIT_RESPONSES
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.group import (
@@ -93,6 +95,8 @@ async def list_groups(
 @router.post(
     "/join",
     response_model=JoinGroupResponse,
+    dependencies=[Depends(limit_by_user("join_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     status_code=status.HTTP_200_OK,
     summary="Join group with code",
 )
@@ -130,6 +134,8 @@ async def get_group(
 @router.post(
     "/{group_id}/join-code",
     response_model=JoinCodeResponse,
+    dependencies=[Depends(limit_by_user("join_code_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     summary="Generate or rotate join code",
 )
@@ -162,6 +168,8 @@ async def revoke_join_code(
 @router.post(
     "/{group_id}/invitations",
     response_model=InvitationResponse,
+    dependencies=[Depends(limit_by_user("invite_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     status_code=status.HTTP_201_CREATED,
     summary="Invite a member",
 )
