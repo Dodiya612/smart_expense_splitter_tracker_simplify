@@ -1,318 +1,188 @@
 /**
  * useGroupBalances hook (T-33 / US-10).
  *
- * Manages:
- * - Fetching group balances and simplified repayments from real API.
- * - Loading, error, and pull-to-refresh states.
- * - Current user net position derivation (you owe vs you are owed).
- * - Member separation (people who owe current user vs people current user owes).
- * - Settlement execution and dynamic refresh.
+ * Loads balances, simplified repayments (ledger simplify()), member names and
+ * the settlement history for one group, and derives the current user's view.
+ * Fetching never touches state directly; results are applied afterwards, so the
+ * initial load in an effect follows the react-hooks rules.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/features/auth/context/AuthContext';
+import { getGroup } from '@/features/groups/services/groupsApi';
+import type { GroupDetail } from '@/features/groups/types';
 import { ApiError } from '@/services/api/types';
 import {
   fetchGroupBalances,
-  fetchGroupDetail,
+  fetchSettlementHistory,
   fetchSimplifiedRepayments,
-  recordSettlement as apiRecordSettlement,
+  recordSettlement,
 } from '../services/balancesApi';
 import type {
   GroupBalances,
-  GroupDetail,
-  MemberBalance,
+  PeerStanding,
   SettlementCreatePayload,
   SettlementRecord,
   SuggestedTransfer,
 } from '../types';
+import { deriveStandings, hasNoBalances, UNKNOWN_MEMBER_NAME } from '../utils/balanceLabels';
 
-export interface UseGroupBalancesOptions {
-  groupId: string;
-}
-
-export interface PeerStanding {
-  userId: string;
-  name: string;
-  email?: string;
-  netAmountPaise: number; // positive = owes current user, negative = current user owes them
-  status: 'owes_you' | 'you_owe' | 'settled';
-}
+export type { PeerStanding } from '../types';
 
 export interface UseGroupBalancesReturn {
   balances: GroupBalances | null;
   group: GroupDetail | null;
+  settlements: SettlementRecord[];
   isLoading: boolean;
   isRefreshing: boolean;
   error: ApiError | null;
-  isSimplified: boolean;
-  setIsSimplified: (val: boolean) => void;
-  simplifiedTransfers: SuggestedTransfer[];
+  isEmpty: boolean;
   userNetBalancePaise: number;
   userYouAreOwedPaise: number;
   userYouOwePaise: number;
   peopleWhoOweYou: PeerStanding[];
   peopleYouOwe: PeerStanding[];
   settledMembers: PeerStanding[];
+  nameOf: (userId: string) => string;
   refresh: () => Promise<void>;
-  recordSettlement: (payload: SettlementCreatePayload) => Promise<SettlementRecord>;
-  isSettling: boolean;
-  settleError: ApiError | null;
-  clearSettleError: () => void;
+  retry: () => Promise<void>;
+  /** POST a settlement, then reload balances and the settlement list. Throws on failure. */
+  submitSettlement: (payload: SettlementCreatePayload, idempotencyKey: string) => Promise<SettlementRecord>;
 }
 
-export function useGroupBalances({ groupId }: UseGroupBalancesOptions): UseGroupBalancesReturn {
+interface Loaded {
+  balances: GroupBalances;
+  transfers: SuggestedTransfer[];
+  group: GroupDetail | null;
+  settlements: SettlementRecord[];
+}
+
+type LoadResult = { data: Loaded } | { error: ApiError };
+
+const MISSING_GROUP = new ApiError('NOT_FOUND', 'This group could not be found. Open it from the Groups tab.', false);
+
+async function loadGroup(groupId: string): Promise<LoadResult> {
+  try {
+    const [balances, simplified, group, settlements] = await Promise.all([
+      fetchGroupBalances(groupId),
+      fetchSimplifiedRepayments(groupId).catch(() => null),
+      getGroup(groupId).catch(() => null),
+      fetchSettlementHistory(groupId).catch(() => [] as SettlementRecord[]),
+    ]);
+    return {
+      data: {
+        balances,
+        // Both come from the ledger engine's simplify(); /balances is the fallback.
+        transfers: simplified ? simplified.suggestedTransfers : balances.suggestedTransfers,
+        group,
+        settlements,
+      },
+    };
+  } catch (err) {
+    return {
+      error: err instanceof ApiError
+        ? err
+        : new ApiError('BALANCES_FETCH_FAILED', 'Could not load group balances. Please try again.', true),
+    };
+  }
+}
+
+export function useGroupBalances({ groupId }: { groupId: string | undefined }): UseGroupBalancesReturn {
   const { user } = useAuth();
   const currentUserId = user?.id;
 
-  const [balances, setBalances] = useState<GroupBalances | null>(null);
-  const [group, setGroup] = useState<GroupDetail | null>(null);
-  const [simplifiedTransfers, setSimplifiedTransfers] = useState<SuggestedTransfer[]>([]);
-  const [isSimplified, setIsSimplified] = useState<boolean>(true);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(Boolean(groupId));
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [error, setError] = useState<ApiError | null>(null);
-
-  const [isSettling, setIsSettling] = useState<boolean>(false);
-  const [settleError, setSettleError] = useState<ApiError | null>(null);
-
-  const isMountedRef = useRef(true);
+  const [error, setError] = useState<ApiError | null>(groupId ? null : MISSING_GROUP);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    mountedRef.current = true;
     return () => {
-      isMountedRef.current = false;
+      mountedRef.current = false;
     };
   }, []);
 
-  const loadData = useCallback(
-    async (refreshing = false) => {
-      if (!groupId) return;
-
-      if (refreshing) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+  const apply = useCallback((result: LoadResult) => {
+    if (!mountedRef.current) return;
+    if ('data' in result) {
+      setLoaded(result.data);
       setError(null);
-
-      try {
-        const [balData, grpData, simpData] = await Promise.all([
-          fetchGroupBalances(groupId),
-          fetchGroupDetail(groupId).catch(() => null),
-          fetchSimplifiedRepayments(groupId).catch(() => null),
-        ]);
-
-        if (!isMountedRef.current) return;
-
-        setBalances(balData);
-        if (grpData) setGroup(grpData);
-        if (simpData) setSimplifiedTransfers(simpData.suggestedTransfers);
-      } catch (err) {
-        if (!isMountedRef.current) return;
-        if (err instanceof ApiError) {
-          setError(err);
-        } else {
-          setError(
-            new ApiError('BALANCES_FETCH_FAILED', 'Failed to load group balances.', true)
-          );
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-          setIsRefreshing(false);
-        }
-      }
-    },
-    [groupId]
-  );
+    } else {
+      setError(result.error);
+    }
+    setIsLoading(false);
+    setIsRefreshing(false);
+  }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (!groupId) return;
+    void loadGroup(groupId).then(apply);
+  }, [groupId, apply]);
 
   const refresh = useCallback(async () => {
-    await loadData(true);
-  }, [loadData]);
+    if (!groupId) return;
+    setIsRefreshing(true);
+    apply(await loadGroup(groupId));
+  }, [groupId, apply]);
 
-  // Member map for fast name lookup
-  const memberNameMap = useMemo(() => {
-    const map = new Map<string, { name: string; email?: string }>();
-    if (group?.members) {
-      for (const m of group.members) {
-        map.set(m.userId, { name: m.name, email: m.email });
-      }
-    }
-    return map;
-  }, [group]);
+  const retry = useCallback(async () => {
+    if (!groupId) return;
+    setIsLoading(true);
+    setError(null);
+    apply(await loadGroup(groupId));
+  }, [groupId, apply]);
 
-  // Derivations for current user standing
-  const {
-    userNetBalancePaise,
-    userYouAreOwedPaise,
-    userYouOwePaise,
-    peopleWhoOweYou,
-    peopleYouOwe,
-    settledMembers,
-  } = useMemo(() => {
-    if (!balances) {
-      return {
-        userNetBalancePaise: 0,
-        userYouAreOwedPaise: 0,
-        userYouOwePaise: 0,
-        peopleWhoOweYou: [],
-        peopleYouOwe: [],
-        settledMembers: [],
-      };
-    }
-
-    const netPositions = balances.netPositions;
-    const myNet = currentUserId ? (netPositions[currentUserId] ?? 0) : 0;
-
-    // Use suggested transfers if simplified mode is active, or compute bilateral standings
-    const oweYouList: PeerStanding[] = [];
-    const youOweList: PeerStanding[] = [];
-    const settledList: PeerStanding[] = [];
-
-    let totalOwedToMe = 0;
-    let totalIOwe = 0;
-
-    if (currentUserId) {
-      // Look at transfers where current user is involved
-      const transfers = isSimplified ? (simplifiedTransfers.length > 0 ? simplifiedTransfers : balances.suggestedTransfers) : balances.suggestedTransfers;
-
-      for (const t of transfers) {
-        if (t.toUser === currentUserId) {
-          // fromUser owes currentUserId
-          totalOwedToMe += t.amountPaise;
-          const info = memberNameMap.get(t.fromUser);
-          oweYouList.push({
-            userId: t.fromUser,
-            name: info?.name || `Member (${t.fromUser.slice(0, 6)})`,
-            email: info?.email,
-            netAmountPaise: t.amountPaise,
-            status: 'owes_you',
-          });
-        } else if (t.fromUser === currentUserId) {
-          // currentUserId owes toUser
-          totalIOwe += t.amountPaise;
-          const info = memberNameMap.get(t.toUser);
-          youOweList.push({
-            userId: t.toUser,
-            name: info?.name || `Member (${t.toUser.slice(0, 6)})`,
-            email: info?.email,
-            netAmountPaise: -t.amountPaise,
-            status: 'you_owe',
-          });
-        }
-      }
-
-      // Check all active members to find settled ones
-      if (group?.members) {
-        const involvedUids = new Set([
-          ...oweYouList.map((p) => p.userId),
-          ...youOweList.map((p) => p.userId),
-          currentUserId,
-        ]);
-
-        for (const m of group.members) {
-          if (!involvedUids.has(m.userId)) {
-            settledList.push({
-              userId: m.userId,
-              name: m.name,
-              email: m.email,
-              netAmountPaise: 0,
-              status: 'settled',
-            });
-          }
-        }
-      }
-    } else {
-      // If current user is not determined yet, classify members from member balances
-      for (const m of balances.members) {
-        const info = memberNameMap.get(m.userId);
-        const standing: PeerStanding = {
-          userId: m.userId,
-          name: info?.name || `Member (${m.userId.slice(0, 6)})`,
-          email: info?.email,
-          netAmountPaise: m.netBalancePaise,
-          status: m.netBalancePaise > 0 ? 'owes_you' : m.netBalancePaise < 0 ? 'you_owe' : 'settled',
-        };
-        if (m.netBalancePaise > 0) {
-          oweYouList.push(standing);
-          totalOwedToMe += m.netBalancePaise;
-        } else if (m.netBalancePaise < 0) {
-          youOweList.push(standing);
-          totalIOwe += Math.abs(m.netBalancePaise);
-        } else {
-          settledList.push(standing);
-        }
-      }
-    }
-
-    return {
-      userNetBalancePaise: myNet,
-      userYouAreOwedPaise: totalOwedToMe,
-      userYouOwePaise: totalIOwe,
-      peopleWhoOweYou: oweYouList,
-      peopleYouOwe: youOweList,
-      settledMembers: settledList,
-    };
-  }, [balances, currentUserId, isSimplified, simplifiedTransfers, memberNameMap, group]);
-
-  const recordSettlement = useCallback(
-    async (payload: SettlementCreatePayload): Promise<SettlementRecord> => {
-      setIsSettling(true);
-      setSettleError(null);
-      try {
-        const result = await apiRecordSettlement(groupId, payload);
-        // Refresh balances dynamically after settlement
-        await loadData(true);
-        return result;
-      } catch (err) {
-        if (err instanceof ApiError) {
-          setSettleError(err);
-          throw err;
-        }
-        const errorObj = new ApiError(
-          'SETTLEMENT_FAILED',
-          'Could not record settlement. Please check the details and try again.',
-          true
-        );
-        setSettleError(errorObj);
-        throw errorObj;
-      } finally {
-        if (isMountedRef.current) {
-          setIsSettling(false);
-        }
-      }
-    },
-    [groupId, loadData]
+  const members = useMemo(
+    () => (loaded?.group?.members ?? []).map((m) => ({ userId: m.userId, name: m.name, email: m.email })),
+    [loaded]
   );
 
-  const clearSettleError = useCallback(() => {
-    setSettleError(null);
-  }, []);
+  const nameOf = useCallback(
+    (userId: string) => members.find((m) => m.userId === userId)?.name ?? UNKNOWN_MEMBER_NAME,
+    [members]
+  );
+
+  const standings = useMemo(
+    () =>
+      deriveStandings({
+        currentUserId,
+        netPositions: loaded?.balances.netPositions ?? {},
+        transfers: loaded?.transfers ?? [],
+        members,
+      }),
+    [currentUserId, loaded, members]
+  );
+
+  const submitSettlement = useCallback(
+    async (payload: SettlementCreatePayload, idempotencyKey: string) => {
+      if (!groupId) throw MISSING_GROUP;
+      const saved = await recordSettlement(groupId, payload, idempotencyKey);
+      // Balances and the settlement list both change after a settlement.
+      apply(await loadGroup(groupId));
+      return saved;
+    },
+    [groupId, apply]
+  );
 
   return {
-    balances,
-    group,
+    balances: loaded?.balances ?? null,
+    group: loaded?.group ?? null,
+    settlements: loaded?.settlements ?? [],
     isLoading,
     isRefreshing,
     error,
-    isSimplified,
-    setIsSimplified,
-    simplifiedTransfers,
-    userNetBalancePaise,
-    userYouAreOwedPaise,
-    userYouOwePaise,
-    peopleWhoOweYou,
-    peopleYouOwe,
-    settledMembers,
+    isEmpty: loaded ? hasNoBalances(loaded.balances.netPositions) && loaded.settlements.length === 0 : false,
+    userNetBalancePaise: standings.myNetPaise,
+    userYouAreOwedPaise: standings.youAreOwedPaise,
+    userYouOwePaise: standings.youOwePaise,
+    peopleWhoOweYou: standings.peopleWhoOweYou,
+    peopleYouOwe: standings.peopleYouOwe,
+    settledMembers: standings.settledMembers,
+    nameOf,
     refresh,
-    recordSettlement,
-    isSettling,
-    settleError,
-    clearSettleError,
+    retry,
+    submitSettlement,
   };
 }

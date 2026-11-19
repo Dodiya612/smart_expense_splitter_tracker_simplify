@@ -2,21 +2,25 @@
  * SettleUpModal component (T-33 / US-10).
  *
  * Settle sheet allowing:
- * - Full or partial settlement amount entry.
+ * - Full or partial settlement amount entry (integer paise, never above what is owed).
  * - Payment method selection (UPI, Cash, Bank Transfer).
  * - Optional notes for reference.
- * - Reminder toggle with local state (isolated for future T-36 integration).
- * - Immediate balance refresh via callback.
+ * - Idempotency-Key: Retry of the same submission reuses the key; a changed one gets a new key.
+ * - On failure the sheet keeps every value and shows the server's message with Retry.
+ *
+ * The parent remounts this component per counterparty (React `key`), so the
+ * initial values come straight from props without a resetting effect.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,10 +29,17 @@ import { AppCard } from '@/components/ui/AppCard';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
+import { newIdempotencyKey } from '@/features/expenses/services/expenseApi';
+import type { ApiError } from '@/services/api/types';
 import { useTheme } from '@/theme';
-import type { PeerStanding } from '../hooks/useGroupBalances';
-import type { SettlementCreatePayload } from '../types';
-import { formatInr } from './NetPositionCard';
+import { formatPaise, paiseToInputText, parseRupeesToPaise } from '@/utils/money';
+import type { PeerStanding, SettlementCreatePayload, SettlementRecord } from '../types';
+import {
+  buildSettlementPayload,
+  checkSettlementAmount,
+  createSettlementKeyTracker,
+  runSettlement,
+} from '../utils/settlementSubmission';
 
 export interface SettleUpModalProps {
   visible: boolean;
@@ -36,9 +47,9 @@ export interface SettleUpModalProps {
   currentUserId?: string;
   isCurrentUserPayer: boolean; // true if current user owes money; false if counterparty owes current user
   onClose: () => void;
-  onSubmit: (payload: SettlementCreatePayload) => Promise<void>;
-  isSubmitting: boolean;
-  error: Error | null;
+  /** Saves (POST /settlements with the given key) and refreshes; throws on failure. */
+  onSubmit: (payload: SettlementCreatePayload, idempotencyKey: string) => Promise<SettlementRecord>;
+  onSaved: (saved: SettlementRecord) => void;
 }
 
 const PAYMENT_METHODS = [
@@ -54,90 +65,67 @@ export function SettleUpModal({
   isCurrentUserPayer,
   onClose,
   onSubmit,
-  isSubmitting,
-  error,
+  onSaved,
 }: SettleUpModalProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   const outstandingPaise = counterparty ? Math.abs(counterparty.netAmountPaise) : 0;
-  const initialRupees = (outstandingPaise / 100).toFixed(2);
 
-  const [amountInput, setAmountInput] = useState<string>(initialRupees);
+  const [amountInput, setAmountInput] = useState<string>(paiseToInputText(outstandingPaise));
   const [isFullSettlement, setIsFullSettlement] = useState<boolean>(true);
   const [paymentMethod, setPaymentMethod] = useState<string>('upi');
   const [notes, setNotes] = useState<string>('');
-  const [sendReminder, setSendReminder] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  // Sync initial amount when counterparty changes
-  React.useEffect(() => {
-    if (counterparty) {
-      const amt = (Math.abs(counterparty.netAmountPaise) / 100).toFixed(2);
-      setAmountInput(amt);
-      setIsFullSettlement(true);
-      setValidationError(null);
-      setNotes('');
-      setSendReminder(false);
-    }
-  }, [counterparty]);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const keyTracker = useRef(createSettlementKeyTracker(newIdempotencyKey));
 
   const handleAmountChange = (text: string) => {
     setAmountInput(text);
-    const parsed = parseFloat(text);
-    if (!isNaN(parsed) && Math.round(parsed * 100) === outstandingPaise) {
-      setIsFullSettlement(true);
-    } else {
-      setIsFullSettlement(false);
-    }
+    setIsFullSettlement(parseRupeesToPaise(text) === outstandingPaise);
     setValidationError(null);
+    setError(null);
   };
 
   const handleFullSettlementToggle = (full: boolean) => {
     setIsFullSettlement(full);
     if (full) {
-      setAmountInput((outstandingPaise / 100).toFixed(2));
+      setAmountInput(paiseToInputText(outstandingPaise));
     }
+    setValidationError(null);
   };
 
   const handleConfirm = async () => {
-    if (!counterparty || !currentUserId) return;
+    if (!counterparty || !currentUserId || isSubmitting) return;
 
-    const parsedRupees = parseFloat(amountInput);
-    if (isNaN(parsedRupees) || parsedRupees <= 0) {
-      setValidationError('Please enter a valid amount greater than zero.');
+    const check = checkSettlementAmount(amountInput, outstandingPaise);
+    if (!check.ok) {
+      setValidationError(check.message);
       return;
     }
-
-    const enteredPaise = Math.round(parsedRupees * 100);
-    if (enteredPaise > outstandingPaise) {
-      setValidationError(
-        `Amount cannot exceed the total outstanding balance of ${formatInr(outstandingPaise)}.`
-      );
-      return;
-    }
-
     setValidationError(null);
 
-    const payerId = isCurrentUserPayer ? currentUserId : counterparty.userId;
-    const payeeId = isCurrentUserPayer ? counterparty.userId : currentUserId;
-
-    const payload: SettlementCreatePayload = {
-      payerId,
-      payeeId,
-      amountPaise: enteredPaise,
-      isFullSettlement: isFullSettlement && enteredPaise === outstandingPaise,
+    const payload = buildSettlementPayload({
+      payerId: isCurrentUserPayer ? currentUserId : counterparty.userId,
+      payeeId: isCurrentUserPayer ? counterparty.userId : currentUserId,
+      amountPaise: check.amountPaise,
+      outstandingPaise,
       paymentMethod,
-      notes: notes.trim() || undefined,
-      settlementDate: new Date().toISOString().slice(0, 10),
-      sendReminder,
-    };
+      notes,
+    });
 
-    try {
-      await onSubmit(payload);
+    setIsSubmitting(true);
+    setError(null);
+    // Values are only read here; on failure every field stays as typed.
+    const outcome = await runSettlement(payload, keyTracker.current, onSubmit);
+    setIsSubmitting(false);
+    if (outcome.ok) {
+      keyTracker.current.reset();
+      onSaved(outcome.saved);
       onClose();
-    } catch {
-      // Handled by parent error state
+    } else {
+      setError(outcome.error);
     }
   };
 
@@ -150,7 +138,10 @@ export function SettleUpModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}
+      >
         <View
           style={[
             styles.sheet,
@@ -172,25 +163,25 @@ export function SettleUpModal({
           >
             <View>
               <AppText variant="heading" color="textPrimary">
-                Record Settlement
+                Record settlement
               </AppText>
               <AppText variant="caption" color="textSecondary">
                 {isCurrentUserPayer
-                  ? `Settle your debt to ${counterparty.name}`
-                  : `Record payment received from ${counterparty.name}`}
+                  ? `Record that you settled with ${counterparty.name}`
+                  : `Record that ${counterparty.name} settled with you`}
               </AppText>
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close settlement modal"
               onPress={onClose}
-              hitSlop={8}
+              style={[styles.closeButton, { minWidth: theme.minTouchTarget, minHeight: theme.minTouchTarget }]}
             >
               <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={[styles.content, { padding: theme.spacing.md, gap: theme.spacing.md }]}>
+          <ScrollView contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing.xl, gap: theme.spacing.md }}>
             {/* Outstanding Summary banner */}
             <AppCard
               style={[
@@ -203,7 +194,7 @@ export function SettleUpModal({
               ]}
             >
               <AppText variant="caption" color="textSecondary">
-                Outstanding Balance
+                Owed now
               </AppText>
               <AppText
                 variant="heading"
@@ -211,19 +202,19 @@ export function SettleUpModal({
                   color: isCurrentUserPayer
                     ? theme.colors.negative.text
                     : theme.colors.positive.text,
-                  marginTop: 2,
+                  marginTop: theme.spacing.xs,
                 }}
               >
-                {formatInr(outstandingPaise)}
+                {formatPaise(outstandingPaise)}
               </AppText>
             </AppCard>
 
             {/* Settlement Type Selector */}
             <View style={{ gap: theme.spacing.xs }}>
               <AppText variant="bodyStrong" color="textPrimary">
-                Settlement Type
+                Amount to settle
               </AppText>
-              <View style={styles.segmentContainer}>
+              <View style={[styles.segmentContainer, { gap: theme.spacing.sm }]}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Full settlement"
@@ -235,6 +226,7 @@ export function SettleUpModal({
                       backgroundColor: isFullSettlement ? theme.colors.primary : theme.colors.surface,
                       borderRadius: theme.radii.sm,
                       minHeight: theme.minTouchTarget,
+                      paddingVertical: theme.spacing.sm,
                     },
                   ]}
                 >
@@ -245,7 +237,7 @@ export function SettleUpModal({
                       fontFamily: theme.fontFamily.semibold,
                     }}
                   >
-                    Full ({formatInr(outstandingPaise)})
+                    Full ({formatPaise(outstandingPaise)})
                   </AppText>
                 </Pressable>
 
@@ -260,6 +252,7 @@ export function SettleUpModal({
                       backgroundColor: !isFullSettlement ? theme.colors.primary : theme.colors.surface,
                       borderRadius: theme.radii.sm,
                       minHeight: theme.minTouchTarget,
+                      paddingVertical: theme.spacing.sm,
                     },
                   ]}
                 >
@@ -270,7 +263,7 @@ export function SettleUpModal({
                       fontFamily: theme.fontFamily.semibold,
                     }}
                   >
-                    Partial Amount
+                    Part of it
                   </AppText>
                 </Pressable>
               </View>
@@ -278,7 +271,7 @@ export function SettleUpModal({
 
             {/* Amount Input */}
             <AppInput
-              label="Settlement Amount (₹)"
+              label="Amount (₹)"
               placeholder="0.00"
               value={amountInput}
               onChangeText={handleAmountChange}
@@ -290,9 +283,9 @@ export function SettleUpModal({
             {/* Payment Method Picker */}
             <View style={{ gap: theme.spacing.xs }}>
               <AppText variant="bodyStrong" color="textPrimary">
-                Payment Channel
+                How it was paid
               </AppText>
-              <View style={styles.methodsRow}>
+              <View style={[styles.methodsRow, { gap: theme.spacing.sm }]}>
                 {PAYMENT_METHODS.map((method) => {
                   const isSelected = paymentMethod === method.id;
                   return (
@@ -310,6 +303,8 @@ export function SettleUpModal({
                           borderRadius: theme.radii.pill,
                           minHeight: theme.minTouchTarget,
                           paddingHorizontal: theme.spacing.md,
+                          paddingVertical: theme.spacing.sm,
+                          gap: theme.spacing.sm,
                         },
                       ]}
                     >
@@ -341,44 +336,13 @@ export function SettleUpModal({
 
             {/* Optional Notes */}
             <AppInput
-              label="Notes (Optional)"
+              label="Notes (optional)"
               placeholder="e.g. Paid via Google Pay reference 1234"
               value={notes}
               onChangeText={setNotes}
               maxLength={200}
               accessibilityLabel="Optional settlement notes"
             />
-
-            {/* Reminder Toggle (US-10 AC5, local state pending T-36) */}
-            <View
-              style={[
-                styles.reminderRow,
-                {
-                  backgroundColor: theme.colors.surfaceMuted,
-                  borderRadius: theme.radii.md,
-                  padding: theme.spacing.sm,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-            >
-              <View style={{ flex: 1, paddingRight: theme.spacing.sm }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="notifications-outline" size={16} color={theme.colors.primary} />
-                  <AppText variant="bodyStrong" color="textPrimary">
-                    Send Payment Reminder
-                  </AppText>
-                </View>
-                <AppText variant="caption" color="textSecondary" style={{ marginTop: 2 }}>
-                  Queue a notification to {counterparty.name} regarding this settlement.
-                </AppText>
-              </View>
-              <Switch
-                value={sendReminder}
-                onValueChange={setSendReminder}
-                accessibilityLabel="Toggle payment reminder notification"
-                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              />
-            </View>
 
             {/* API Error Banner */}
             {error ? (
@@ -390,21 +354,33 @@ export function SettleUpModal({
                     borderColor: theme.colors.negative.fill,
                     borderRadius: theme.radii.sm,
                     padding: theme.spacing.sm,
+                    gap: theme.spacing.sm,
                   },
                 ]}
                 accessibilityRole="alert"
               >
-                <Ionicons name="alert-circle" size={16} color={theme.colors.negative.text} />
-                <AppText variant="caption" style={{ color: theme.colors.negative.text, flex: 1 }}>
-                  {error.message || 'Settlement failed. Please try again.'}
-                </AppText>
+                <View style={[styles.errorTextRow, { gap: theme.spacing.sm }]}>
+                  <Ionicons name="alert-circle" size={16} color={theme.colors.negative.text} />
+                  <AppText variant="caption" style={{ color: theme.colors.negative.text, flex: 1 }}>
+                    {`[!] ${error.message || 'Could not record the settlement. Please try again.'}`}
+                  </AppText>
+                </View>
+                {error.isRetryable ? (
+                  <Button
+                    label="Try again"
+                    variant="outline"
+                    onPress={handleConfirm}
+                    disabled={isSubmitting}
+                    accessibilityLabel="Try recording this settlement again"
+                  />
+                ) : null}
               </View>
             ) : null}
 
             {/* Action Buttons */}
-            <View style={[styles.actionButtons, { marginTop: theme.spacing.sm }]}>
+            <View style={{ marginTop: theme.spacing.sm, gap: theme.spacing.sm }}>
               <Button
-                label={isSubmitting ? 'Recording...' : 'Record Settlement'}
+                label={isSubmitting ? 'Recording…' : 'Record settlement'}
                 variant="primary"
                 fullWidth
                 onPress={handleConfirm}
@@ -415,13 +391,13 @@ export function SettleUpModal({
                 <ActivityIndicator
                   size="small"
                   color={theme.colors.primary}
-                  style={{ marginTop: 8 }}
+                  style={{ marginTop: theme.spacing.sm }}
                 />
               ) : null}
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -434,14 +410,15 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
   },
+  closeButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-  },
-  content: {
-    paddingBottom: 20,
   },
   summaryCard: {
     borderWidth: 1,
@@ -449,40 +426,27 @@ const styles = StyleSheet.create({
   },
   segmentContainer: {
     flexDirection: 'row',
-    gap: 8,
   },
   segmentButton: {
     flex: 1,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
   },
   methodsRow: {
     flexDirection: 'row',
-    gap: 8,
     flexWrap: 'wrap',
   },
   methodChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    paddingVertical: 8,
-  },
-  reminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     borderWidth: 1,
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     borderWidth: 1,
   },
-  actionButtons: {
-    gap: 8,
+  errorTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });

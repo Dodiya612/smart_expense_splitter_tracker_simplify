@@ -6,6 +6,7 @@ import {
   LoginCredentials,
   SignupPayload,
 } from '@/services/api/types';
+import { mockBalancesGet, mockBalancesPost } from '@/services/mock/mockBalances';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -104,6 +105,10 @@ export class MockApiClient implements ApiClient {
   async get<T>(endpoint: string): Promise<T> {
     await sleep(config.mockApiLatencyMs);
 
+    // Balances & settlements (T-33): same shapes as the backend, see mockBalances.ts.
+    const balances = mockBalancesGet(endpoint);
+    if (balances !== undefined) return balances as T;
+
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock GET endpoint "${endpoint}" is not supported.`,
@@ -111,8 +116,10 @@ export class MockApiClient implements ApiClient {
     );
   }
 
-  async post<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+  async post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const settlement = mockBalancesPost(endpoint, body, headers);
+    if (settlement !== undefined) return settlement as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock POST endpoint "${endpoint}" is not supported.`,
