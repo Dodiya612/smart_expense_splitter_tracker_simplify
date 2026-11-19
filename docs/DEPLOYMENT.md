@@ -74,6 +74,9 @@ All sensitive values must use secure placeholders in version control and be popu
 | `REFRESH_TOKEN_EXPIRE_DAYS` | No | `30` | Server | Lifespan of rotating refresh tokens stored in HTTP-only cookies. |
 | `OCR_SPACE_API_KEY` | No | None | Server | API key for OCR.space receipt text extraction service. |
 | `GROQ_API_KEY` | No | None | Server | API key for Groq LLM assistance and fallback category tagging. |
+| `RECEIPT_STORAGE` | No | `db` | Server | Receipt image storage backend: `db` (deferred BYTEA) or `supabase` (Supabase Storage). |
+| `SUPABASE_SERVICE_KEY` | No | None | **Server ONLY** | Supabase service role key for private bucket uploads/downloads. Never expose to client. |
+| `RECEIPTS_BUCKET` | No | `receipts` | Server | Private Supabase Storage bucket name for bill receipt images. |
 
 ### 2.2 Security Rules
 
@@ -110,6 +113,32 @@ Supabase utilizes **Supavisor** for connection pooling:
 ### 3.3 SSL Enforcement
 
 All connections to Supabase PostgreSQL require SSL (`sslmode=require`). Unencrypted plaintext connections are rejected at the edge.
+
+### 3.4 Private Supabase Storage Bucket Configuration (US-16 Bill Uploads)
+
+Bill images scanned via `POST /api/v1/receipts/scan` are stored either in PostgreSQL (`RECEIPT_STORAGE=db`) or in a private Supabase Storage bucket (`RECEIPT_STORAGE=supabase`).
+
+#### Bucket Setup & Security
+- **Bucket Name**: `receipts` (configurable via `RECEIPTS_BUCKET`).
+- **Public Access**: **Disabled** (Private Bucket). Zero public URLs are ever created or returned.
+- **Access Authentication**: The backend acts as a strict reverse proxy. All client image requests go through `GET /api/v1/receipts/{receipt_id}/image`, which enforces user authorization (owner or active group member for linked group expenses; returns HTTP 404 for all unauthorized callers).
+- **Service Role Key**: Interacts with Supabase Storage REST API using `SUPABASE_SERVICE_KEY`.
+
+#### Storage Object Key Format
+- Every object key uses a cryptographically random, unguessable UUID4 format:
+  ```text
+  receipts/{uuid4().hex}.jpg
+  ```
+- **Zero PII**: Keys never embed user IDs, expense IDs, dates, original filenames, or merchant names.
+
+#### Processing & Size Guarantees
+- **Upload Limit**: 5 MB hard cap on raw uploads (HTTP 422 if exceeded).
+- **File Type Validation**: Strictly determined from magic bytes (`FF D8 FF` for JPEG, `89 50 4E 47 0D 0A 1A 0A` for PNG). Client filenames and `Content-Type` headers are ignored. Unsupported types return HTTP 415 `UNSUPPORTED_MEDIA_TYPE`.
+- **Image Resizing**: Longest side scaled down to $\le 1600\text{ px}$.
+- **Size Guarantee**: Progressively compressed to strictly $< 1\text{ MB}$ (1,048,576 bytes).
+- **Metadata Stripping**: All EXIF, GPS location coordinates, and camera tags are completely removed before storage.
+- **Decompression Bomb Protection**: Pillow `MAX_IMAGE_PIXELS` capped at 40 MP.
+- **24-Hour Purge**: Unlinked receipts older than 24 hours are automatically purged from both the database and the storage backend.
 
 ---
 

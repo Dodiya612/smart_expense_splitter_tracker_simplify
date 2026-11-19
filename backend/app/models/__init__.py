@@ -15,6 +15,7 @@ from app.models.group import (
 from app.models.idempotency import IdempotencyRecord
 from app.models.notification import Notification, NotificationPreference
 from app.models.rate_limit import LoginRateLimit
+from app.models.receipt import Receipt
 from app.models.refresh_token import RefreshToken
 from app.models.settlement import Settlement
 from app.models.user import User
@@ -39,6 +40,7 @@ __all__ = [
     "LoginRateLimit",
     "Notification",
     "NotificationPreference",
+    "Receipt",
     "RefreshToken",
     "Settlement",
     "User",

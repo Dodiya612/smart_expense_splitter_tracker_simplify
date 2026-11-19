@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     AI_QUOTA_BUDGET_GOALS_DAILY: int = 5
     AI_QUOTA_ASK_DAILY: int = 20
 
+    # Receipt Storage Configuration (US-16)
+    RECEIPT_STORAGE: str = "db"
+    SUPABASE_URL: str | None = None
+    SUPABASE_SERVICE_KEY: str | None = None
+    RECEIPTS_BUCKET: str = "receipts"
+
 
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":
