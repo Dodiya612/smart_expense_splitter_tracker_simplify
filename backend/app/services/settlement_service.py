@@ -44,6 +44,7 @@ from app.schemas.settlement import (
     TransferItem,
 )
 from app.services.group_service import get_group_or_404
+from app.services.notifications import notify_users
 from app.services.ledger import net_positions, simplify
 
 logger = logging.getLogger(__name__)
@@ -323,6 +324,30 @@ def _bad_request(code: str, message: str) -> HTTPException:
     )
 
 
+async def _notify_settlement_recorded(
+    group: Group, current_user: User, settlement: SettlementResponse
+) -> None:
+    """Post-commit notice to the settlement's payer and payee, never the actor.
+
+    An admin recording it for two other members notifies both. Safe to call again on
+    an idempotent replay: the dedupe key is per settlement and recipient.
+    """
+    await notify_users(
+        [settlement.payer_id, settlement.payee_id],
+        current_user.id,
+        "settlement_recorded",
+        str(settlement.id),
+        {
+            "settlement_id": str(settlement.id),
+            "group_id": str(group.id),
+            "group_name": group.name,
+            "amount_paise": settlement.amount_paise,
+            "actor_name": current_user.name,
+        },
+        group_id=group.id,
+    )
+
+
 async def create_settlement(
     db: AsyncSession,
     group_id: uuid.UUID,
@@ -355,6 +380,9 @@ async def create_settlement(
             db, current_user.id, group_id, idempotency_key, request_hash
         )
         if replay is not None:
+            # The original response may have been lost after commit; dedupe keys make
+            # this a no-op for anyone already notified.
+            await _notify_settlement_recorded(group, current_user, replay)
             return replay, True
 
     payer_id = payload.payer_id
@@ -496,6 +524,8 @@ async def create_settlement(
     except Exception:
         await db.rollback()
         raise
+
+    await _notify_settlement_recorded(group, current_user, response)
 
     return response, False
 

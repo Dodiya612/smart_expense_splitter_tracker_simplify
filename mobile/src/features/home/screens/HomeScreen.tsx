@@ -12,6 +12,7 @@ import {
   MOCK_POPULATED_DASHBOARD_DATA,
 } from '../data/mockDashboardData';
 import { isDashboardEmpty } from '../utils/dashboardSummary';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { ThisMonthHeader } from '../components/ThisMonthHeader';
 import { BalancePreviewCard } from '../components/BalancePreviewCard';
 import { BudgetPreviewCard } from '../components/BudgetPreviewCard';
@@ -52,6 +53,7 @@ export function HomeScreen({ initialData }: HomeScreenProps = {}) {
         <ThisMonthHeader
           monthLabel={data.monthLabel}
           totalSpentPaise={data.totalSpentPaise}
+          trailing={<NotificationBell />}
         />
 
         {/* Dashboard-level demo notice when populated */}

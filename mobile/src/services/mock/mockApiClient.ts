@@ -7,6 +7,11 @@ import {
   SignupPayload,
 } from '@/services/api/types';
 import { mockBalancesGet, mockBalancesPost } from '@/services/mock/mockBalances';
+import {
+  mockNotificationsGet,
+  mockNotificationsPatch,
+  mockNotificationsPut,
+} from '@/services/mock/mockNotifications';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -109,6 +114,10 @@ export class MockApiClient implements ApiClient {
     const balances = mockBalancesGet(endpoint);
     if (balances !== undefined) return balances as T;
 
+    // Notification centre (T-36): in-memory demo data, see mockNotifications.ts.
+    const notifications = mockNotificationsGet(endpoint);
+    if (notifications !== undefined) return notifications as T;
+
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock GET endpoint "${endpoint}" is not supported.`,
@@ -129,6 +138,8 @@ export class MockApiClient implements ApiClient {
 
   async patch<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const notification = mockNotificationsPatch(endpoint);
+    if (notification !== undefined) return notification as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock PATCH endpoint "${endpoint}" is not supported.`,
@@ -136,8 +147,10 @@ export class MockApiClient implements ApiClient {
     );
   }
 
-  async put<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+  async put<T>(endpoint: string, body?: unknown, _headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const preferences = mockNotificationsPut(endpoint, body);
+    if (preferences !== undefined) return preferences as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock PUT endpoint "${endpoint}" is not supported.`,

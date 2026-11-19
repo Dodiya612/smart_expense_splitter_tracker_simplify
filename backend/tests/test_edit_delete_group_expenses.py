@@ -18,7 +18,7 @@ from app.models.group import (
     GroupType,
 )
 from app.models.user import User
-from app.services.notifications import (
+from tests.notification_fakes import (
     clear_emitted_notifications,
     get_emitted_notifications,
 )
@@ -627,7 +627,7 @@ async def test_audit_logs_recorded_with_before_and_after_state(
 async def test_notifications_emitted_to_all_group_members_on_edit_and_delete(
     client, sample_group, sample_expense, auth_headers_creator, user_admin, user_creator, user_member
 ):
-    """US-23 AC3: All group members are notified after commit on edit and deletion."""
+    """US-23 AC3: Other group members are notified after commit on edit and deletion; the actor is not."""
     clear_emitted_notifications()
 
     # 1. Edit
@@ -639,11 +639,11 @@ async def test_notifications_emitted_to_all_group_members_on_edit_and_delete(
     assert edit_resp.status_code == 200
 
     notifs_edit = get_emitted_notifications()
-    # Expect 3 notifications (one for each active member in the group)
-    assert len(notifs_edit) == 3
+    # Expect 2 notifications: every active member except the actor (the creator)
+    assert len(notifs_edit) == 2
     notified_users = {n.user_id for n in notifs_edit}
     assert str(user_admin.id) in notified_users
-    assert str(user_creator.id) in notified_users
+    assert str(user_creator.id) not in notified_users
     assert str(user_member.id) in notified_users
     assert all(n.kind == "group_expense_updated" for n in notifs_edit)
 
@@ -657,12 +657,30 @@ async def test_notifications_emitted_to_all_group_members_on_edit_and_delete(
     assert del_resp.status_code == 200
 
     notifs_del = get_emitted_notifications()
-    assert len(notifs_del) == 3
+    assert len(notifs_del) == 2
     del_users = {n.user_id for n in notifs_del}
     assert str(user_admin.id) in del_users
-    assert str(user_creator.id) in del_users
+    assert str(user_creator.id) not in del_users
     assert str(user_member.id) in del_users
     assert all(n.kind == "group_expense_deleted" for n in notifs_del)
+
+@pytest.mark.asyncio
+async def test_second_edit_of_the_same_expense_notifies_again_with_versioned_key(
+    client, sample_group, sample_expense, auth_headers_creator, user_admin, user_member
+):
+    """The new version is part of the dedupe key, so legitimate repeat edits are not suppressed."""
+    clear_emitted_notifications()
+    for version, text in ((1, "First edit"), (2, "Second edit")):
+        resp = await client.patch(
+            f"/api/v1/groups/{sample_group.id}/expenses/{sample_expense.id}",
+            json={"description": text, "version": version},
+            headers=auth_headers_creator,
+        )
+        assert resp.status_code == 200
+    notifs = get_emitted_notifications()
+    assert len(notifs) == 4  # two recipients (admin, member) x two edits
+    assert {n.ref for n in notifs} == {f"{sample_expense.id}:v2", f"{sample_expense.id}:v3"}
+
 
 
 # ==============================================================================
