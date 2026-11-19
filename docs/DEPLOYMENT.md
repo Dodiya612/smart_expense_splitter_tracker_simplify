@@ -62,7 +62,7 @@ All sensitive values must use secure placeholders in version control and be popu
 | `DEBUG` | No | `false` | Server | Enables debug mode and hot reloading (must be `false` in production). |
 | `PORT` | Yes | `8000` | Server | HTTP port. In Render, `$PORT` is injected dynamically (e.g., `10000`). |
 | `HOST` | Yes | `0.0.0.0` | Server | Network interface binding. Must be `0.0.0.0` for containerized hosting. |
-| `CORS_ORIGINS` | Yes | `["*"]` | Server | JSON array or comma-separated list of allowed client origins. |
+| `CORS_ORIGINS` | Yes | local dev origins (`http://localhost:8081`, `http://127.0.0.1:8081`, `http://10.0.2.2:8081`, `http://localhost:3000`, `http://localhost:19006`) | Server | JSON array or comma-separated list of allowed client origins. Never use `*` together with credentials. The default is the localhost list in `backend/app/core/config.py`, not a wildcard. |
 | `DATABASE_URL` | Yes | None | Server | PostgreSQL connection string using Supabase connection pooler (port 6543). |
 | `DIRECT_URL` | No | None | Server | Direct PostgreSQL connection string (port 5432) for Alembic migrations. |
 | `SUPABASE_URL` | Yes | None | Server | Base URL for Supabase API project (`https://<ref>.supabase.co`). |
@@ -71,7 +71,9 @@ All sensitive values must use secure placeholders in version control and be popu
 | `JWT_SECRET` | Yes | None | **Server ONLY** | Cryptographic secret for signing and validating session JWTs (PyJWT). |
 | `JWT_ALGORITHM` | No | `HS256` | Server | Signing algorithm for JWT tokens. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `15` | Server | Lifespan of short-lived session access tokens. |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `30` | Server | Lifespan of rotating refresh tokens stored in HTTP-only cookies. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `30` | Server | Lifespan of rotating refresh tokens. They are returned and sent in JSON request/response bodies (the API sets no cookies). |
+| `TRUSTED_CLIENT_IP_HEADER` | No | unset | Server | Name of a header that a proxy you control sets to the real client IP and always overwrites (for example `CF-Connecting-IP`). Unset: address-scoped rate limits are skipped. **Verify before setting**; see [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md). |
+| `RATE_LIMIT_*`, `LOGIN_RATE_LIMIT_*` | No | see doc | Server | Rate-limit maxima and windows. Defaults and routes are listed in [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md). Apply migration `012` before deploying. `RATE_LIMIT_ENABLED=false` is rejected at startup unless `ENVIRONMENT=development`. Never set `FORWARDED_ALLOW_IPS=*`. |
 | `OCR_SPACE_API_KEY` | No | None | Server | API key for OCR.space receipt text extraction service. |
 | `GROQ_API_KEY` | No | None | Server | API key for Groq LLM assistance and fallback category tagging. |
 
@@ -321,7 +323,7 @@ node packages/api-client/verify-health.mjs
 - **Security Guarantees**:
   - Does not leak database connection strings, passwords, or hostnames.
   - Does not reveal internal infrastructure paths or stack traces.
-  - Excluded from CSRF checks and session middleware to prevent false liveness failures.
+  - Not rate limited. The API has no CSRF or session middleware: it authenticates with bearer tokens only (see [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md)).
 
 ---
 

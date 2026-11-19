@@ -2,19 +2,23 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_user_optional
+from app.api.rate_limit_deps import limit_by_ip
 from app.core.authorization import Action, SessionPolicy
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.rate_limit import (
-    check_login_rate_limit,
-    record_failed_login_attempt,
-    reset_login_rate_limit,
+from app.core.rate_limiter import (
+    RATE_LIMIT_RESPONSES,
+    clear,
+    get_client_ip,
+    get_policy,
+    refund,
+    reserve,
 )
 from app.core.security import (
     create_access_token,
@@ -42,6 +46,8 @@ from app.schemas.auth import (
 )
 
 router = APIRouter()
+
+LOGIN_LIMIT_MESSAGE = "Too many failed login attempts. Please try again in {n} seconds."
 
 
 async def _handle_signup(payload: UserSignupRequest, db: AsyncSession) -> AuthResponse:
@@ -134,6 +140,8 @@ async def _handle_signup(payload: UserSignupRequest, db: AsyncSession) -> AuthRe
     "/signup",
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_by_ip("signup_ip"))],
+    responses=RATE_LIMIT_RESPONSES,
     summary="Register a new user account (canonical)",
 )
 async def signup(payload: UserSignupRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
@@ -144,6 +152,8 @@ async def signup(payload: UserSignupRequest, db: AsyncSession = Depends(get_db))
     "/register",
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_by_ip("signup_ip"))],
+    responses=RATE_LIMIT_RESPONSES,
     summary="Register a new user account (alias)",
 )
 async def register(payload: UserSignupRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
@@ -154,13 +164,26 @@ async def register(payload: UserSignupRequest, db: AsyncSession = Depends(get_db
     "/login",
     response_model=AuthResponse,
     status_code=status.HTTP_200_OK,
+    responses=RATE_LIMIT_RESPONSES,
     summary="Authenticate user and issue token pair",
 )
-async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
+async def login(
+    request: Request, payload: UserLoginRequest, db: AsyncSession = Depends(get_db)
+) -> AuthResponse:
     normalized_email = payload.email.strip().lower()
 
-    # Pre-auth rate limit check (returns 429 when max failed attempts reached)
-    await check_login_rate_limit(db, normalized_email)
+    # T-39: reserve a slot in each login counter BEFORE checking the password, so parallel
+    # guesses cannot all pass a read-then-write check. Fails closed (HTTP 503) if the shared
+    # counters are unavailable. The per-account ceiling always applies; the per-(account,
+    # address) limit and the per-address ceiling need a verified client address, so they are
+    # skipped (with a startup warning) until TRUSTED_CLIENT_IP_HEADER is configured.
+    client_ip = get_client_ip(request)
+    pair_policy = get_policy("login_pair")
+    pair_id = f"{normalized_email}|{client_ip}"
+    checks = [(get_policy("login_account"), normalized_email)]
+    if client_ip is not None:
+        checks += [(pair_policy, pair_id), (get_policy("login_ip"), client_ip)]
+    login_hits = await reserve(checks, message=LOGIN_LIMIT_MESSAGE)
 
     result = await db.execute(
         select(User).where(User.email == normalized_email)
@@ -170,7 +193,6 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
     if not user:
         # Preempt user enumeration via timing attack equalization
         verify_dummy_password(payload.password)
-        await record_failed_login_attempt(db, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -180,7 +202,6 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
         )
 
     if not verify_password(payload.password, user.hashed_password):
-        await record_failed_login_attempt(db, normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -197,9 +218,6 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
                 "message": "User account is inactive.",
             },
         )
-
-    # Successful login resets the failed login attempt counter
-    await reset_login_rate_limit(db, normalized_email)
 
     # Issue new refresh token with fresh family_id
     raw_refresh_token = generate_refresh_token()
@@ -226,6 +244,15 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
     db.add(refresh_token_row)
     await db.commit()
 
+    # Only after the session is saved (if saving fails, every attempt stays counted, US-34):
+    #  * clear the account-and-address counter and the account-only counter for this account;
+    #  * give just this one successful attempt back to the address-wide ceiling (that bucket is
+    #    shared by other users behind the same address and is NOT cleared).
+    await refund(login_hits, {"login_ip"})
+    await clear(get_policy("login_account"), normalized_email)
+    if client_ip is not None:
+        await clear(pair_policy, pair_id)
+
     access_token = create_access_token(user_id=user.id, email=user.email)
 
     return AuthResponse(
@@ -247,6 +274,8 @@ async def login(payload: UserLoginRequest, db: AsyncSession = Depends(get_db)) -
     "/refresh",
     response_model=TokenRefreshResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(limit_by_ip("refresh_ip"))],
+    responses=RATE_LIMIT_RESPONSES,
     summary="Rotate refresh token and issue new access token",
 )
 async def refresh_token(

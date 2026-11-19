@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.rate_limit_deps import limit_by_user
+from app.core.rate_limiter import RATE_LIMIT_RESPONSES
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.category_suggestion import (
@@ -24,6 +26,8 @@ router = APIRouter()
 
 @router.post(
     "/category-suggestion",
+    dependencies=[Depends(limit_by_user("ai_burst_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=CategorySuggestionResponse,
     status_code=status.HTTP_200_OK,
     summary="Suggest expense category",
@@ -48,6 +52,8 @@ async def suggest_category_endpoint(
 
 @router.post(
     "/category-suggestion/feedback",
+    dependencies=[Depends(limit_by_user("ai_feedback_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=CategoryFeedbackResponse,
     status_code=status.HTTP_200_OK,
     summary="Submit category suggestion feedback",
@@ -73,6 +79,8 @@ async def feedback_endpoint(
 # Alias routes for client compatibility with /suggestions
 @router.post(
     "/suggestions",
+    dependencies=[Depends(limit_by_user("ai_burst_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=CategorySuggestionResponse,
     status_code=status.HTTP_200_OK,
     include_in_schema=False,
@@ -87,6 +95,8 @@ async def suggest_category_alias(
 
 @router.post(
     "/suggestions/feedback",
+    dependencies=[Depends(limit_by_user("ai_feedback_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=CategoryFeedbackResponse,
     status_code=status.HTTP_200_OK,
     include_in_schema=False,
