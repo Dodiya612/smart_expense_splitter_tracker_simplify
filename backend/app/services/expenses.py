@@ -13,7 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.category import Category
 from app.models.expense import Expense
 from app.models.idempotency import IdempotencyRecord
+from app.models.receipt import Receipt
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate
+from app.services.receipt_service import link_receipt_to_expense
+from app.services.receipt_storage import ReceiptStorage, get_receipt_storage
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +168,9 @@ async def create_expense(
     )
 
     db.add(expense)
+
+    if data.receipt_id:
+        await link_receipt_to_expense(db, data.receipt_id, expense.id, user_id)
 
     if idempotency_key and request_hash:
         # Serialise expected response for idempotency storage
@@ -387,6 +393,7 @@ async def update_expense(
     if data.payment_mode is not None:
         updates["payment_mode"] = data.payment_mode
     if data.receipt_id is not None:
+        await link_receipt_to_expense(db, data.receipt_id, expense_id, user_id)
         updates["receipt_id"] = data.receipt_id
 
     now = utcnow()
@@ -429,7 +436,7 @@ async def soft_delete_expense(
 ) -> Expense:
     """
     Soft-delete an expense by setting deleted_at to current UTC time.
-    Preserves the record and its audit history.
+    Preserves the record, its audit history, and its receipt link/image for Undo restoration.
     Raises HTTP 404 if not found or already deleted.
     """
     expense = await get_expense(db, user_id, expense_id, include_deleted=False)
@@ -443,6 +450,44 @@ async def soft_delete_expense(
     await db.refresh(expense)
     logger.info(f"Soft-deleted expense {expense_id} for user {user_id}.")
     return expense
+
+
+async def hard_delete_expense(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    storage: ReceiptStorage | None = None,
+) -> None:
+    """
+    Permanently delete an expense and its associated receipt and storage object.
+    Ensures DB transaction commits before deleting external storage blobs.
+    """
+    expense = await get_expense(db, user_id, expense_id, include_deleted=True)
+
+    # Find linked receipt if any
+    stmt = select(Receipt).where(
+        (Receipt.expense_id == expense_id) | (Receipt.id == expense.receipt_id)
+    )
+    res = await db.execute(stmt)
+    receipt = res.scalar_one_or_none()
+
+    storage_key = None
+    is_db = False
+    if receipt:
+        storage_key = receipt.storage_key
+        is_db = receipt.image_data is not None
+        await db.delete(receipt)
+
+    await db.delete(expense)
+    await db.commit()
+
+    # External storage blob is ONLY deleted after DB deletion commits
+    if storage_key and not is_db:
+        store = storage or get_receipt_storage(db=db)
+        try:
+            await store.delete(storage_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to delete receipt blob from storage during hard delete: %s", exc)
 
 
 async def restore_expense(

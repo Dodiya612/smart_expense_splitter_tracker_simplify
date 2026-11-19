@@ -1014,6 +1014,100 @@
         }
       }
     },
+    "/api/v1/receipts/scan": {
+      "post": {
+        "tags": [
+          "Receipts"
+        ],
+        "summary": "Scan and process a receipt bill image",
+        "description": "Uploads a receipt image (JPEG or PNG), validates magic bytes, strips EXIF/GPS, compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction.",
+        "operationId": "scan_receipt_endpoint_api_v1_receipts_scan_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptScanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/receipts/{receipt_id}/image": {
+      "get": {
+        "tags": [
+          "Receipts"
+        ],
+        "summary": "Retrieve receipt image content",
+        "description": "Retrieves the stored receipt image bytes. Accessible only by the receipt owner. Returns 404 for unauthorized users.",
+        "operationId": "get_receipt_image_endpoint_api_v1_receipts__receipt_id__image_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "receipt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Receipt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/groups": {
       "post": {
         "tags": [
@@ -2931,6 +3025,21 @@
         ],
         "title": "AuthResponse"
       },
+      "Body_scan_receipt_endpoint_api_v1_receipts_scan_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Receipt image file (JPEG or PNG, max 5 MB)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+      },
       "CategoryFeedbackData": {
         "properties": {
           "success": {
@@ -4585,6 +4694,100 @@
           "created_at"
         ],
         "title": "NotificationResponse"
+      },
+      "ReceiptScanResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReceiptScanResponseData"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Receipt processed successfully."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ReceiptScanResponse",
+        "description": "Standard envelope for receipt scanning endpoint."
+      },
+      "ReceiptScanResponseData": {
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Receiptid"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountminor"
+          },
+          "expenseDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expensedate"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "fileSize": {
+            "type": "integer",
+            "title": "Filesize"
+          }
+        },
+        "type": "object",
+        "required": [
+          "receiptId",
+          "fileSize"
+        ],
+        "title": "ReceiptScanResponseData",
+        "description": "Extracted receipt information returned to client."
       },
       "RefreshTokenRequest": {
         "properties": {

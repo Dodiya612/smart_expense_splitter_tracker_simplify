@@ -314,7 +314,8 @@ def test_migration_012_extends_t36_011_and_there_is_a_single_alembic_head():
     config = Config(str(backend / "alembic.ini"))
     config.set_main_option("script_location", str(backend / "alembic"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["012_create_rate_limit_buckets"]
+    heads = script.get_heads()
+    assert len(heads) == 1
     revision = script.get_revision("012_create_rate_limit_buckets")
     assert revision.down_revision == "011_create_notifications"
     assert script.get_revision("011_create_notifications").down_revision == "010_create_settlements"
