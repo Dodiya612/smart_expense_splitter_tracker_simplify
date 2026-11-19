@@ -7,9 +7,11 @@ import { formatPaiseToInr } from '../utils/dashboardSummary';
 export interface ThisMonthHeaderProps {
   monthLabel: string;
   totalSpentPaise: number;
+  /** Optional element shown at the end of the title row (the notification bell). */
+  trailing?: React.ReactNode;
 }
 
-export function ThisMonthHeader({ monthLabel, totalSpentPaise }: ThisMonthHeaderProps) {
+export function ThisMonthHeader({ monthLabel, totalSpentPaise, trailing }: ThisMonthHeaderProps) {
   const theme = useTheme();
   const formattedTotal = formatPaiseToInr(totalSpentPaise);
 
@@ -23,9 +25,12 @@ export function ThisMonthHeader({ monthLabel, totalSpentPaise }: ThisMonthHeader
         <AppText variant="title" color="textPrimary">
           This Month
         </AppText>
-        <AppText variant="small" color="textSecondary">
-          {monthLabel}
-        </AppText>
+        <View style={[styles.trailingRow, { gap: theme.spacing.sm }]}>
+          <AppText variant="small" color="textSecondary">
+            {monthLabel}
+          </AppText>
+          {trailing}
+        </View>
       </View>
 
       <View style={[styles.amountContainer, { marginTop: theme.spacing.xs }]}>
@@ -50,6 +55,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  trailingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   amountContainer: {
     gap: 2,

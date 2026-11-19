@@ -61,6 +61,7 @@ from app.models.rate_limit import LoginRateLimit
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.services import notifications
+from tests import notification_fakes
 from tests.test_ai_quota import QuotaFakeAsyncSession, QuotaFakeDB
 from tests.test_authorization import FakeAuthAsyncSession, FakeAuthTestDB
 from tests.test_groups import FakeGroupAsyncSession, FakeGroupDB
@@ -235,9 +236,9 @@ def bearer(user: User) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def _clean_notifications():
-    notifications.clear_emitted_notifications()
+    notification_fakes.clear_emitted_notifications()
     yield
-    notifications.clear_emitted_notifications()
+    notification_fakes.clear_emitted_notifications()
 
 
 # ==============================================================================
@@ -738,7 +739,7 @@ async def test_shared_expense_create_failure_leaves_nothing(fail_on):
     assert db.expense_payments == {}
     assert db.expense_shares == {}
     assert db.audit_events == {}
-    assert notifications.get_emitted_notifications() == []
+    assert notification_fakes.get_emitted_notifications() == []
 
 
 @pytest.mark.asyncio
@@ -746,7 +747,7 @@ async def test_shared_expense_edit_failure_keeps_original_amount_payments_and_sh
     session, db, users, grp, cat = shared_world()
     async with api(session) as client:
         exp = await add_shared_expense(client, session, db, grp, cat, users[0])
-        notifications.clear_emitted_notifications()
+        notification_fakes.clear_emitted_notifications()
         before = rows(db)
         session.arm(types=(AuditEvent,))  # expense updated, shares rewritten, audit insert fails
         resp = await client.patch(
@@ -760,7 +761,7 @@ async def test_shared_expense_edit_failure_keeps_original_amount_payments_and_sh
     assert stored.amount_minor == 300000
     assert stored.version == 1
     assert sorted(s.amount_paise for s in db.expense_shares.values()) == [100000] * 3
-    assert notifications.get_emitted_notifications() == []
+    assert notification_fakes.get_emitted_notifications() == []
 
 
 @pytest.mark.asyncio
@@ -768,7 +769,7 @@ async def test_shared_expense_delete_failure_keeps_expense():
     session, db, users, grp, cat = shared_world()
     async with api(session) as client:
         exp = await add_shared_expense(client, session, db, grp, cat, users[0])
-        notifications.clear_emitted_notifications()
+        notification_fakes.clear_emitted_notifications()
         before = rows(db)
         session.arm(types=(AuditEvent,))
         resp = await client.delete(
@@ -777,7 +778,7 @@ async def test_shared_expense_delete_failure_keeps_expense():
     assert_retryable_error(resp)
     assert rows(db) == before
     assert db.expenses[uuid.UUID(exp["id"])].deleted_at is None
-    assert notifications.get_emitted_notifications() == []
+    assert notification_fakes.get_emitted_notifications() == []
 
 
 def settlement_body(payer: User, payee: User) -> dict[str, Any]:
@@ -935,7 +936,7 @@ async def test_shared_expense_create_with_key_failure_leaves_nothing(fail_on):
     assert db.expense_shares == {}
     assert db.audit_events == {}
     assert db.idempotency_records == {}
-    assert notifications.get_emitted_notifications() == []
+    assert notification_fakes.get_emitted_notifications() == []
 
 
 @pytest.mark.asyncio
@@ -960,8 +961,8 @@ async def test_shared_expense_retry_after_dropped_connection_creates_one(drop):
     assert sorted(s["amountPaise"] for s in body["shares"]) == [100000] * 3
     if drop == "after_commit":
         assert retry.headers.get("x-idempotent-replay") == "true"
-    # Members are notified once, for the one expense that exists.
-    assert len(notifications.get_emitted_notifications()) == 3
+    # The other two members (not the actor) are notified once, for the one expense that exists.
+    assert len(notification_fakes.get_emitted_notifications()) == 2
 
 
 @pytest.mark.asyncio
@@ -982,7 +983,7 @@ async def test_shared_expense_replay_and_conflict():
     assert conflict.status_code == 409
     assert conflict.json()["code"] == "IDEMPOTENCY_CONFLICT"
     assert len(db.expenses) == 1
-    assert len(notifications.get_emitted_notifications()) == 3  # the replay notified no one again
+    assert len(notification_fakes.get_emitted_notifications()) == 2  # the replay notified no one again
 
 
 @pytest.mark.asyncio
@@ -1020,10 +1021,10 @@ async def test_blank_idempotency_key_is_rejected():
 async def test_failing_notification_does_not_turn_a_saved_expense_into_an_error(monkeypatch):
     session, db, users, grp, cat = shared_world()
 
-    def broken_emit(*args: Any, **kwargs: Any) -> bool:
+    async def broken_persist(*args: Any, **kwargs: Any) -> list[Any]:
         raise RuntimeError("notification backend down")
 
-    monkeypatch.setattr(notifications, "emit", broken_emit)
+    monkeypatch.setattr(notifications, "_persist", broken_persist)
     async with api(session) as client:
         resp = await client.post(
             f"/api/v1/groups/{grp.id}/expenses",

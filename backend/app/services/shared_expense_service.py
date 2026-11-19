@@ -82,7 +82,8 @@ def format_shared_expense_response(
     )
 
 
-def _notify_expense_created(
+async def _notify_expense_created(
+    db: AsyncSession,
     group: Group,
     current_user: User,
     expense_id: uuid.UUID,
@@ -90,7 +91,8 @@ def _notify_expense_created(
     amount_paise: int,
 ) -> None:
     """Post-commit notice for a new shared expense (deduplicated per expense and member)."""
-    notify_group_members(
+    await notify_group_members(
+        db=db,
         group=group,
         actor_id=current_user.id,
         kind="group_expense_created",
@@ -100,7 +102,7 @@ def _notify_expense_created(
             "group_id": str(group.id),
             "description": description,
             "amount_paise": amount_paise,
-            "created_by": str(current_user.id),
+            "actor_name": current_user.name,
         },
     )
 
@@ -130,7 +132,7 @@ async def create_shared_expense(
     if replay is not None:
         # If the original response was lost after commit, its notifications may not
         # have been sent; dedupe keys make this a no-op for anyone already notified.
-        _notify_expense_created(group, current_user, replay.id, replay.description, replay.amount_paise)
+        await _notify_expense_created(db, group, current_user, replay.id, replay.description, replay.amount_paise)
         return replay, True
 
     # 2. Check category exists
@@ -366,12 +368,17 @@ async def create_shared_expense(
         raise
 
     # Notify active group members after transaction commits
-    _notify_expense_created(group, current_user, expense.id, expense.description, payload.amount_paise)
+    await _notify_expense_created(db, group, current_user, expense.id, expense.description, payload.amount_paise)
 
-    # Attach loaded collections for response formatting
-    expense.payments = payment_records
-    expense.shares = share_records
-    return format_shared_expense_response(expense, split_mode=mode_str), False
+    # Format from the rows just written. Assigning `expense.payments` / `expense.shares` here
+    # would first read the old (never loaded) collections, which is implicit async I/O
+    # through attribute access and raises MissingGreenlet on a real session.
+    return (
+        format_shared_expense_response(
+            expense, split_mode=mode_str, payments=payment_records, shares=share_records
+        ),
+        False,
+    )
 
 
 async def list_shared_expenses(
@@ -826,18 +833,19 @@ async def update_shared_expense(
         raise
 
     # 12. Dispatch notification to all active group members ONLY after successful commit
-    notify_group_members(
+    # The version is part of the key so a later edit of the same expense notifies again.
+    await notify_group_members(
+        db=db,
         group=group,
         actor_id=current_user.id,
         kind="group_expense_updated",
-        ref=str(expense.id),
+        ref=f"{expense.id}:v{new_version}",
         payload={
             "expense_id": str(expense.id),
             "group_id": str(group_id),
             "description": new_description,
             "amount_paise": new_amount,
-            "updated_by": str(current_user.id),
-            "new_balances": new_balances,
+            "actor_name": current_user.name,
         },
     )
 
@@ -1004,18 +1012,18 @@ async def delete_shared_expense(
         raise
 
     # Notify all active members after commit
-    notify_group_members(
+    await notify_group_members(
+        db=db,
         group=group,
         actor_id=current_user.id,
         kind="group_expense_deleted",
-        ref=str(expense.id),
+        ref=f"{expense.id}:v{new_version}",
         payload={
             "expense_id": str(expense.id),
             "group_id": str(group_id),
             "description": expense.description,
             "amount_paise": expense.amount_minor,
-            "deleted_by": str(current_user.id),
-            "new_balances": new_balances,
+            "actor_name": current_user.name,
         },
     )
 

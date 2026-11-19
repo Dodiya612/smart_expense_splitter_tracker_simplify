@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 import string
 import uuid
@@ -21,6 +22,7 @@ from app.models.group import (
     InvitationStatus,
 )
 from app.models.user import User
+from app.services.notifications import current_member_roles, notify_group_members, notify_users
 from app.schemas.group import (
     CreateInvitationRequest,
     GroupCreateRequest,
@@ -367,6 +369,67 @@ async def revoke_join_code(
     await db.commit()
 
 
+logger = logging.getLogger(__name__)
+
+
+def _group_payload(group: Group, actor: User) -> dict:
+    return {
+        "group_id": str(group.id),
+        "group_name": group.name,
+        "actor_name": actor.name,
+    }
+
+
+async def _notify_member_joined(
+    db: AsyncSession,
+    group: Group, joiner: User, joined_at: datetime, exclude: tuple | list = ()
+) -> None:
+    """Post-commit: active members (not the joiner) hear that someone joined.
+
+    The joined_at time is in the key, so someone who leaves and rejoins notifies again.
+    """
+    try:
+        await notify_group_members(
+            group, joiner.id, "member_joined",
+            f"{group.id}:{joiner.id}:{joined_at.isoformat()}",
+            _group_payload(group, joiner),
+            exclude=exclude,
+            db=db,
+        )
+    except Exception:  # noqa: BLE001 - the join is already committed
+        logger.exception("Join notification failed after commit; membership kept.")
+
+
+async def _notify_member_removed(
+    db: AsyncSession,
+    group: Group, actor: User, member: GroupMember, is_leaving: bool
+) -> None:
+    """Post-commit: tell the removed user, and tell the active admins.
+
+    ``group`` was loaded before the status change but the member row is the same
+    object, so ``group.members`` already shows the new status; the removed user is
+    never counted as an active recipient.
+    """
+    by_id = {m.user_id: m for m in group.members}
+    target = by_id.get(member.user_id)
+    target_name = target.user.name if target is not None and target.user is not None else "A member"
+    ref = f"{group.id}:{member.user_id}:{member.updated_at.isoformat()}"
+    payload = {**_group_payload(group, actor), "target_id": str(member.user_id), "target_name": target_name}
+    roles = await current_member_roles(db, group)
+    admins = [
+        user_id for user_id, role in roles.items()
+        if role == GroupMemberRole.ADMIN.value and user_id != member.user_id
+    ]
+    if is_leaving:
+        await notify_users(admins, actor.id, "member_left", ref, payload, group_id=group.id)
+        return
+    await notify_users(
+        [member.user_id], actor.id, "member_removed", ref,
+        {**payload, "you": True}, group_id=group.id,
+    )
+    await notify_users(admins, actor.id, "member_removed", ref, payload, group_id=group.id)
+
+
 async def join_group_by_code(
     db: AsyncSession,
     current_user: User,
@@ -448,6 +511,7 @@ async def join_group_by_code(
     await db.commit()
     # Reload group to return updated state
     updated_group = await get_group_or_404(db, group.id)
+    await _notify_member_joined(db, updated_group, current_user, now)
     return format_group_response(updated_group, current_user.id)
 
 
@@ -503,6 +567,10 @@ async def remove_member(
     )
     member.updated_at = utcnow()
     await db.commit()
+    try:
+        await _notify_member_removed(db, group, current_user, member, is_leaving)
+    except Exception:  # noqa: BLE001 - the removal is already committed
+        logger.exception("Membership notification failed after commit; change kept.")
 
 
 async def create_invitation(
@@ -576,6 +644,14 @@ async def create_invitation(
     db.add(invitation)
     await db.commit()
     await db.refresh(invitation)
+
+    if invited_user is not None:
+        await notify_users(
+            [invited_user.id], current_user.id, "invitation_received",
+            str(invitation.id),
+            {**_group_payload(group, current_user), "invitation_id": str(invitation.id)},
+            group_id=group.id,
+        )
 
     return InvitationResponse(
         id=invitation.id,
@@ -760,6 +836,14 @@ async def accept_invitation(
     await db.commit()
 
     updated_group = await get_group_or_404(db, group.id)
+    payload = _group_payload(updated_group, current_user)
+    # The inviter hears "accepted"; everyone else active hears "joined" (no double notice).
+    await notify_users(
+        [invitation.created_by], current_user.id, "invitation_accepted",
+        str(invitation.id), {**payload, "invitation_id": str(invitation.id)},
+        group_id=group.id,
+    )
+    await _notify_member_joined(db, updated_group, current_user, now, exclude=[invitation.created_by])
     return format_group_response(updated_group, current_user.id)
 
 
@@ -802,4 +886,15 @@ async def decline_invitation(
 
     invitation.status = InvitationStatus.DECLINED.value
     await db.commit()
+
+    try:
+        group = await get_group_or_404(db, invitation.group_id)
+        await notify_users(
+            [invitation.created_by], current_user.id, "invitation_declined",
+            str(invitation.id),
+            {**_group_payload(group, current_user), "invitation_id": str(invitation.id)},
+            group_id=group.id,
+        )
+    except Exception:  # noqa: BLE001 - the decline is already committed
+        logger.exception("Decline notification failed after commit; decline kept.")
 
