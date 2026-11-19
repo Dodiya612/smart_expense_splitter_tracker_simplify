@@ -18,7 +18,11 @@ const KINDS = [
   'invitation_declined',
   'member_removed',
   'member_left',
+  'password_changed',
 ] as const;
+
+/** Security notices cannot be switched off (backend SECURITY_KINDS). */
+const ALWAYS_ON = new Set<string>(['password_changed']);
 
 interface MockNotification {
   id: string;
@@ -80,7 +84,11 @@ function list(endpoint: string): unknown {
 
 function preferences(): unknown {
   return {
-    preferences: KINDS.map((kind) => ({ kind, enabled: !disabled.has(kind), can_disable: true })),
+    preferences: KINDS.map((kind) => ({
+      kind,
+      enabled: ALWAYS_ON.has(kind) || !disabled.has(kind),
+      can_disable: !ALWAYS_ON.has(kind),
+    })),
   };
 }
 
@@ -121,8 +129,34 @@ export function mockNotificationsPut(endpoint: string, body: unknown): unknown {
     if (!item.kind || !(KINDS as readonly string[]).includes(item.kind)) {
       throw new ApiError('VALIDATION_ERROR', 'Unknown notification kind.', false);
     }
+    if (item.enabled === false && ALWAYS_ON.has(item.kind)) {
+      throw new ApiError('VALIDATION_ERROR', 'Security notices cannot be switched off.', false);
+    }
     if (item.enabled === false) disabled.add(item.kind);
     else disabled.delete(item.kind);
   }
   return preferences();
+}
+
+let passwordNoticeCount = 0;
+
+/** Mirrors the backend's post-commit password_changed notice (T-50). */
+export function mockAddPasswordChangedNotice(revokedSessions: number): void {
+  passwordNoticeCount += 1;
+  const devices = revokedSessions === 1 ? 'device' : 'devices';
+  const detail = revokedSessions > 0 ? ` You were signed out on ${revokedSessions} other ${devices}.` : '';
+  notifications = [
+    {
+      id: `ntf_mock_pw_${passwordNoticeCount}`,
+      kind: 'password_changed',
+      title: 'Password changed',
+      body: `Your account password was changed.${detail} If you did not make this change, secure your account immediately.`,
+      payload: { revoked_sessions: revokedSessions },
+      group_id: null,
+      is_read: false,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    },
+    ...notifications,
+  ];
 }

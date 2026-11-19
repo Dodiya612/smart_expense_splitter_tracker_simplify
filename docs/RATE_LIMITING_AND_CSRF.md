@@ -60,6 +60,7 @@ every worker and instance. No Redis and no extra dependency are used.
 | | | account, all addresses | 30 / 15 min | `RATE_LIMIT_LOGIN_ACCOUNT_MAX` | 503 |
 | Signup | `POST /auth/signup`, `/auth/register` (shared) | address | 5 / hour | `RATE_LIMIT_SIGNUP_IP_MAX`, `RATE_LIMIT_SIGNUP_WINDOW_SECONDS` | 503 |
 | Refresh | `POST /auth/refresh` | address | 120 / 15 min | `RATE_LIMIT_REFRESH_IP_MAX`, `RATE_LIMIT_REFRESH_WINDOW_SECONDS` | 503 |
+| Change password (T-50) | `POST /auth/change-password` | user (every attempt, not refunded) | 5 / 15 min | `RATE_LIMIT_PASSWORD_CHANGE_USER_MAX`, `RATE_LIMIT_PASSWORD_CHANGE_WINDOW_SECONDS` | 503 |
 | Invitations | `POST /groups/{id}/invitations` | user | 20 / hour | `RATE_LIMIT_INVITE_USER_MAX`, `RATE_LIMIT_INVITE_WINDOW_SECONDS` | **503** |
 | Join by code | `POST /groups/join` | user | 10 / 15 min | `RATE_LIMIT_JOIN_USER_MAX`, `RATE_LIMIT_JOIN_WINDOW_SECONDS` | 503 |
 | Join-code rotation | `POST /groups/{id}/join-code` | user | 10 / hour | `RATE_LIMIT_JOIN_CODE_USER_MAX`, `RATE_LIMIT_JOIN_CODE_WINDOW_SECONDS` | 503 |

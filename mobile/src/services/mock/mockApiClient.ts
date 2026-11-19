@@ -3,11 +3,14 @@ import {
   ApiClient,
   ApiError,
   AuthResponse,
+  ChangePasswordPayload,
+  ChangePasswordResponse,
   LoginCredentials,
   SignupPayload,
 } from '@/services/api/types';
 import { mockBalancesGet, mockBalancesPost } from '@/services/mock/mockBalances';
 import {
+  mockAddPasswordChangedNotice,
   mockNotificationsGet,
   mockNotificationsPatch,
   mockNotificationsPut,
@@ -22,6 +25,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * - Email containing "network.error" simulates a retryable network drop.
  * - Email containing "invalid" simulates bad credentials (non-retryable).
  * - Email containing "exists" simulates an existing account collision during sign-up.
+ * - Change password: current password "wrong" is rejected and "network.error" simulates a
+ *   retryable network drop; otherwise it succeeds and adds a password_changed notice.
  */
 export class MockApiClient implements ApiClient {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -104,6 +109,35 @@ export class MockApiClient implements ApiClient {
       id: 'usr_mock_1',
       name: 'Aarav Sharma',
       email: 'aarav.sharma@example.in',
+    };
+  }
+
+  async changePassword(payload: ChangePasswordPayload): Promise<ChangePasswordResponse> {
+    await sleep(config.mockApiLatencyMs);
+    if (payload.currentPassword === 'network.error') {
+      throw new ApiError(
+        'NETWORK_ERROR',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+        true
+      );
+    }
+    if (payload.currentPassword === 'wrong') {
+      throw new ApiError('INVALID_CURRENT_PASSWORD', 'Your current password is incorrect.', false);
+    }
+    if (payload.newPassword !== payload.confirmNewPassword) {
+      throw new ApiError('PASSWORD_MISMATCH', 'The new password and its confirmation do not match.', false);
+    }
+    const revokedSessions = 1;
+    mockAddPasswordChangedNotice(revokedSessions);
+    return {
+      message: 'Your password has been changed.',
+      tokens: {
+        accessToken: 'mock_jwt_access_token',
+        refreshToken: 'mock_refresh_token',
+        tokenType: 'bearer',
+        expiresIn: 900,
+      },
+      revokedSessions,
     };
   }
 

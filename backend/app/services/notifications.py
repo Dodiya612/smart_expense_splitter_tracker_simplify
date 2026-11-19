@@ -101,6 +101,18 @@ def render_notification(kind: str, payload: Dict[str, Any]) -> tuple[str, str]:
         return f"Member removed from {group}", f"{actor} removed {target} from {group}."
     if kind == "member_left":
         return f"Member left {group}", f"{actor} left the group."
+    if kind == "password_changed":
+        signed_out = payload.get("revoked_sessions")
+        if isinstance(signed_out, int) and not isinstance(signed_out, bool) and signed_out > 0:
+            devices = "device" if signed_out == 1 else "devices"
+            detail = f" You were signed out on {signed_out} other {devices}."
+        else:
+            detail = ""
+        return (
+            "Password changed",
+            f"Your account password was changed.{detail} "
+            "If you did not make this change, secure your account immediately.",
+        )
     return "Notification", ""
 
 
