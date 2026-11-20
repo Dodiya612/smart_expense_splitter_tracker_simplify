@@ -59,6 +59,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="notification-settings" />
+          <Stack.Screen name="change-password" />
           <Stack.Screen name="analytics" />
           <Stack.Screen name="budgets" />
         </Stack>

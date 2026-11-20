@@ -16,6 +16,8 @@ export const NOTIFICATION_KINDS = [
   'invitation_declined',
   'member_removed',
   'member_left',
+  // T-50 security notice: always on (the server reports can_disable: false).
+  'password_changed',
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

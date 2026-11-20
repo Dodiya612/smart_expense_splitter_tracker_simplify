@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_SIGNUP_WINDOW_SECONDS: int = 3600
     RATE_LIMIT_REFRESH_IP_MAX: int = 120
     RATE_LIMIT_REFRESH_WINDOW_SECONDS: int = 900
+    # T-50 change password: attempts per authenticated user (each one verifies the current
+    # password, so this caps guessing with a stolen access token). Not refunded on success.
+    RATE_LIMIT_PASSWORD_CHANGE_USER_MAX: int = 5
+    RATE_LIMIT_PASSWORD_CHANGE_WINDOW_SECONDS: int = 900
     RATE_LIMIT_INVITE_USER_MAX: int = 20
     RATE_LIMIT_INVITE_WINDOW_SECONDS: int = 3600
     RATE_LIMIT_JOIN_USER_MAX: int = 10

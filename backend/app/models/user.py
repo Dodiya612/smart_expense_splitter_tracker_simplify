@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List
-from sqlalchemy import Boolean, DateTime, String, Uuid
+from sqlalchemy import Boolean, DateTime, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -41,6 +41,15 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
+        nullable=False,
+    )
+    # T-50: bumped on every password change. Access tokens carry it as the ``tv`` claim and
+    # get_current_user rejects a token whose version is stale, so changing the password ends
+    # every other device's access immediately (not only when its access token expires).
+    token_version: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default=text("0"),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(

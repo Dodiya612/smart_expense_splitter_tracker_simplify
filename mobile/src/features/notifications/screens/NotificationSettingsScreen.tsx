@@ -4,7 +4,9 @@
  */
 
 import React from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Href, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/AppText';
 import { GroupScreenHeader } from '@/features/groups/components/GroupScreenHeader';
@@ -96,6 +98,34 @@ export function NotificationSettingsScreen() {
             </View>
           );
         })}
+        {/* T-50 entry point. Move to the Profile tab once that screen exists. */}
+        <AppText variant="small" color="textSecondary" style={{ marginTop: theme.spacing.xl }}>
+          Account security
+        </AppText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change password"
+          accessibilityHint="Opens the change password screen"
+          onPress={() => router.push('/change-password' as Href)}
+          style={({ pressed }) => [
+            styles.row,
+            {
+              minHeight: theme.minTouchTarget,
+              paddingVertical: theme.spacing.md,
+              gap: theme.spacing.md,
+              borderBottomColor: theme.colors.border,
+            },
+            pressed && styles.pressed,
+          ]}>
+          <Ionicons name="key-outline" size={20} color={theme.colors.textPrimary} />
+          <View style={styles.text}>
+            <AppText variant="bodyStrong">Change password</AppText>
+            <AppText variant="small" color="textSecondary">
+              Signs you out on your other devices
+            </AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -104,4 +134,5 @@ export function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   text: { flex: 1, gap: 2 },
+  pressed: { opacity: 0.7 },
 });

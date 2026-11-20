@@ -459,6 +459,82 @@
         }
       }
     },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Change the authenticated user's password and sign out every other device",
+        "description": "Verify the current password, store the new one and revoke every other session.\n\nOnly the authenticated user's own password can change: the account comes from the\nvalidated access token, never from the request body. In ONE transaction it:\n\n* locks the user row and verifies ``current_password`` against the locked hash;\n* stores the Argon2id hash of the new password and increments ``token_version``, which\n  makes every access token issued before now invalid on its next use (all devices);\n* revokes every unrevoked refresh token of the user: other devices can no longer\n  refresh, and this device's refresh token is rotated within its family.\n\nThis device gets a fresh token pair in the response and stays signed in. The\n``password_changed`` notice is stored only after the commit succeeds.",
+        "operationId": "change_password_api_v1_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/expenses": {
       "post": {
         "tags": [
@@ -3811,6 +3887,58 @@
         "title": "CategorySuggestionResponse",
         "description": "Enveloped suggestion response."
       },
+      "ChangePasswordRequest": {
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Currentpassword"
+          },
+          "newPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Newpassword"
+          },
+          "confirmNewPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Confirmnewpassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "confirmNewPassword"
+        ],
+        "title": "ChangePasswordRequest",
+        "description": "T-50. Length and strength rules for ``new_password`` are checked in the endpoint so\neach failure gets its own error code; these bounds only stop oversized input early.\nPassword values are never echoed back in responses or validation errors."
+      },
+      "ChangePasswordResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenBundle"
+          },
+          "revokedSessions": {
+            "type": "integer",
+            "title": "Revokedsessions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "tokens"
+        ],
+        "title": "ChangePasswordResponse"
+      },
       "CreateInvitationRequest": {
         "properties": {
           "email": {
@@ -5181,7 +5309,7 @@
               "$ref": "#/components/schemas/NotificationPreferenceItem"
             },
             "type": "array",
-            "maxItems": 10,
+            "maxItems": 11,
             "minItems": 1,
             "title": "Preferences"
           }

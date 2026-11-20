@@ -126,6 +126,7 @@ const KIND_LABELS: Record<NotificationKind, { label: string; hint: string }> = {
   invitation_declined: { label: 'Declined invitations', hint: 'Someone declines your invitation' },
   member_removed: { label: 'Removed members', hint: 'You are removed, or an admin removes a member' },
   member_left: { label: 'Members leaving', hint: 'Someone leaves a group you manage' },
+  password_changed: { label: 'Password changes', hint: 'Your account password is changed' },
 };
 
 export function preferenceLabel(kind: string): { label: string; hint: string } {
