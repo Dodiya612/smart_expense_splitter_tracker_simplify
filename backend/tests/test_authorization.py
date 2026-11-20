@@ -473,6 +473,9 @@ async def test_stranger_unauthenticated_requests_all_protected_endpoints(client_
         ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified", None),
         ("GET", f"/api/v1/groups/{random_uuid}/settlements", None),
         ("POST", f"/api/v1/groups/{random_uuid}/settlements", None),
+        ("GET", "/api/v1/analytics/summary", None),
+        ("GET", "/api/v1/analytics/trends", None),
+        ("GET", "/api/v1/analytics/categories", None),
     ]
 
     for method, path, body in endpoints:
@@ -512,6 +515,9 @@ async def test_stranger_invalid_token_rejected_all_protected_endpoints(client_au
         ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
         ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
         ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
     ]
 
     for method, path in endpoints:
@@ -546,6 +552,9 @@ async def test_stranger_expired_token_rejected_all_protected_endpoints(client_au
         ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
         ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
         ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
     ]
 
     for method, path in endpoints:
