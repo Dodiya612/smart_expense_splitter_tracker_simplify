@@ -12,7 +12,7 @@ from app.api.v1.endpoints import (
     invitations,
     notifications,
     receipts,
-    recurring,          # imported for completeness; not exposed here
+
 )
 
 api_router = APIRouter()
