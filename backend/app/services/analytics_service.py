@@ -32,7 +32,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import BigInteger, Date, DateTime, Select, cast, func, literal, literal_column, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.authorization import GroupPolicy
+from app.core.authorization import ExpensePolicy, GroupPolicy
 from app.models.category import Category
 from app.models.expense import Expense, ExpensePayment, ExpenseShare
 from app.models.group import Group, GroupMember
@@ -181,13 +181,17 @@ def ledger_rows(f: AnalyticsFilter) -> Any:
         payment_leg = payment_leg.where(Expense.group_id == f.group_id)
         return union_all(share_leg, payment_leg).subquery("analytics_rows")
 
-    personal_leg = select(
-        Expense.id.label("expense_id"),
-        Expense.expense_date.label("expense_date"),
-        Expense.category_id.label("category_id"),
-        cast(Expense.amount_minor, BigInteger).label("share_paise"),
-        cast(Expense.amount_minor, BigInteger).label("cash_paid_paise"),
-    ).where(Expense.user_id == f.user_id, Expense.group_id.is_(None), live, *in_range)
+    # Personal expenses are scoped by the expense policy (owner only, soft-deleted excluded).
+    personal_leg = ExpensePolicy.scope_query(
+        select(
+            Expense.id.label("expense_id"),
+            Expense.expense_date.label("expense_date"),
+            Expense.category_id.label("category_id"),
+            cast(Expense.amount_minor, BigInteger).label("share_paise"),
+            cast(Expense.amount_minor, BigInteger).label("cash_paid_paise"),
+        ),
+        f.user_id,
+    ).where(Expense.group_id.is_(None), *in_range)
     return union_all(personal_leg, share_leg, payment_leg).subquery("analytics_rows")
 
 
