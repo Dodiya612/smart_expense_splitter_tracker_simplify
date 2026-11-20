@@ -2,6 +2,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.core.config import settings
 from app.core.database import engine
 from app.services import notifications
 from tests import notification_fakes, rate_limit_fakes
@@ -33,6 +34,17 @@ def fake_notification_store(monkeypatch):
     monkeypatch.setattr(notifications, "active_member_roles", notification_fakes.no_database_membership)
     yield
     notification_fakes.clear_emitted_notifications()
+
+
+@pytest.fixture(autouse=True)
+def recurring_background_off(monkeypatch):
+    """Never start the recurring-expense scheduler or the login catch-up in tests (T-44).
+
+    Tests that exercise them switch them on explicitly (tests/test_recurring.py and
+    tests/test_recurring_pg.py).
+    """
+    monkeypatch.setattr(settings, "RECURRING_SCHEDULER_ENABLED", False)
+    monkeypatch.setattr(settings, "RECURRING_LOGIN_CATCHUP_ENABLED", False)
 
 
 @pytest.fixture(autouse=True)
