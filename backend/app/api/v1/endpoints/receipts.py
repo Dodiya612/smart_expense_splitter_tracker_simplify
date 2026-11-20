@@ -65,6 +65,10 @@ async def scan_receipt_endpoint(
             category=extracted.category,
             notes=extracted.notes,
             file_size=receipt.file_size,
+            items=extracted.items if hasattr(extracted, "items") else None,
+            confidence=extracted.confidence if hasattr(extracted, "confidence") else None,
+            is_draft=getattr(extracted, "is_draft", True),
+            ocr_engine=getattr(extracted, "ocr_engine_used", None),
         ),
         message="Receipt processed successfully.",
     )
