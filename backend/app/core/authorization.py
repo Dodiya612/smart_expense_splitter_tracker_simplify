@@ -19,6 +19,7 @@ from sqlalchemy import Select, select
 
 from app.models.category import Category
 from app.models.expense import Expense
+from app.models.recurring import RecurringRule
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
@@ -285,6 +286,34 @@ class SessionPolicy:
     def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
         """Scopes session query strictly to authenticated user's tokens."""
         return stmt.where(RefreshToken.user_id == user_id)
+
+
+class RecurringRulePolicy:
+    """Record-level access policy for recurring expense rules (US-14 / T-44).
+
+    A rule is visible to and changeable by its owner only. Group rules are still owned by
+    the member who created them; other group members see only the expenses they produce.
+    Any other user gets the same 404 as a rule that does not exist.
+    """
+
+    @staticmethod
+    def not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECURRING_RULE_NOT_FOUND", "message": "Recurring rule not found."},
+        )
+
+    @staticmethod
+    def authorize(current_user: User, rule: RecurringRule | None, action: Action = Action.READ) -> RecurringRule:
+        """Return the rule if the user owns it, otherwise raise 404 (never 403)."""
+        if rule is None or rule.owner_id != current_user.id:
+            raise RecurringRulePolicy.not_found()
+        return rule
+
+    @staticmethod
+    def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
+        """Scope a rule query to the authenticated owner."""
+        return stmt.where(RecurringRule.owner_id == user_id)
 
 
 class GroupPolicy:

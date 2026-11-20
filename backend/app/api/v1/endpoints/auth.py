@@ -51,7 +51,7 @@ from app.schemas.auth import (
     UserResponse,
     UserSignupRequest,
 )
-from app.services import notifications
+from app.services import notifications, recurring_service
 
 router = APIRouter()
 
@@ -269,6 +269,10 @@ async def login(
     await clear(get_policy("login_account"), normalized_email)
     if client_ip is not None:
         await clear(pair_policy, pair_id)
+
+    # T-44: create this user's missed recurring expenses. Time-limited and never raises,
+    # so a slow or failing generator cannot delay or break a successful login.
+    await recurring_service.catch_up_after_login(user.id)
 
     access_token = create_access_token(
         user_id=user.id,

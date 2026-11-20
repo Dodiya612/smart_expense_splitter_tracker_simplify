@@ -75,12 +75,17 @@ async def create_expense(
     user_id: uuid.UUID,
     data: ExpenseCreate,
     idempotency_key: str | None = None,
+    *,
+    expense_id: uuid.UUID | None = None,
 ) -> tuple[Expense, bool]:
     """
     Create a new personal expense record for the authenticated user.
     If idempotency_key is provided:
       - Valid duplicate requests return the existing expense record (is_cached=True).
       - Reusing the key with a different payload returns HTTP 409 Conflict.
+    ``expense_id`` (optional) pre-assigns the new row's id so a caller can stage rows that
+    reference it in the same session; they commit in this function's single transaction
+    (used by the recurring-expense generator, T-44). Default: a fresh uuid4.
     Returns:
       (Expense, is_cached: bool)
     """
@@ -151,7 +156,7 @@ async def create_expense(
     # 2. Instantiate new Expense model
     now = utcnow()
     expense = Expense(
-        id=uuid.uuid4(),
+        id=expense_id or uuid.uuid4(),
         user_id=user_id,
         category_id=data.category_id,
         amount_minor=data.amount_minor,

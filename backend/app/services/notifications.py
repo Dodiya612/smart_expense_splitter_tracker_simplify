@@ -113,6 +113,13 @@ def render_notification(kind: str, payload: Dict[str, Any]) -> tuple[str, str]:
             f"Your account password was changed.{detail} "
             "If you did not make this change, secure your account immediately.",
         )
+    if kind == "recurring_expense_upcoming":
+        on = payload.get("occurrence_date") or "tomorrow"
+        return "Upcoming recurring expense", f"{description}{amount_part} will be added on {on}."
+    if kind == "recurring_expense_skipped":
+        on = payload.get("occurrence_date") or "its date"
+        reason = payload.get("reason_text") or "it could not be created"
+        return "Recurring expense skipped", f"{description}{amount_part} for {on} was not added: {reason}."
     return "Notification", ""
 
 
