@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from typing import Any
 
 from app.schemas.common import BaseSchema
 
@@ -16,6 +17,10 @@ class ReceiptScanResponseData(BaseSchema):
     category: str | None = None
     notes: str | None = None
     file_size: int
+    items: list[dict[str, Any]] | None = None
+    confidence: dict[str, float] | None = None
+    is_draft: bool = True
+    ocr_engine: str | None = None
 
 
 class ReceiptScanResponse(BaseSchema):

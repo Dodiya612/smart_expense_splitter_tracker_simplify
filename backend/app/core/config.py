@@ -124,6 +124,17 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str | None = None
     RECEIPTS_BUCKET: str = "receipts"
 
+    # OCR Pipeline Configuration (US-16 / T-47)
+    OCR_SPACE_API_KEY: str | None = Field(
+        default="helloworld",
+        validation_alias=AliasChoices("OCR_SPACE_API_KEY"),
+    )
+    OCR_SPACE_ENABLED: bool = True
+    OCR_SPACE_TIMEOUT_SECONDS: float = 8.0
+    TESSERACT_ENABLED: bool = True
+    TESSERACT_TIMEOUT_SECONDS: float = 5.0
+    TESSERACT_CMD: str | None = None
+
 
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":
