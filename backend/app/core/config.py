@@ -135,6 +135,16 @@ class Settings(BaseSettings):
     TESSERACT_TIMEOUT_SECONDS: float = 5.0
     TESSERACT_CMD: str | None = None
 
+    # Recurring expenses (US-14 / T-44). There is no external cron: while the server is up an
+    # in-process task runs the generator at startup and then every RECURRING_RUN_INTERVAL_SECONDS,
+    # and each successful login catches up that user's rules (bounded by a time limit so login
+    # never waits long; the next run finishes anything left). Every run creates at most
+    # RECURRING_MAX_OCCURRENCES_PER_RULE_PER_RUN occurrences per rule.
+    RECURRING_SCHEDULER_ENABLED: bool = True
+    RECURRING_RUN_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
+    RECURRING_LOGIN_CATCHUP_ENABLED: bool = True
+    RECURRING_LOGIN_CATCHUP_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0, le=30)
+    RECURRING_MAX_OCCURRENCES_PER_RULE_PER_RUN: int = Field(default=100, ge=1, le=1000)
 
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":

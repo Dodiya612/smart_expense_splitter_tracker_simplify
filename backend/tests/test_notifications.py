@@ -130,11 +130,15 @@ def test_migration_and_model_agree_on_kinds():
 
     m011 = load("m011", "011_create_notifications.py")
     m014 = load("m014", "014_password_change.py")
+    m015 = load("m015", "015_recurring_expenses.py")
     assert m011.down_revision == "010_create_settlements"
-    # 014 (T-50) replaces 011's CHECK constraints: it must start from 011's list and end at the model's.
+    # 014 (T-50) replaces 011's CHECK constraints: it must start from 011's list.
     assert tuple(m014.OLD_KINDS) == tuple(m011.KINDS)
-    assert tuple(m014.NEW_KINDS) == notification_models.NOTIFICATION_KINDS
     assert m014.down_revision == "013_merge_rate_limit_and_receipts"
+    # 015 (T-44) replaces 014's: it must start from 014's list and end at the model's.
+    assert tuple(m015.OLD_KINDS) == tuple(m014.NEW_KINDS)
+    assert tuple(m015.NEW_KINDS) == notification_models.NOTIFICATION_KINDS
+    assert m015.down_revision == "014_password_change"
 
 
 # ==============================================================================

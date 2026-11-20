@@ -314,10 +314,12 @@ def test_migration_012_extends_t36_011_and_there_is_a_single_alembic_head():
     config = Config(str(backend / "alembic.ini"))
     config.set_main_option("script_location", str(backend / "alembic"))
     script = ScriptDirectory.from_config(config)
-    # Exactly one head. T-46's 013 merges the two 012 branches; T-50's 014 sits on top of it.
+    # Exactly one head. T-46's 013 merges the two 012 branches; T-50's 014 sits on top of it,
+    # and T-44's 015 on top of 014.
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["014_password_change"]
+    assert heads == ["015_recurring_expenses"]
+    assert script.get_revision("015_recurring_expenses").down_revision == "014_password_change"
     assert (
         script.get_revision("014_password_change").down_revision
         == "013_merge_rate_limit_and_receipts"

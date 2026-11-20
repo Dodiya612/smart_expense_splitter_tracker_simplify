@@ -3095,6 +3095,487 @@
         }
       }
     },
+    "/api/v1/recurring": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Create a recurring expense rule",
+        "description": "Creates a daily, weekly, monthly or yearly rule (personal, or a group expense with its split). The first occurrence is start_date. Supports idempotent retries via the Idempotency-Key header (a replay adds X-Idempotent-Replay: true).",
+        "operationId": "create_rule_api_v1_recurring_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringRuleCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "List my recurring expense rules",
+        "description": "Your rules with their status and next run date, newest first.",
+        "operationId": "list_rules_api_v1_recurring_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "paused",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            },
+            "description": "Filter by status"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}": {
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Get a recurring expense rule",
+        "operationId": "get_rule_api_v1_recurring__rule_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Edit a recurring expense rule (future occurrences only)",
+        "description": "Changes amount, category, description, notes, merchant, payment mode, end date or (group rules) split. Expenses already created are not modified. A cancelled rule cannot be edited.",
+        "operationId": "update_rule_api_v1_recurring__rule_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringRuleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/pause": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Pause a recurring expense rule",
+        "description": "No occurrences and no reminders are produced while paused.",
+        "operationId": "pause_rule_api_v1_recurring__rule_id__pause_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/resume": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Resume a paused recurring expense rule",
+        "description": "Continues from the next scheduled date on or after today; the paused period is not back-filled.",
+        "operationId": "resume_rule_api_v1_recurring__rule_id__resume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/cancel": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Cancel a recurring expense rule (final)",
+        "operationId": "cancel_rule_api_v1_recurring__rule_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/occurrences": {
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Occurrence history of a recurring expense rule",
+        "description": "Each handled date with the created expense id, or the reason it was skipped. Newest first.",
+        "operationId": "list_occurrences_api_v1_recurring__rule_id__occurrences_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringOccurrenceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -5309,7 +5790,7 @@
               "$ref": "#/components/schemas/NotificationPreferenceItem"
             },
             "type": "array",
-            "maxItems": 11,
+            "maxItems": 13,
             "minItems": 1,
             "title": "Preferences"
           }
@@ -5474,6 +5955,51 @@
           "fileSize": {
             "type": "integer",
             "title": "Filesize"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "isDraft": {
+            "type": "boolean",
+            "title": "Isdraft",
+            "default": true
+          },
+          "ocrEngine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocrengine"
           }
         },
         "type": "object",
@@ -5483,6 +6009,610 @@
         ],
         "title": "ReceiptScanResponseData",
         "description": "Extracted receipt information returned to client."
+      },
+      "RecurringListMeta": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "RecurringListMeta"
+      },
+      "RecurringOccurrenceListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringOccurrenceResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RecurringListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RecurringOccurrenceListResponse"
+      },
+      "RecurringOccurrenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "occurrenceDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Occurrencedate"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "skipped"
+            ],
+            "title": "Status"
+          },
+          "expenseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenseid",
+            "description": "The created expense; null if skipped or the expense was later hard-deleted."
+          },
+          "skipReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipreason",
+            "description": "Error code explaining why the date was skipped."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurrenceDate",
+          "status",
+          "createdAt"
+        ],
+        "title": "RecurringOccurrenceResponse"
+      },
+      "RecurringRuleCreate": {
+        "properties": {
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "yearly"
+            ],
+            "title": "Frequency",
+            "description": "daily, weekly, monthly or yearly."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate",
+            "description": "First occurrence (Asia/Kolkata); today or later."
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate",
+            "description": "Last possible occurrence date (inclusive)."
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise",
+            "description": "Amount of each expense in integer paise (> 0)."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid",
+            "description": "Set for a group rule; omit for a personal rule."
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Group rules only."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "frequency",
+          "startDate",
+          "amountPaise",
+          "categoryId",
+          "description"
+        ],
+        "title": "RecurringRuleCreate",
+        "description": "Payload for creating a recurring expense rule."
+      },
+      "RecurringRuleDataResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecurringRuleResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "RecurringRuleDataResponse"
+      },
+      "RecurringRuleListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringRuleResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RecurringListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RecurringRuleListResponse"
+      },
+      "RecurringRuleResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid"
+          },
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "yearly"
+            ],
+            "title": "Frequency"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate"
+          },
+          "nextRunDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextrundate",
+            "description": "Next occurrence that will be created; null when none remains."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "pausedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pausedat"
+          },
+          "cancelledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelledat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "frequency",
+          "startDate",
+          "status",
+          "amountPaise",
+          "categoryId",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "RecurringRuleResponse"
+      },
+      "RecurringRuleUpdate": {
+        "properties": {
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecurringRuleUpdate",
+        "description": "Partial edit. Changes apply to future occurrences only; expenses already created are\nnever modified. frequency, start_date and group_id cannot be changed (cancel and create\na new rule instead). Send ``null`` for end_date/notes/merchant/payment_mode to clear them."
+      },
+      "RecurringSplit": {
+        "properties": {
+          "paidByUserId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidbyuserid",
+            "description": "Single payer (a group member)."
+          },
+          "payments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object",
+                "maxProperties": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payments",
+            "description": "Map of member UUID to integer paise paid; must sum to amount_paise."
+          },
+          "participantUserIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participantuserids",
+            "description": "Members who share the expense. Defaults to all active members at creation time."
+          },
+          "splitMode": {
+            "$ref": "#/components/schemas/SplitMode",
+            "description": "equal, exact, percentage or parts.",
+            "default": "equal"
+          },
+          "splitWeights": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "maxProperties": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitweights",
+            "description": "Per-member weights for exact (integer paise), percentage or parts modes."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecurringSplit",
+        "description": "How a group rule's expense is paid and split. Same fields and meaning as the\nshared-expense create request; omitted fields mean \"owner pays, all active members\nshare equally\" when each occurrence is created."
       },
       "RefreshTokenRequest": {
         "properties": {

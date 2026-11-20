@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     invitations,
     notifications,
     receipts,
+    recurring,
 )
 
 api_router = APIRouter()
@@ -21,6 +22,7 @@ api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["Invitations"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(recurring.router, prefix="/recurring", tags=["Recurring Expenses"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(
     notifications.preferences_router,

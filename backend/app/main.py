@@ -13,6 +13,7 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
+from app.services import recurring_service
 from app.services.category_suggestion_service import restore_user_history
 
 # Configure logging
@@ -32,7 +33,13 @@ async def lifespan(app: FastAPI):
         logger.info("Restored %d historical category preferences from database", restored)
     except (SQLAlchemyError, OSError, RuntimeError) as exc:
         logger.warning("Startup user history restoration encountered an issue: %s", exc)
-    yield
+    # T-44: recurring expenses. Only STARTS the background task (startup catch-up, then hourly);
+    # startup never waits for it, and a failing run is logged inside the task.
+    scheduler = recurring_service.start_scheduler() if settings.RECURRING_SCHEDULER_ENABLED else None
+    try:
+        yield
+    finally:
+        await recurring_service.stop_scheduler(scheduler)
 
 
 # T-25: Conditionally mount interactive documentation endpoints based on environment/config

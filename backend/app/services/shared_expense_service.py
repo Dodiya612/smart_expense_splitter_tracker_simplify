@@ -107,42 +107,19 @@ async def _notify_expense_created(
     )
 
 
-async def create_shared_expense(
-    db: AsyncSession,
-    group_id: uuid.UUID,
+def resolve_split(
+    group: Group,
     current_user: User,
     payload: SharedExpenseCreateRequest,
-    idempotency_key: Optional[str] = None,
-) -> Tuple[SharedExpenseResponse, bool]:
-    """Create a shared expense in an existing group atomically.
+) -> Tuple[Dict[str, int], uuid.UUID, Dict[str, int]]:
+    """Validate payers and participants against the group's ACTIVE members and allocate
+    shares with the ledger engine. Pure (no database access).
 
-    Integrates with the pure ledger engine to calculate and validate participant shares.
-    Ensures expense, payments, shares, audit and (with a key) idempotency records are
-    committed together in one transaction. Returns (response, is_replay).
+    Returns (payments_map, primary_payer_id, shares_map). Raises the same HTTP 400 errors
+    the create endpoint has always returned. Shared by create_shared_expense() and the
+    recurring-expense rules (T-44), so a stored rule can never hold a split that the
+    create would reject.
     """
-    # 1. Authorize caller is an active group member
-    group = await get_group_or_404(db, group_id)
-    check_group_membership(group, current_user, require_admin=False)
-
-    # 1b. Idempotent retry (US-34): same key + same body replays the original response.
-    idempotency_key, hashed_request, replay = await idempotency.prepare(
-        db, current_user.id, idempotency_key, "shared_expense_create", group_id,
-        payload, SharedExpenseResponse,
-    )
-    if replay is not None:
-        # If the original response was lost after commit, its notifications may not
-        # have been sent; dedupe keys make this a no-op for anyone already notified.
-        await _notify_expense_created(db, group, current_user, replay.id, replay.description, replay.amount_paise)
-        return replay, True
-
-    # 2. Check category exists
-    category = await db.get(Category, payload.category_id)
-    if not category:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "CATEGORY_NOT_FOUND", "message": "Category not found."},
-        )
-
     # 3. Active members of group
     active_members_dict = {
         m.user_id: m for m in group.members if m.status == GroupMemberStatus.ACTIVE.value
@@ -273,6 +250,54 @@ async def create_shared_expense(
             },
         )
 
+    return payments_map, primary_payer_id, shares_map
+
+
+async def create_shared_expense(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    current_user: User,
+    payload: SharedExpenseCreateRequest,
+    idempotency_key: Optional[str] = None,
+    *,
+    expense_id: Optional[uuid.UUID] = None,
+) -> Tuple[SharedExpenseResponse, bool]:
+    """Create a shared expense in an existing group atomically.
+
+    Integrates with the pure ledger engine to calculate and validate participant shares.
+    Ensures expense, payments, shares, audit and (with a key) idempotency records are
+    committed together in one transaction. Returns (response, is_replay).
+
+    ``expense_id`` (optional) pre-assigns the new row's id so a caller can stage rows that
+    reference it in the same session; they commit in this function's single transaction
+    (used by the recurring-expense generator, T-44). Default: a fresh uuid4.
+    """
+    # 1. Authorize caller is an active group member
+    group = await get_group_or_404(db, group_id)
+    check_group_membership(group, current_user, require_admin=False)
+
+    # 1b. Idempotent retry (US-34): same key + same body replays the original response.
+    idempotency_key, hashed_request, replay = await idempotency.prepare(
+        db, current_user.id, idempotency_key, "shared_expense_create", group_id,
+        payload, SharedExpenseResponse,
+    )
+    if replay is not None:
+        # If the original response was lost after commit, its notifications may not
+        # have been sent; dedupe keys make this a no-op for anyone already notified.
+        await _notify_expense_created(db, group, current_user, replay.id, replay.description, replay.amount_paise)
+        return replay, True
+
+    # 2. Check category exists
+    category = await db.get(Category, payload.category_id)
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CATEGORY_NOT_FOUND", "message": "Category not found."},
+        )
+
+    # 3-6. Payers, participants and shares (validated and allocated by the ledger engine)
+    payments_map, primary_payer_id, shares_map = resolve_split(group, current_user, payload)
+
     # 7. Atomic transaction: Expense, ExpensePayment, ExpenseShare, AuditEvent
     mode_str = (
         payload.split_mode.value
@@ -282,6 +307,7 @@ async def create_shared_expense(
 
     try:
         expense = Expense(
+            id=expense_id or uuid.uuid4(),
             group_id=group_id,
             user_id=primary_payer_id,
             category_id=payload.category_id,
