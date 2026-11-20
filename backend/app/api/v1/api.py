@@ -12,7 +12,6 @@ from app.api.v1.endpoints import (
     invitations,
     notifications,
     receipts,
-
 )
 
 api_router = APIRouter()
@@ -24,17 +23,18 @@ api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["Invitations"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+
 # ✅ Keep the analytics‑tools router for the T‑52 feature
 api_router.include_router(
     analytics_tools.router,
     prefix="/analytics-tools",
     tags=["Analytics Tools"],
 )
-# (We deliberately do **not** expose the `recurring` router here; it belongs to main)
+
+# NOTE: we deliberately do **not** expose the `recurring` router here; it belongs to `main`
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(
     notifications.preferences_router,
     prefix="/notification‑preferences",
     tags=["Notifications"],
 )
-# conflict resolved
