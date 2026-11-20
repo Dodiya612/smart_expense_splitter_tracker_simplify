@@ -2687,6 +2687,338 @@
         ]
       }
     },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending summary for a date range",
+        "description": "Your share and cash paid in the range, how many expenses, and what you are owed / owe now.",
+        "operationId": "get_summary_api_v1_analytics_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/trends": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending over time",
+        "description": "Share and cash paid per day, week (Monday\u2013Sunday) or month, with running totals. Empty buckets are included as 0.",
+        "operationId": "get_trends_api_v1_analytics_trends_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "description": "day, week or month.",
+              "default": "day",
+              "title": "Granularity"
+            },
+            "description": "day, week or month."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/categories": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending by category",
+        "description": "Share and cash paid per category in the range, largest share first.",
+        "operationId": "get_categories_api_v1_analytics_categories_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsCategoriesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -2937,6 +3269,207 @@
   },
   "components": {
     "schemas": {
+      "AnalyticsCategoriesResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryBreakdownItem"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Sorted by share_paise, then cash_paid_paise (both descending), then name."
+          },
+          "total_share_paise": {
+            "type": "integer",
+            "title": "Total Share Paise"
+          },
+          "total_cash_paid_paise": {
+            "type": "integer",
+            "title": "Total Cash Paid Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "categories",
+          "total_share_paise",
+          "total_cash_paid_paise"
+        ],
+        "title": "AnalyticsCategoriesResponse"
+      },
+      "AnalyticsSummaryResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise",
+            "description": "Your spending in the range: your share of every expense."
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise",
+            "description": "What you actually paid in the range."
+          },
+          "expense_count": {
+            "type": "integer",
+            "title": "Expense Count",
+            "description": "Expenses in the range you have a share in or paid for."
+          },
+          "owed_to_you_paise": {
+            "type": "integer",
+            "title": "Owed To You Paise",
+            "description": "Current total others owe you across your groups (ledger engine; not limited to the range)."
+          },
+          "you_owe_paise": {
+            "type": "integer",
+            "title": "You Owe Paise",
+            "description": "Current total you owe across your groups (ledger engine; not limited to the range)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "share_paise",
+          "cash_paid_paise",
+          "expense_count",
+          "owed_to_you_paise",
+          "you_owe_paise"
+        ],
+        "title": "AnalyticsSummaryResponse"
+      },
+      "AnalyticsTrendsResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Granularity"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/TrendBucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "Every bucket in the range, empty ones as 0, oldest first."
+          },
+          "total_share_paise": {
+            "type": "integer",
+            "title": "Total Share Paise"
+          },
+          "total_cash_paid_paise": {
+            "type": "integer",
+            "title": "Total Cash Paid Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "granularity",
+          "buckets",
+          "total_share_paise",
+          "total_cash_paid_paise"
+        ],
+        "title": "AnalyticsTrendsResponse"
+      },
       "ApiErrorDetail": {
         "properties": {
           "loc": {
@@ -3039,6 +3572,40 @@
           "file"
         ],
         "title": "Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+      },
+      "CategoryBreakdownItem": {
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Category Id"
+          },
+          "category_name": {
+            "type": "string",
+            "title": "Category Name"
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise"
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise"
+          },
+          "expense_count": {
+            "type": "integer",
+            "title": "Expense Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category_id",
+          "category_name",
+          "share_paise",
+          "cash_paid_paise",
+          "expense_count"
+        ],
+        "title": "CategoryBreakdownItem"
       },
       "CategoryFeedbackData": {
         "properties": {
@@ -5733,6 +6300,50 @@
         ],
         "title": "TransferItem",
         "description": "Suggested repayment produced by ledger.simplify()."
+      },
+      "TrendBucket": {
+        "properties": {
+          "bucket_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Bucket Start",
+            "description": "Calendar start of the bucket (a Monday for weeks, the 1st for months)."
+          },
+          "bucket_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Bucket End",
+            "description": "Calendar end of the bucket (inclusive)."
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise"
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise"
+          },
+          "cumulative_share_paise": {
+            "type": "integer",
+            "title": "Cumulative Share Paise",
+            "description": "Running total of share_paise from the start of the range."
+          },
+          "cumulative_cash_paid_paise": {
+            "type": "integer",
+            "title": "Cumulative Cash Paid Paise",
+            "description": "Running total of cash_paid_paise from the start of the range."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bucket_start",
+          "bucket_end",
+          "share_paise",
+          "cash_paid_paise",
+          "cumulative_share_paise",
+          "cumulative_cash_paid_paise"
+        ],
+        "title": "TrendBucket"
       },
       "UnreadCountResponse": {
         "properties": {
