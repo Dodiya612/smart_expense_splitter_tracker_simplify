@@ -6,8 +6,10 @@ import sys
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(BACKEND_DIR))
+REPO_ROOT = BACKEND_DIR.parent
+for p in (BACKEND_DIR, REPO_ROOT):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 from app.main import app
 

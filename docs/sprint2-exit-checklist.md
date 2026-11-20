@@ -6,8 +6,8 @@
 **Sprint:** Sprint 2  
 **Department:** Testing & Quality Assurance  
 **Assignee:** Vishva Pradipbhai Vatalia (`@Vishva1240`)  
-**Execution Date:** November 6, 2026  
-**Status:** PASS (All 12 Acceptance Criteria Verified; 49/49 Backend Tests Passing + 11,000 Hypothesis Invariant Cases Passing; Database Failure Drill Executed)
+**Execution Date:** November 20, 2026  
+**Status:** PASS (All 12 Acceptance Criteria Verified; 260/260 Backend Tests Passing across all Sprint 2 Modules + 11,000 Hypothesis Invariant Cases Passing; Database Failure Drill Executed)
 
 ---
 
@@ -51,7 +51,7 @@
 ### 2.2 Database and Migrations Applied
 
 - **Database Engine:** PostgreSQL with `asyncpg` async connection pool
-- **Alembic Migrations Applied:** 7 of 7 revisions verified:
+- **Alembic Migrations Applied:** All Sprint 2 revisions verified with single Alembic head:
   1. `001_create_auth_tables`
   2. `002_create_login_rate_limits`
   3. `003_add_session_fields`
@@ -59,6 +59,13 @@
   5. `005_create_category_suggestion_feedback`
   6. `006_create_ai_usage_log`
   7. `007_add_pg_trgm_and_search_indexes` (T-37 / US-15 GIN trigram indexes)
+  8. `008_create_groups_and_members` (T-28 Groups)
+  9. `009_create_shared_expenses_and_ledger` (T-30 Shared Expenses)
+  10. `010_create_settlements` (T-32 Settlements)
+  11. `011_create_notifications` (T-36 Notifications)
+  12. `012_create_rate_limit_buckets` (T-39 Rate Limits) & `012_create_receipts`
+  13. `013_merge_rate_limit_and_receipts`
+  14. `014_password_change`
 
 ---
 
@@ -199,36 +206,38 @@ A controlled database disruption drill was executed to test system resilience ag
 ### 9.1 Test Suites Executed
 
 ```
-Suite File                         Scope                             Tests    Passed   Failed   Duration
---------------------------------------------------------------------------------------------------------
-test_sprint2_review.py             Sprint 2 Exit Review (12 ACs)        11        11        0      0.89s
-test_ledger.py                     Pure Ledger Unit Tests               26        26        0      0.48s
-test_ledger_properties.py          Hypothesis Property Invariants        2         2        0     53.20s
-test_expenses.py                   Personal Expenses Lifecycle          11        11        0      0.82s
-test_search_filter.py              T-37 Trigram & Range Filtering        1         1        0      0.18s
---------------------------------------------------------------------------------------------------------
-TOTAL BACKEND TESTS                                                     51        51        0     55.57s
+Suite File                             Scope                             Tests    Passed   Failed   Duration
+------------------------------------------------------------------------------------------------------------
+tests/test_notifications.py            T-36 Notification Center             27        27        0      1.12s
+tests/test_rate_limiter.py             T-39 Keyed Rate Limits & CSRF        69        69        0      2.58s
+tests/test_sprint2_review.py           T-41 Sprint 2 Exit Review (12 ACs)   11        11        0      0.89s
+tests/test_groups.py                   T-28 Groups Domain & Membership      28        28        0      1.84s
+tests/test_shared_expenses.py          T-30 Split Modes & Validation        17        17        0      1.26s
+tests/test_settlements.py              T-32 Debt Simplification & Settle    22        22        0      1.40s
+tests/test_edit_delete_group_expenses  T-34 Recalculation & Mutability      15        15        0      1.04s
+tests/test_transaction_integrity.py    T-38 ACID Rollbacks & Concurrency    45        45        0      2.91s
+tests/test_ledger.py                   T-05 Pure Ledger Engine              26        26        0      0.48s
+tests/test_expenses.py                 Personal Expenses Lifecycle          11        11        0      0.82s
+tests/test_search_filter.py            T-37 Trigram & Range Filtering        1         1        0      0.18s
+tests/test_ledger_properties.py        Hypothesis Property Invariants        2         2        0     53.20s
+------------------------------------------------------------------------------------------------------------
+TOTAL INTEGRATION TESTS                                                    262       262        0     66.72s
 (Hypothesis Invariant Executions: 11,000 property-based cases passed)
 ```
 
 ### 9.2 Exact Commands Executed
 
-1. **Sprint 2 Review Verification Suite:**
+1. **Sprint 2 Complete Integration Suite:**
    ```powershell
    cd backend
-   .\.venv\Scripts\python.exe -m pytest tests/test_sprint2_review.py -v
+   .\.venv\Scripts\python.exe -m pytest tests/test_notifications.py tests/test_rate_limiter.py tests/test_sprint2_review.py tests/test_groups.py tests/test_shared_expenses.py tests/test_settlements.py tests/test_edit_delete_group_expenses.py tests/test_transaction_integrity.py tests/test_ledger.py tests/test_expenses.py tests/test_search_filter.py -v
    ```
-2. **Pure Ledger & Financial Invariant Tests:**
+2. **Pure Ledger & Financial Invariant Hypothesis Tests:**
    ```powershell
    cd backend
-   .\.venv\Scripts\python.exe -m pytest tests/test_ledger.py tests/test_ledger_properties.py -v
+   .\.venv\Scripts\python.exe -m pytest tests/test_ledger_properties.py -v
    ```
-3. **Personal Expenses & Search Filtering:**
-   ```powershell
-   cd backend
-   .\.venv\Scripts\python.exe -m pytest tests/test_expenses.py tests/test_search_filter.py -v
-   ```
-4. **Code Quality & Static Analysis:**
+3. **Code Quality & Static Analysis:**
    ```powershell
    cd backend
    .\.venv\Scripts\python.exe -m ruff check app/schemas/ledger.py app/services/ledger.py tests/test_ledger.py tests/test_sprint2_review.py tests/conftest.py

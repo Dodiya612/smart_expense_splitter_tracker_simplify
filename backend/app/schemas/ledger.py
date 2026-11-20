@@ -1,7 +1,7 @@
 """Schemas for the pure ledger engine, splits, settlements, and repayments."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -18,29 +18,29 @@ class SplitMode(str, Enum):
 class ExpenseRecord(BaseModel):
     """Record of an expense representing cash paid and allocated shares."""
 
-    expense_id: str | None = Field(
+    expense_id: Optional[str] = Field(
         default=None, description="Unique identifier of the expense."
     )
-    description: str | None = Field(
+    description: Optional[str] = Field(
         default=None, description="Brief description of the expense."
     )
-    amount_paise: int | None = Field(
+    amount_paise: Optional[int] = Field(
         default=None, description="Total expense amount in whole paise."
     )
-    paid_by: str | dict[str, int] | None = Field(
+    paid_by: Optional[Union[str, Dict[str, int]]] = Field(
         default=None,
         description="Single payer ID or mapping of payer IDs to paise paid.",
     )
-    payer_id: str | None = Field(default=None, description="Single payer ID alias.")
-    paid_by_user_id: str | None = Field(
+    payer_id: Optional[str] = Field(default=None, description="Single payer ID alias.")
+    paid_by_user_id: Optional[str] = Field(
         default=None,
         description="Single payer ID alias matching API contracts.",
     )
-    payments: dict[str, int] | None = Field(
+    payments: Optional[Dict[str, int]] = Field(
         default=None,
         description="Payer IDs mapped to paise paid (mixed contributions).",
     )
-    shares: dict[str, int] = Field(
+    shares: Dict[str, int] = Field(
         ...,
         description="Mapping of participant IDs to their allocated share in paise.",
     )
@@ -59,7 +59,7 @@ class ExpenseRecord(BaseModel):
                 data["payer_id"] = data["paid_by"]
         return data
 
-    def get_payments(self) -> dict[str, int]:
+    def get_payments(self) -> Dict[str, int]:
         """Return a mapping of payer ID to cash paid in paise."""
         if self.payments:
             return {k: v for k, v in self.payments.items() if v > 0}
@@ -83,7 +83,7 @@ class ExpenseRecord(BaseModel):
 class SettlementRecord(BaseModel):
     """Record of a debt settlement / repayment between two members."""
 
-    settlement_id: str | None = Field(
+    settlement_id: Optional[str] = Field(
         default=None, description="Unique identifier of the settlement."
     )
     from_user: str = Field(..., description="User ID of member paying / debtor.")

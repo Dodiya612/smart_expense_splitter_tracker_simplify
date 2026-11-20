@@ -19,6 +19,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # 0. Widen alembic_version.version_num (Alembic creates it as VARCHAR(32)).
+    # Revision IDs from 004 onward are longer than 32 characters, so a fresh
+    # `alembic upgrade head` fails at 004 without this. The version table
+    # already exists when this first migration runs.
+    op.alter_column(
+        'alembic_version',
+        'version_num',
+        existing_type=sa.String(length=32),
+        type_=sa.String(length=128),
+        existing_nullable=False,
+    )
+
     # 1. Create users table
     op.create_table(
         'users',
@@ -65,3 +77,13 @@ def downgrade() -> None:
     # 2. Drop users table and indexes
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
+
+    # 3. Restore alembic_version.version_num to Alembic's default VARCHAR(32).
+    # At this point the only stored value is '001_create_auth_tables', which fits.
+    op.alter_column(
+        'alembic_version',
+        'version_num',
+        existing_type=sa.String(length=128),
+        type_=sa.String(length=32),
+        existing_nullable=False,
+    )

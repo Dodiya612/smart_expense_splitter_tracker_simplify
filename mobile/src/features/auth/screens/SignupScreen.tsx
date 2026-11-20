@@ -11,6 +11,7 @@ import { useKeyboardAwareScroll } from '@/features/auth/hooks/useKeyboardAwareSc
 import { useSignup } from '@/features/auth/hooks/useSignup';
 import { AuthFormErrors, SignupFormValues } from '@/features/auth/types';
 import { getPasswordStrength, validateSignup } from '@/features/auth/utils/validation';
+import { consumePendingJoinPath } from '@/features/groups/utils/pendingJoin';
 import { useTheme } from '@/theme';
 
 const INITIAL_VALUES: SignupFormValues = { name: '', email: '', password: '', confirmPassword: '' };
@@ -55,14 +56,14 @@ export function SignupScreen() {
     setFieldErrors({});
     const success = await signup(values);
     if (success) {
-      router.replace('/(tabs)/home' as Href);
+      router.replace((consumePendingJoinPath() ?? '/(tabs)/home') as Href);
     }
   };
 
   const handleRetry = async () => {
     const success = await retry();
     if (success) {
-      router.replace('/(tabs)/home' as Href);
+      router.replace((consumePendingJoinPath() ?? '/(tabs)/home') as Href);
     }
   };
 

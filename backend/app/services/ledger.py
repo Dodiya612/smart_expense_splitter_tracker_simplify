@@ -1,4 +1,3 @@
-# ruff: noqa: TRY004
 """Pure ledger engine functions for splits, net positions, and debt simplification.
 
 This module implements the deterministic financial arithmetic defined in docs/ledger.md:
@@ -13,7 +12,7 @@ floating-point math at calculation boundaries.
 from collections import defaultdict
 from decimal import Decimal
 from fractions import Fraction
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from app.schemas.ledger import (
     ExpenseRecord,
@@ -35,10 +34,10 @@ __all__ = [
 
 def allocate(
     amount_paise: int,
-    participants: list[str],
-    split_mode: SplitMode | str,
-    weights: list[int | float] | dict[str, Any] | None = None,
-) -> dict[str, int]:
+    participants: List[str],
+    split_mode: Union[SplitMode, str],
+    weights: Optional[Union[List[Union[int, float]], Dict[str, Any]]] = None,
+) -> Dict[str, int]:
     """Allocate paise across participants using largest-remainder with fixed tie order.
 
     Supports four split modes:
@@ -132,14 +131,14 @@ def allocate(
                     f"Exact share for '{participants[i]}' cannot be negative: {w}"
                 )
 
-        total_shares = sum(exact_shares)
-        if total_shares != amount_paise:
+        total_exact = sum(exact_shares)
+        if total_exact != amount_paise:
             raise ValueError(
-                f"Exact shares sum to {total_shares} paise, but total expense "
-                f"is {amount_paise} paise"
+                f"Exact shares sum to {total_exact} paise, but total expense is "
+                f"{amount_paise} paise (delta: {total_exact - amount_paise} paise)"
             )
 
-        return {p: w for p, w in zip(participants, exact_shares)}
+        return {p: s for p, s in zip(participants, exact_shares)}
 
     # 3. Percentage Split Mode
     if normalized_mode in ("percentage", "percent"):
@@ -152,73 +151,76 @@ def allocate(
                 raise ValueError(
                     f"Missing percentage weights for participants: {missing}"
                 )
-            raw_weights = [weights[p] for p in participants]
+            pct_list = [weights[p] for p in participants]
         elif isinstance(weights, (list, tuple)):
             if len(weights) != n:
                 raise ValueError(
                     f"Length of weights ({len(weights)}) does not match "
                     f"participants ({n})"
                 )
-            raw_weights = list(weights)
+            pct_list = list(weights)
         else:
             raise ValueError("weights must be a list or dict")
 
-        fractions_list: list[Fraction] = []
-        for i, w in enumerate(raw_weights):
-            if isinstance(w, bool) or not isinstance(
-                w, (int, float, Decimal, Fraction)
-            ):
+        # Convert percentages to Decimal with up to 4 decimal places
+        pct_decimals: List[Decimal] = []
+        for i, p_val in enumerate(pct_list):
+            if isinstance(p_val, bool):
                 raise ValueError(
-                    f"Percentage for '{participants[i]}' must be a number, got {w}"
+                    f"Percentage for '{participants[i]}' cannot be a boolean"
                 )
-            frac = Fraction(str(w) if isinstance(w, (float, Decimal)) else w)
-            if frac < 0:
+            try:
+                dec = Decimal(str(p_val))
+            except Exception as e:
                 raise ValueError(
-                    f"Percentage for '{participants[i]}' cannot be negative: {w}"
+                    f"Invalid percentage value '{p_val}' for '{participants[i]}': {e}"
+                ) from e
+            if dec < 0:
+                raise ValueError(
+                    f"Percentage for '{participants[i]}' cannot be negative: {dec}"
                 )
-            fractions_list.append(frac)
+            pct_decimals.append(dec)
 
-        total_pct = sum(fractions_list)
-        # Check if total sums to 100.00% (or 1.0)
-        is_100 = abs(float(total_pct) - 100.0) <= 1e-4
-        is_1 = abs(float(total_pct) - 1.0) <= 1e-6
-
-        if not is_100 and not is_1:
+        total_pct = sum(pct_decimals)
+        # Invariant: percentages must sum strictly to 100.00% (tolerance 0.01%)
+        if abs(total_pct - Decimal("100")) > Decimal("0.01"):
             raise ValueError(
-                f"Percentages must sum to 100.00%, got {float(total_pct):.4f}%"
+                f"Percentages must sum to 100.00%, got {total_pct}% "
+                f"(delta: {total_pct - Decimal('100')}%)"
             )
-
-        total_weight = total_pct
 
         if amount_paise == 0:
             return {p: 0 for p in participants}
 
-        # Largest-Remainder / Hare-Niemeyer Algorithm using exact rational Fractions
-        base_shares: list[int] = []
-        remainders: list[Fraction] = []
-        for w in fractions_list:
-            quota = (amount_paise * w) / total_weight
-            base = quota.numerator // quota.denominator
-            rem = quota - base
-            base_shares.append(base)
-            remainders.append(rem)
+        # Largest-remainder method over fractions: Quota = (T * pct) / 100
+        # Represent percentage as fraction over 10000 (allows 2 decimal places: 33.33% = 3333/10000)
+        # Using exact Python Fraction to prevent any floating-point imprecision
+        quotas: List[Fraction] = [
+            Fraction(amount_paise) * Fraction(dec) / Fraction(100)
+            for dec in pct_decimals
+        ]
 
-        allocated_sum = sum(base_shares)
-        leftover = amount_paise - allocated_sum
+        base_shares = [int(q) for q in quotas]
+        remainders = [q - Fraction(b) for q, b in zip(quotas, base_shares)]
+        allocated_so_far = sum(base_shares)
+        unallocated_paise = amount_paise - allocated_so_far
 
-        # Rank participants by descending remainder; break ties by index
+        # Rank participants by:
+        # 1. Fractional remainder descending (-remainder)
+        # 2. Fixed member order ascending (index i)
         ranked_indices = sorted(
             range(n),
             key=lambda idx: (-remainders[idx], idx),
         )
 
-        result_shares = list(base_shares)
-        for rank in range(leftover):
-            result_shares[ranked_indices[rank]] += 1
+        final_shares = list(base_shares)
+        for i in range(unallocated_paise):
+            target_idx = ranked_indices[i]
+            final_shares[target_idx] += 1
 
-        return {p: result_shares[i] for i, p in enumerate(participants)}
+        return {p: s for p, s in zip(participants, final_shares)}
 
-    # 4. Parts Split Mode
+    # 4. Parts / Ratios Split Mode
     if normalized_mode in ("parts", "parts_based"):
         if weights is None:
             raise ValueError("weights are required for parts split mode")
@@ -227,30 +229,30 @@ def allocate(
             missing = [p for p in participants if p not in weights]
             if missing:
                 raise ValueError(f"Missing parts weights for participants: {missing}")
-            raw_parts = [weights[p] for p in participants]
+            parts_list = [weights[p] for p in participants]
         elif isinstance(weights, (list, tuple)):
             if len(weights) != n:
                 raise ValueError(
                     f"Length of weights ({len(weights)}) does not match "
                     f"participants ({n})"
                 )
-            raw_parts = list(weights)
+            parts_list = list(weights)
         else:
             raise ValueError("weights must be a list or dict")
 
-        parts_list: list[int] = []
-        for i, w in enumerate(raw_parts):
-            if isinstance(w, bool) or not isinstance(w, int):
+        int_parts: List[int] = []
+        for i, pt in enumerate(parts_list):
+            if isinstance(pt, bool) or not isinstance(pt, int):
                 raise ValueError(
-                    f"Parts for '{participants[i]}' must be an integer, got {w}"
+                    f"Part for '{participants[i]}' must be an integer, got {pt}"
                 )
-            if w < 0:
+            if pt < 0:
                 raise ValueError(
-                    f"Parts for '{participants[i]}' cannot be negative: {w}"
+                    f"Part for '{participants[i]}' cannot be negative: {pt}"
                 )
-            parts_list.append(w)
+            int_parts.append(pt)
 
-        total_parts = sum(parts_list)
+        total_parts = sum(int_parts)
         if total_parts <= 0:
             raise ValueError(
                 f"Total parts must be greater than zero, got {total_parts}"
@@ -259,37 +261,33 @@ def allocate(
         if amount_paise == 0:
             return {p: 0 for p in participants}
 
-        # Hare-Niemeyer / Largest-Remainder algorithm with pure integer arithmetic
-        base_shares = []
-        rem_nums = []
-        for w in parts_list:
-            base = (amount_paise * w) // total_parts
-            rem_num = (amount_paise * w) % total_parts
-            base_shares.append(base)
-            rem_nums.append(rem_num)
+        quotas = [
+            Fraction(amount_paise * pt, total_parts) for pt in int_parts
+        ]
+        base_shares = [int(q) for q in quotas]
+        remainders = [q - Fraction(b) for q, b in zip(quotas, base_shares)]
+        allocated_so_far = sum(base_shares)
+        unallocated_paise = amount_paise - allocated_so_far
 
-        allocated_sum = sum(base_shares)
-        leftover = amount_paise - allocated_sum
-
-        # Rank participants by descending fractional remainder, breaking ties by index
         ranked_indices = sorted(
             range(n),
-            key=lambda idx: (-rem_nums[idx], idx),
+            key=lambda idx: (-remainders[idx], idx),
         )
 
-        result_shares = list(base_shares)
-        for rank in range(leftover):
-            result_shares[ranked_indices[rank]] += 1
+        final_shares = list(base_shares)
+        for i in range(unallocated_paise):
+            target_idx = ranked_indices[i]
+            final_shares[target_idx] += 1
 
-        return {p: result_shares[i] for i, p in enumerate(participants)}
+        return {p: s for p, s in zip(participants, final_shares)}
 
     raise ValueError(f"Unhandled split mode: {split_mode}")
 
 
 def net_positions(
-    expenses: list[ExpenseRecord | dict[str, Any]],
-    settlements: list[SettlementRecord | dict[str, Any]],
-) -> dict[str, int]:
+    expenses: List[Union[ExpenseRecord, Dict[str, Any]]],
+    settlements: List[Union[SettlementRecord, Dict[str, Any]]],
+) -> Dict[str, int]:
     """Compute member net positions dynamically from raw records.
 
     Formula (docs/ledger.md Section 4.1):
@@ -311,7 +309,7 @@ def net_positions(
     Returns:
         Dict mapping each participating user ID to their net position in whole paise.
     """
-    balances: dict[str, int] = defaultdict(int)
+    balances: Dict[str, int] = defaultdict(int)
 
     for exp in expenses:
         exp_obj = exp if isinstance(exp, ExpenseRecord) else ExpenseRecord(**exp)
@@ -358,8 +356,8 @@ def net_positions(
 
 
 def simplify(
-    net_positions: dict[str, int],
-) -> list[SuggestedTransfer]:
+    net_positions: Dict[str, int],
+) -> List[SuggestedTransfer]:
     """Apply greedy debt simplification to propose minimal settlement transfers.
 
     Algorithm (docs/ledger.md Section 6.3):
@@ -388,8 +386,8 @@ def simplify(
         )
 
     # Work with non-zero balances
-    pos: dict[str, int] = {k: v for k, v in net_positions.items() if v != 0}
-    transfers: list[SuggestedTransfer] = []
+    pos: Dict[str, int] = {k: v for k, v in net_positions.items() if v != 0}
+    transfers: List[SuggestedTransfer] = []
 
     while pos:
         debtors = [k for k, v in pos.items() if v < 0]

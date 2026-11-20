@@ -469,6 +469,13 @@ async def test_stranger_unauthenticated_requests_all_protected_endpoints(client_
             "chosenCategoryId": "00000000-0000-4000-8000-000000000001",
             "accepted": True,
         }),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances", None),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified", None),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements", None),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements", None),
+        ("GET", "/api/v1/analytics/summary", None),
+        ("GET", "/api/v1/analytics/trends", None),
+        ("GET", "/api/v1/analytics/categories", None),
     ]
 
     for method, path, body in endpoints:
@@ -504,6 +511,13 @@ async def test_stranger_invalid_token_rejected_all_protected_endpoints(client_au
         ("POST", f"/api/v1/expenses/{random_uuid}/restore"),
         ("POST", "/api/v1/ai/category-suggestion"),
         ("POST", "/api/v1/ai/category-suggestion/feedback"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
     ]
 
     for method, path in endpoints:
@@ -534,6 +548,13 @@ async def test_stranger_expired_token_rejected_all_protected_endpoints(client_au
         ("POST", f"/api/v1/expenses/{random_uuid}/restore"),
         ("POST", "/api/v1/ai/category-suggestion"),
         ("POST", "/api/v1/ai/category-suggestion/feedback"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
     ]
 
     for method, path in endpoints:
@@ -1425,6 +1446,27 @@ def test_group_member_admin_privilege_enforcement(user_a, user_b, admin_user):
 
     # Dedicated Admin Actor succeeds
     GroupPolicy.authorize_admin(admin_user, group_id, members, admins)
+
+
+def test_group_member_or_404_hides_group_from_stranger(user_a, user_b, user_c):
+    """
+    US-20 (T-32): balances and settlements endpoints hide the group from strangers.
+    - Group Members (User A, User B) pass.
+    - Stranger / Non-Member (User C) gets HTTP 404 GROUP_NOT_FOUND, the same response as a
+      group that does not exist, so the group's existence is not leaked.
+    HTTP-level coverage of all four endpoints: tests/test_settlements.py
+    (test_stranger_gets_404_on_all_balance_and_settlement_endpoints).
+    """
+    group_id = uuid.uuid4()
+    group_members = {user_a.id, user_b.id}
+
+    GroupPolicy.authorize_member_or_404(user_a, group_id, group_members)
+    GroupPolicy.authorize_member_or_404(user_b, group_id, group_members)
+
+    with pytest.raises(Exception) as exc_stranger:
+        GroupPolicy.authorize_member_or_404(user_c, group_id, group_members)
+    assert exc_stranger.value.status_code == 404
+    assert exc_stranger.value.detail == {"code": "GROUP_NOT_FOUND", "message": "Group not found."}
 
 
 @pytest.mark.anyio

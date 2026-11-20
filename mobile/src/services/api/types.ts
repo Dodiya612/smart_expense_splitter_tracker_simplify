@@ -51,6 +51,23 @@ export interface AuthResponse {
   tokens?: TokenBundle;
 }
 
+/** Payload for POST /api/v1/auth/change-password (T-50). Never logged or cached. */
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
+/**
+ * Response of POST /api/v1/auth/change-password (T-50). `tokens` replace this device's
+ * stored pair: the previous access token stops working once the password changes.
+ */
+export interface ChangePasswordResponse {
+  message: string;
+  tokens: TokenBundle;
+  revokedSessions: number;
+}
+
 /** Standard validation error detail item. */
 export interface ApiErrorDetail {
   loc?: (string | number)[];
@@ -88,5 +105,11 @@ export interface ApiClient {
   refresh(payload: RefreshTokenPayload): Promise<TokenBundle>;
   logout(payload?: LogoutPayload, accessToken?: string | null): Promise<void>;
   me(accessToken?: string | null): Promise<AuthUser>;
+  /** T-50: verifies the current password server side, then signs out every other device. */
+  changePassword(payload: ChangePasswordPayload): Promise<ChangePasswordResponse>;
   get<T>(endpoint: string): Promise<T>;
+  post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  patch<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  put<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T>;
+  delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T>;
 }

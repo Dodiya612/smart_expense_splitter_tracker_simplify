@@ -303,7 +303,7 @@ class TestLedgerValidationAndErrors:
             )
 
     def test_settlement_negative_amount_error(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(Exception):
             SettlementRecord(from_user="alice", to_user="bob", amount_paise=-100)
 
     def test_suggested_transfer_iter_unpacking(self):

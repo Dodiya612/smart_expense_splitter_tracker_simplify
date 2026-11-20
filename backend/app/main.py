@@ -69,6 +69,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    # Lets browser clients read the wait time on HTTP 429 responses (T-39).
+    expose_headers=["Retry-After"],
 )
 
 
@@ -122,7 +124,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         code=code,
         message=message,
         detail=detail,
-        is_retryable=exc.status_code >= 500,
+        # 5xx are retryable, and so is a 429 from the rate limiter (it carries Retry-After).
+        # Other 429s, such as the daily AI quota, are not: retrying cannot help until it resets.
+        is_retryable=exc.status_code >= 500
+        or (exc.status_code == 429 and code == "RATE_LIMIT_EXCEEDED"),
     )
     return JSONResponse(
         status_code=exc.status_code,

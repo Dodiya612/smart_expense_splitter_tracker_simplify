@@ -395,6 +395,21 @@ export function ExpenseDetailScreen({
         {/* ── Visible Actions Section ───────────────────────────── */}
         <View style={[styles.actionsSection, { gap: theme.spacing.sm }]}>
           <Button
+            label="Edit Expense"
+            variant="primary"
+            fullWidth
+            disabled={isDeleting || isDeleted}
+            onPress={() => {
+              router.push({
+                pathname: '/add-expense',
+                params: { expense: JSON.stringify(expense) },
+              });
+            }}
+            accessibilityLabel={`Edit expense ${formattedAmount}`}
+            accessibilityHint="Opens edit screen for this expense"
+          />
+
+          <Button
             label="Delete Expense"
             variant="destructive"
             fullWidth
