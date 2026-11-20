@@ -37,3 +37,4 @@ api_router.include_router(
     prefix="/notification‑preferences",
     tags=["Notifications"],
 )
+# conflict resolved
