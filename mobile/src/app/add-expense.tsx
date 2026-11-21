@@ -15,10 +15,17 @@
  * (instant-appearance requirement, US-07).
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ExpenseFormScreen } from '@/features/expenses/screens/ExpenseFormScreen';
+import { RouteErrorBoundary } from '@/components/navigation/RouteErrorBoundary';
+import { ExpenseFormSkeleton } from '@/features/expenses/components/ExpenseFormSkeleton';
 import type { Expense } from '@/features/expenses/types';
+
+const ExpenseFormScreen = lazy(() =>
+  import('@/features/expenses/screens/ExpenseFormScreen').then((module) => ({
+    default: module.ExpenseFormScreen,
+  }))
+);
 
 export default function AddExpenseRoute() {
   const params = useLocalSearchParams<{ expense?: string }>();
@@ -50,10 +57,14 @@ export default function AddExpenseRoute() {
   }
 
   return (
-    <ExpenseFormScreen
-      existingExpense={existingExpense}
-      onSuccess={handleSuccess}
-      onCancel={handleCancel}
-    />
+    <RouteErrorBoundary routeName="Add Expense">
+      <Suspense fallback={<ExpenseFormSkeleton />}>
+        <ExpenseFormScreen
+          existingExpense={existingExpense}
+          onSuccess={handleSuccess}
+          onCancel={handleCancel}
+        />
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }

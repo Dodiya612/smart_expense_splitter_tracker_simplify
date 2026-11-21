@@ -4,9 +4,22 @@
  * Provides primary access to group balances and settlements in the main tab navigation.
  */
 
-import React from 'react';
-import { GroupBalancesScreen } from '@/features/balances/screens/GroupBalancesScreen';
+import React, { Suspense, lazy } from 'react';
+import { RouteErrorBoundary } from '@/components/navigation/RouteErrorBoundary';
+import { GroupBalancesSkeleton } from '@/features/balances/components/GroupBalancesSkeleton';
+
+const GroupBalancesScreen = lazy(() =>
+  import('@/features/balances/screens/GroupBalancesScreen').then((module) => ({
+    default: module.GroupBalancesScreen,
+  }))
+);
 
 export default function GroupsTab() {
-  return <GroupBalancesScreen />;
+  return (
+    <RouteErrorBoundary routeName="Groups">
+      <Suspense fallback={<GroupBalancesSkeleton />}>
+        <GroupBalancesScreen />
+      </Suspense>
+    </RouteErrorBoundary>
+  );
 }

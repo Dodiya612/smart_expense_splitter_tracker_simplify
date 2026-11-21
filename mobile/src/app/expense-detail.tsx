@@ -10,10 +10,17 @@
  *   });
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { ExpenseDetailScreen } from '@/features/expenses/screens/ExpenseDetailScreen';
+import { RouteErrorBoundary } from '@/components/navigation/RouteErrorBoundary';
+import { ExpenseDetailSkeleton } from '@/features/expenses/components/ExpenseDetailSkeleton';
 import type { Expense } from '@/features/expenses/types';
+
+const ExpenseDetailScreen = lazy(() =>
+  import('@/features/expenses/screens/ExpenseDetailScreen').then((module) => ({
+    default: module.ExpenseDetailScreen,
+  }))
+);
 
 export default function ExpenseDetailRoute() {
   const params = useLocalSearchParams<{ expense?: string }>();
@@ -27,5 +34,11 @@ export default function ExpenseDetailRoute() {
     }
   }
 
-  return <ExpenseDetailScreen expense={expense} />;
+  return (
+    <RouteErrorBoundary routeName="Expense Detail">
+      <Suspense fallback={<ExpenseDetailSkeleton />}>
+        <ExpenseDetailScreen expense={expense} />
+      </Suspense>
+    </RouteErrorBoundary>
+  );
 }

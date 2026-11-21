@@ -25,11 +25,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
+import { WakingUpBanner } from '@/components/ui/WakingUpBanner';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { useTheme } from '@/theme';
 import { MemberBalanceCard } from '../components/MemberBalanceCard';
 import { NetPositionCard } from '../components/NetPositionCard';
 import { SettleUpModal } from '../components/SettleUpModal';
+import { GroupBalancesSkeleton } from '../components/GroupBalancesSkeleton';
 import {
   useGroupBalances,
   type PeerStanding,
@@ -72,6 +74,22 @@ export function GroupBalancesScreen({
     settleError,
     clearSettleError,
   } = useGroupBalances({ groupId: activeGroupId });
+
+  // Waking up detection (US-32 / T-62)
+  const [isWakingUp, setIsWakingUp] = useState<boolean>(false);
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (isLoading && !balances) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3500);
+    } else {
+      setIsWakingUp(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, balances]);
 
   // Settle modal state
   const [selectedCounterparty, setSelectedCounterparty] = useState<PeerStanding | null>(null);
@@ -229,14 +247,16 @@ export function GroupBalancesScreen({
   if (isLoading && !balances) {
     return (
       <View
-        style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}
+        style={[styles.root, { backgroundColor: theme.colors.background }]}
         accessibilityRole="alert"
         accessibilityLabel="Loading group balances"
       >
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <AppText variant="body" color="textSecondary" style={{ marginTop: theme.spacing.md }}>
-          Fetching group balances...
-        </AppText>
+        {isWakingUp && (
+          <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: insets.top + theme.spacing.md }}>
+            <WakingUpBanner visible={isWakingUp} />
+          </View>
+        )}
+        <GroupBalancesSkeleton />
       </View>
     );
   }

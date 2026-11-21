@@ -5,9 +5,22 @@
  * detail navigation, and T-20 delete/undo integration.
  */
 
-import React from 'react';
-import { ExpenseHistoryScreen } from '@/features/expenses/screens/ExpenseHistoryScreen';
+import React, { Suspense, lazy } from 'react';
+import { RouteErrorBoundary } from '@/components/navigation/RouteErrorBoundary';
+import { ExpenseHistorySkeleton } from '@/features/expenses/components/ExpenseHistorySkeleton';
+
+const ExpenseHistoryScreen = lazy(() =>
+  import('@/features/expenses/screens/ExpenseHistoryScreen').then((module) => ({
+    default: module.ExpenseHistoryScreen,
+  }))
+);
 
 export default function ExpensesTab() {
-  return <ExpenseHistoryScreen />;
+  return (
+    <RouteErrorBoundary routeName="Expenses">
+      <Suspense fallback={<ExpenseHistorySkeleton />}>
+        <ExpenseHistoryScreen />
+      </Suspense>
+    </RouteErrorBoundary>
+  );
 }
