@@ -1,5 +1,6 @@
 import React from 'react';
 import { DimensionValue, StyleSheet, View } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
 import { AppText } from '@/components/ui/AppText';
@@ -36,8 +37,10 @@ export function BudgetPreviewCard({ budget }: BudgetPreviewCardProps) {
 
   return (
     <AppCard
-      accessibilityRole="summary"
+      accessibilityRole="button"
       accessibilityLabel={a11yLabel}
+      accessibilityHint="Navigates to the Budgets screen"
+      onPress={() => router.push('/budgets' as Href)}
       style={{ gap: theme.spacing.sm }}
     >
       {/* ── Header ────────────────────────────────────────────── */}
