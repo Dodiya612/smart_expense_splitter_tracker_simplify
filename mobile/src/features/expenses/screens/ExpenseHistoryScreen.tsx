@@ -22,7 +22,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
@@ -176,12 +176,22 @@ export function ExpenseHistoryScreen({
           </AppText>
         </View>
 
-        <Button
-          label="+ Add"
-          variant="primary"
-          onPress={handleAddPress}
-          accessibilityLabel="Add new expense"
-        />
+        <View style={[styles.titleActions, { gap: theme.spacing.xs }]}>
+          {/* T-45 / US-14: recurring expenses */}
+          <Button
+            label="Recurring"
+            variant="outline"
+            onPress={() => router.push('/recurring' as Href)}
+            accessibilityLabel="Recurring expenses"
+            accessibilityHint="See, pause, resume or cancel expenses that repeat"
+          />
+          <Button
+            label="+ Add"
+            variant="primary"
+            onPress={handleAddPress}
+            accessibilityLabel="Add new expense"
+          />
+        </View>
       </View>
 
       {/* Search Input */}
@@ -566,6 +576,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  titleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   filterSection: {
     width: '100%',
