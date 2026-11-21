@@ -231,6 +231,13 @@ The system will enforce important rules including:
 
 ---
 
+## 💾 Backups and restore drill
+
+Nightly encrypted database backups (14-day retention) and the restore drill are described in
+[docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md).
+
+---
+
 ## 🤝 Development Workflow
 
 To keep development organized, contributors should work on separate
