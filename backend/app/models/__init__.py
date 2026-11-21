@@ -1,5 +1,6 @@
 from app.core.database import Base
 from app.models.ai_usage_log import AIUsageLog
+from app.models.budget import Budget, BudgetAlert
 from app.models.category import Category
 from app.models.category_feedback import CategorySuggestionFeedback
 from app.models.expense import AuditEvent, Expense, ExpensePayment, ExpenseShare
@@ -25,6 +26,8 @@ __all__ = [
     "AIUsageLog",
     "AuditEvent",
     "Base",
+    "Budget",
+    "BudgetAlert",
     "Category",
     "CategorySuggestionFeedback",
     "Expense",

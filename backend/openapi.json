@@ -3095,6 +3095,276 @@
         }
       }
     },
+    "/api/v1/analytics-tools/daily-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Daily spending summary (today)",
+        "operationId": "daily_spending_api_v1_analytics_tools_daily_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/weekly-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Weekly spending summary (current ISO week)",
+        "operationId": "weekly_spending_api_v1_analytics_tools_weekly_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/monthly-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Monthly spending summary (current calendar month)",
+        "operationId": "monthly_spending_api_v1_analytics_tools_monthly_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/group-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Spending summary for a specific group",
+        "operationId": "group_spending_api_v1_analytics_tools_group_spending_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Group UUID",
+              "title": "Group Id"
+            },
+            "description": "Group UUID"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date (inclusive)",
+              "title": "From"
+            },
+            "description": "Start date (inclusive)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date (inclusive)",
+              "title": "To"
+            },
+            "description": "End date (inclusive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics-tools/total-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Overall spending summary (no date limits)",
+        "operationId": "total_spending_api_v1_analytics_tools_total_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/daily-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Daily trends for the past 30 days",
+        "operationId": "daily_trends_api_v1_analytics_tools_daily_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/weekly-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Weekly trends for the past 12 weeks",
+        "operationId": "weekly_trends_api_v1_analytics_tools_weekly_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/monthly-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Monthly trends for the past 12 months",
+        "operationId": "monthly_trends_api_v1_analytics_tools_monthly_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/recurring": {
       "post": {
         "tags": [
@@ -3562,6 +3832,281 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets": {
+      "get": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "List my budgets with current-period progress",
+        "description": "Your active budgets, oldest first. Each shows spending (your share of every expense, never cash paid or settlements) for the current week (Monday to Sunday) or calendar month in Asia/Kolkata.",
+        "operationId": "list_budgets_api_v1_budgets_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Create a budget",
+        "description": "A weekly or monthly limit, overall (omit categoryId) or for one category. At most one active budget per period and category (409 BUDGET_EXISTS). Alerts are sent at 80% and 100%, each once per period. Supports idempotent retries via the Idempotency-Key header (a replay adds X-Idempotent-Replay: true).",
+        "operationId": "create_budget_api_v1_budgets_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{budget_id}": {
+      "get": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Get a budget with current-period progress",
+        "operationId": "get_budget_api_v1_budgets__budget_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Change a budget's limit",
+        "description": "Only limitPaise can change; period, category, ownership and unknown fields are 422 (delete the budget and create a new one instead). A lower limit can send an alert at once; a higher limit never takes back an alert already sent this period.",
+        "operationId": "update_budget_api_v1_budgets__budget_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Delete a budget",
+        "description": "The budget stops being tracked and its period and category can be budgeted again.",
+        "operationId": "delete_budget_api_v1_budgets__budget_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -4129,6 +4674,227 @@
           "file"
         ],
         "title": "Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+      },
+      "BudgetCreate": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "title": "Period",
+            "description": "weekly (Monday to Sunday) or monthly (calendar month)."
+          },
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise",
+            "description": "Spending limit per period in integer paise (> 0)."
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid",
+            "description": "Limit spending in one category; omit for an overall budget."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period",
+          "limitPaise"
+        ],
+        "title": "BudgetCreate",
+        "description": "Payload for creating a budget. Omit ``category_id`` for an overall budget."
+      },
+      "BudgetDataResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BudgetResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BudgetDataResponse"
+      },
+      "BudgetListMeta": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "BudgetListMeta"
+      },
+      "BudgetListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/BudgetListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "BudgetListResponse"
+      },
+      "BudgetProgress": {
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date",
+            "title": "Periodstart"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date",
+            "title": "Periodend"
+          },
+          "spentPaise": {
+            "type": "integer",
+            "title": "Spentpaise"
+          },
+          "remainingPaise": {
+            "type": "integer",
+            "title": "Remainingpaise",
+            "description": "limit - spent; negative when over the limit."
+          },
+          "overByPaise": {
+            "type": "integer",
+            "title": "Overbypaise",
+            "description": "How far spending is over the limit; 0 when not over."
+          },
+          "percentUsed": {
+            "type": "integer",
+            "title": "Percentused",
+            "description": "floor(spent * 100 / limit)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "under",
+              "warning",
+              "exceeded"
+            ],
+            "title": "Status",
+            "description": "under (< 80%), warning (80% to < 100%) or exceeded (>= 100%)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "periodStart",
+          "periodEnd",
+          "spentPaise",
+          "remainingPaise",
+          "overByPaise",
+          "percentUsed",
+          "status"
+        ],
+        "title": "BudgetProgress",
+        "description": "Spending against the limit in the current period (Asia/Kolkata).\n\n``spent_paise`` is the user's share of every live expense dated in the period (a\npersonal expense counts in full, a shared expense counts the user's share). Cash paid\nand settlements never count."
+      },
+      "BudgetResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "title": "Period"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid"
+          },
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/BudgetProgress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "period",
+          "limitPaise",
+          "createdAt",
+          "updatedAt",
+          "progress"
+        ],
+        "title": "BudgetResponse"
+      },
+      "BudgetUpdate": {
+        "properties": {
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise",
+            "description": "New spending limit per period in integer paise (> 0)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "limitPaise"
+        ],
+        "title": "BudgetUpdate",
+        "description": "Change the limit. The period and category cannot be changed (delete the budget and\ncreate a new one instead), because alerts already sent belong to the old definition."
       },
       "CategoryBreakdownItem": {
         "properties": {
@@ -5790,7 +6556,7 @@
               "$ref": "#/components/schemas/NotificationPreferenceItem"
             },
             "type": "array",
-            "maxItems": 13,
+            "maxItems": 15,
             "minItems": 1,
             "title": "Preferences"
           }

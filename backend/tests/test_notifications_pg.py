@@ -241,7 +241,7 @@ async def test_unauthenticated_and_unknown_ids_are_rejected(real_store, api):
 async def test_preferences_default_enabled_update_and_stay_per_user(real_store, api):
     alex, blair, _ = real_store["world"]["users"]
     initial = (await api.get("/api/v1/notification-preferences", headers=bearer(blair))).json()
-    assert len(initial["preferences"]) == 13  # 11 + T-44's two recurring-expense kinds
+    assert len(initial["preferences"]) == 15  # 11 + T-44's two recurring + T-48's two budget kinds
     assert all(p["enabled"] for p in initial["preferences"])
     # T-50: password_changed is a security notice and is the only one that cannot be switched off.
     assert {p["kind"] for p in initial["preferences"] if not p["can_disable"]} == {"password_changed"}

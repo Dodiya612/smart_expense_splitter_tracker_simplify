@@ -184,7 +184,7 @@ def test_backup_and_restore_drill_end_to_end(pg, tmp_path):
     assert manifest["tables"] == source_counts
     assert manifest["snapshot"]["used"] is True
     assert manifest["row_counts_exact"] is True
-    assert manifest["alembic_version"] == ["015_recurring_expenses"]
+    assert manifest["alembic_version"] == ["016_budgets"]
     assert {e["name"] for e in manifest["extensions"]} >= {"pg_trgm"}
     assert manifest["sha256"] == bc.sha256_file(dumps[0])
     assert "password" not in json.dumps(manifest).lower()
@@ -204,7 +204,7 @@ def test_backup_and_restore_drill_end_to_end(pg, tmp_path):
     assert "Restore:  completed" in drill.stdout
     assert f"OK: restore completed and all {len(source_counts)} tables match" in drill.stdout
     assert " NO" not in drill.stdout
-    assert "alembic_version: expected ['015_recurring_expenses'], restored ['015_recurring_expenses'] -> OK" in drill.stdout
+    assert "alembic_version: expected ['016_budgets'], restored ['016_budgets'] -> OK" in drill.stdout
     kept = _drill_databases(admin) - existing
     assert len(kept) == 1
     restored = admin.with_dbname(kept.pop())
