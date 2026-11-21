@@ -18,6 +18,9 @@ export const NOTIFICATION_KINDS = [
   'member_left',
   // T-50 security notice: always on (the server reports can_disable: false).
   'password_changed',
+  // T-44 / T-45 recurring expenses: the day-before reminder, and a date that was skipped.
+  'recurring_expense_upcoming',
+  'recurring_expense_skipped',
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

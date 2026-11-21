@@ -26,6 +26,8 @@ export function submissionSignature(values: ExpenseFormValues): string {
     values.paymentMode,
     values.notes.trim(),
     values.isRecurring,
+    // T-45: the repeat frequency only matters when the repeat is on.
+    values.isRecurring ? values.frequency : null,
   ]);
 }
 

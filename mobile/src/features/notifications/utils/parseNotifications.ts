@@ -97,10 +97,15 @@ export type NotificationTarget =
   | { pathname: '/groups/[id]'; params: { id: string } }
   | { pathname: '/group-balances'; params: { groupId: string; groupName?: string } }
   | { pathname: '/(tabs)/groups' }
+  | { pathname: '/recurring' }
   | null;
 
 export function notificationTarget(item: NotificationItem): NotificationTarget {
   const kind = item.kind;
+  if (kind === 'recurring_expense_upcoming' || kind === 'recurring_expense_skipped') {
+    // T-45: "added tomorrow – tap to pause" opens the recurring list.
+    return { pathname: '/recurring' };
+  }
   if (kind === 'invitation_received' || kind === 'member_removed') {
     // The group is not (or not yet) viewable: the Groups tab is the safe landing place.
     return { pathname: '/(tabs)/groups' };
@@ -127,6 +132,14 @@ const KIND_LABELS: Record<NotificationKind, { label: string; hint: string }> = {
   member_removed: { label: 'Removed members', hint: 'You are removed, or an admin removes a member' },
   member_left: { label: 'Members leaving', hint: 'Someone leaves a group you manage' },
   password_changed: { label: 'Password changes', hint: 'Your account password is changed' },
+  recurring_expense_upcoming: {
+    label: 'Upcoming recurring expenses',
+    hint: 'The day before a repeating expense is added',
+  },
+  recurring_expense_skipped: {
+    label: 'Skipped recurring expenses',
+    hint: 'A repeating expense could not be added on its date',
+  },
 };
 
 export function preferenceLabel(kind: string): { label: string; hint: string } {

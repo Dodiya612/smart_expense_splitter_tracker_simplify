@@ -10,7 +10,8 @@
  *   • Category chip picker  ← SuggestionChip appears here (T-23b)
  *   • Payment mode chip picker
  *   • Notes / description (optional, 500 char max)  ← drives suggestion
- *   • Recurring toggle
+ *   • Recurring toggle ("Repeat this expense") with daily / weekly / monthly /
+ *     yearly choice, add mode only (T-45 / US-14)
  *
  * Error states handled:
  *   • Field validation (inline)
@@ -35,7 +36,7 @@ import { AppInput } from '@/components/ui/AppInput';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/theme';
-import type { Expense, PaymentMode } from '../types';
+import type { Expense, PaymentMode, RepeatFrequency } from '../types';
 import {
   CATEGORIES,
   PAYMENT_MODE_LABELS,
@@ -44,6 +45,20 @@ import {
 import { useExpenseForm } from '../hooks/useExpenseForm';
 import { useCategorySuggestion } from '../hooks/useCategorySuggestion';
 import { SuggestionChip } from '../components/SuggestionChip';
+import { ChoiceChips } from '@/features/groups/components/ChoiceChips';
+import {
+  FREQUENCY_OPTIONS,
+  firstRepeatDate,
+  formatShortDate,
+  kolkataToday,
+} from '@/features/recurring/utils/recurring';
+
+/** "Next one on 21 Dec 2026. You'll get a reminder the day before." */
+function repeatHint(date: string, frequency: RepeatFrequency): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Pick a valid date to see when it repeats.';
+  const next = firstRepeatDate(date, frequency, kolkataToday());
+  return `Next one on ${formatShortDate(next)}. You'll get a reminder the day before. Manage it under Expenses → Recurring.`;
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -372,45 +387,63 @@ export function ExpenseFormScreen({
           />
         </View>
 
-        {/* ── Recurring toggle ─────────────────────────────────────── */}
-        <View
-          style={[
-            styles.toggleRow,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: theme.radii.md,
-              padding: theme.spacing.md,
-            },
-          ]}
-        >
-          <View style={styles.toggleLabel}>
-            <AppText variant="body" color="textPrimary">
-              Recurring
-            </AppText>
-            <AppText variant="caption" color="textSecondary">
-              Repeat this expense monthly
-            </AppText>
+        {/* ── Recurring toggle (T-45 / US-14; add mode only) ──────────── */}
+        {!isEditMode && (
+          <View
+            style={[
+              styles.repeatBox,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radii.md,
+                padding: theme.spacing.md,
+                gap: theme.spacing.md,
+              },
+            ]}
+          >
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLabel}>
+                <AppText variant="body" color="textPrimary">
+                  Repeat this expense
+                </AppText>
+                <AppText variant="caption" color="textSecondary">
+                  Added automatically on its next dates
+                </AppText>
+              </View>
+              <Switch
+                value={values.isRecurring}
+                onValueChange={(val) => handleFieldChange('isRecurring', val)}
+                disabled={isLoading}
+                accessibilityLabel="Repeat this expense"
+                accessibilityHint="Turn on to add this expense again daily, weekly, monthly or yearly"
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.info.fill,
+                }}
+                thumbColor={
+                  Platform.OS === 'android'
+                    ? values.isRecurring
+                      ? theme.colors.info.text
+                      : theme.colors.textSecondary
+                    : undefined
+                }
+              />
+            </View>
+            {values.isRecurring && (
+              <>
+                <ChoiceChips
+                  label="How often"
+                  options={FREQUENCY_OPTIONS}
+                  selectedId={values.frequency}
+                  onSelect={(id) => handleFieldChange('frequency', id as RepeatFrequency)}
+                />
+                <AppText variant="caption" color="info" accessibilityLiveRegion="polite">
+                  {repeatHint(values.date, values.frequency)}
+                </AppText>
+              </>
+            )}
           </View>
-          <Switch
-            value={values.isRecurring}
-            onValueChange={(val) => handleFieldChange('isRecurring', val)}
-            disabled={isLoading}
-            accessibilityLabel="Recurring expense toggle"
-            accessibilityHint="Toggle to mark this as a recurring monthly expense"
-            trackColor={{
-              false: theme.colors.border,
-              true: theme.colors.info.fill,
-            }}
-            thumbColor={
-              Platform.OS === 'android'
-                ? values.isRecurring
-                  ? theme.colors.info.text
-                  : theme.colors.textSecondary
-                : undefined
-            }
-          />
-        </View>
+        )}
 
         {/* ── Submit button ────────────────────────────────────────── */}
         <Button
@@ -548,11 +581,13 @@ const styles = StyleSheet.create({
   charCount: {
     alignSelf: 'flex-end',
   },
+  repeatBox: {
+    borderWidth: 1,
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
   },
   toggleLabel: {
     flex: 1,

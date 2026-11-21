@@ -8,10 +8,20 @@
  *  - Optimistic-locking conflict detection (US-09).
  *  - `onSuccess` callback receives the saved Expense so the list can update
  *    immediately (instant appearance requirement, US-07).
+ *  - T-45 / US-14: with "Repeat this expense" on, the expense is saved and then a
+ *    recurring rule is created from the next date. A retry replays both with the
+ *    same keys, so neither is ever stored twice.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '@/services/api/types';
+import { createRecurringRule } from '@/features/recurring/services/recurringApi';
+import {
+  REPEAT_NOT_SET_UP,
+  kolkataToday,
+  ruleFromExpenseForm,
+  ruleIdempotencyKey,
+} from '@/features/recurring/utils/recurring';
 import { createExpense, newIdempotencyKey, updateExpense } from '../services/expenseApi';
 import type { Expense, ExpenseFormErrors, ExpenseFormValues, PaymentMode } from '../types';
 import { createSubmissionKeyTracker, runSubmission } from '../utils/submission';
@@ -36,6 +46,7 @@ function expenseToFormValues(e: Expense): ExpenseFormValues {
     paymentMode: e.paymentMode as PaymentMode,
     notes: e.notes,
     isRecurring: e.isRecurring,
+    frequency: 'monthly',
   };
 }
 
@@ -46,7 +57,14 @@ const EMPTY_FORM: ExpenseFormValues = {
   paymentMode: 'upi',
   notes: '',
   isRecurring: false,
+  frequency: 'monthly',
 };
+
+/** A failed rule create after the expense saved: keep the form and offer Try again. */
+function repeatSetupError(err: unknown): ApiError {
+  const detail = err instanceof ApiError && err.code !== 'NETWORK_ERROR' ? ` (${err.message})` : '';
+  return new ApiError('RECURRING_SETUP_FAILED', `${REPEAT_NOT_SET_UP}${detail}`, true);
+}
 
 export interface UseExpenseFormReturn {
   values: ExpenseFormValues;
@@ -125,7 +143,17 @@ export function useExpenseForm({
               version: existingExpense.version,
             });
           }
-          return createExpense(base);
+          const saved = await createExpense(base);
+          if (!submitted.isRecurring) return saved;
+          try {
+            await createRecurringRule(
+              ruleFromExpenseForm(submitted, kolkataToday()),
+              ruleIdempotencyKey(idempotencyKey)
+            );
+          } catch (err) {
+            throw repeatSetupError(err);
+          }
+          return { ...saved, isRecurring: true };
         }
       );
       setIsLoading(false);
