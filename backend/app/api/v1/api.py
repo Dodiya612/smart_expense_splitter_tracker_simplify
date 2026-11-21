@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     invitations,
     notifications,
     receipts,
+    ocr,
     recurring,
 )
 
@@ -41,6 +42,12 @@ api_router.include_router(
 api_router.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
 
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+# Include OCR draft/confirm endpoints for bill photo processing
+api_router.include_router(
+    ocr.router,
+    prefix="/ocr",
+    tags=["OCR"],
+)
 api_router.include_router(
     notifications.preferences_router,
     prefix="/notification-preferences",
