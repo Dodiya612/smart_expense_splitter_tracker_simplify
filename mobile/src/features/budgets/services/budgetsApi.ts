@@ -18,6 +18,71 @@ import type {
   BudgetUpdatePayload,
 } from '../types';
 
+export type SavingsLevelPercent = 0 | 5 | 10;
+
+export interface BudgetRecommendationRequestPayload {
+  categoryId?: string | null;
+  savingsLevelPercent?: SavingsLevelPercent;
+}
+
+export interface HistoricalMonthSpend {
+  month: string;
+  spentPaise: number;
+  spikePaise: number;
+  netPaise: number;
+}
+
+export interface RawHistoricalMonthSpend {
+  month: string;
+  spent_paise?: number;
+  spentPaise?: number;
+  spike_paise?: number;
+  spikePaise?: number;
+  net_paise?: number;
+  netPaise?: number;
+}
+
+export interface RawBudgetRecommendation {
+  category_id?: string | null;
+  categoryId?: string | null;
+  category_name?: string | null;
+  categoryName?: string | null;
+  savings_level_percent?: number;
+  savingsLevelPercent?: number;
+  has_sufficient_history?: boolean;
+  hasSufficientHistory?: boolean;
+  historical_months?: RawHistoricalMonthSpend[];
+  historicalMonths?: RawHistoricalMonthSpend[];
+  baseline_paise?: number;
+  baselinePaise?: number;
+  raw_median_paise?: number;
+  rawMedianPaise?: number;
+  savings_paise?: number;
+  savingsPaise?: number;
+  recommended_limit_paise?: number;
+  recommendedLimitPaise?: number;
+  explanation: string;
+  source: string;
+}
+
+export interface BudgetRecommendation {
+  categoryId: string | null;
+  categoryName: string | null;
+  savingsLevelPercent: SavingsLevelPercent;
+  hasSufficientHistory: boolean;
+  historicalMonths: HistoricalMonthSpend[];
+  baselinePaise: number;
+  rawMedianPaise: number;
+  savingsPaise: number;
+  recommendedLimitPaise: number;
+  explanation: string;
+  source: 'ai' | 'template_fallback' | string;
+}
+
+export interface BudgetRecommendationDataResponse {
+  data: RawBudgetRecommendation;
+}
+
 export interface RawBudgetProgress {
   period_start?: string;
   periodStart?: string;
@@ -184,4 +249,66 @@ export const budgetsApi = {
       throw new ApiError('NETWORK_ERROR', err instanceof Error ? err.message : 'Failed to delete budget');
     }
   },
+
+  /**
+   * Get an advisory AI budget recommendation (T-55 / US-25).
+   * Supports 0%, 5%, and 10% savings levels for overall or category scopes.
+   */
+  async getBudgetRecommendation(
+    payload?: BudgetRecommendationRequestPayload
+  ): Promise<BudgetRecommendation> {
+    try {
+      const body: Record<string, any> = {};
+      if (payload?.categoryId !== undefined) {
+        body.categoryId = payload.categoryId;
+      }
+      if (payload?.savingsLevelPercent !== undefined) {
+        body.savingsLevelPercent = payload.savingsLevelPercent;
+      }
+
+      const res = await fastApiClient.post<BudgetRecommendationDataResponse>(
+        '/api/v1/budgets/recommend',
+        body
+      );
+      if (!res?.data) {
+        throw new ApiError('INVALID_RESPONSE', 'Invalid response from server');
+      }
+      return mapBudgetRecommendation(res.data);
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(
+        'NETWORK_ERROR',
+        err instanceof Error ? err.message : 'Failed to fetch budget recommendation'
+      );
+    }
+  },
 };
+
+/**
+ * Normalizes raw backend budget recommendation objects to frontend BudgetRecommendation.
+ */
+export function mapBudgetRecommendation(raw: RawBudgetRecommendation): BudgetRecommendation {
+  const rawMonths = raw.historicalMonths ?? raw.historical_months ?? [];
+  const historicalMonths: HistoricalMonthSpend[] = rawMonths.map((m) => ({
+    month: m.month,
+    spentPaise: m.spentPaise ?? m.spent_paise ?? 0,
+    spikePaise: m.spikePaise ?? m.spike_paise ?? 0,
+    netPaise: m.netPaise ?? m.net_paise ?? 0,
+  }));
+
+  const savingsLevel = (raw.savingsLevelPercent ?? raw.savings_level_percent ?? 10) as SavingsLevelPercent;
+
+  return {
+    categoryId: raw.categoryId ?? raw.category_id ?? null,
+    categoryName: raw.categoryName ?? raw.category_name ?? null,
+    savingsLevelPercent: ([0, 5, 10].includes(savingsLevel) ? savingsLevel : 10) as SavingsLevelPercent,
+    hasSufficientHistory: Boolean(raw.hasSufficientHistory ?? raw.has_sufficient_history ?? false),
+    historicalMonths,
+    baselinePaise: raw.baselinePaise ?? raw.baseline_paise ?? 0,
+    rawMedianPaise: raw.rawMedianPaise ?? raw.raw_median_paise ?? 0,
+    savingsPaise: raw.savingsPaise ?? raw.savings_paise ?? 0,
+    recommendedLimitPaise: raw.recommendedLimitPaise ?? raw.recommended_limit_paise ?? 0,
+    explanation: raw.explanation || '',
+    source: raw.source || 'template_fallback',
+  };
+}

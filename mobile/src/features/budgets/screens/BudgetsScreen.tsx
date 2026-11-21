@@ -12,7 +12,7 @@
  * - Create / Edit modal form
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -32,7 +32,13 @@ import { useTheme } from '@/theme';
 import { BudgetCard } from '../components/BudgetCard';
 import { BudgetEmptyState } from '../components/BudgetEmptyState';
 import { BudgetFormModal } from '../components/BudgetFormModal';
+import { BudgetRecommendationCard } from '../components/BudgetRecommendationCard';
 import { useBudgets } from '../hooks/useBudgets';
+import {
+  budgetsApi,
+  type BudgetRecommendation,
+  type SavingsLevelPercent,
+} from '../services/budgetsApi';
 import type { Budget, BudgetPeriod } from '../types';
 import { getCategoryMeta } from '../utils/categories';
 
@@ -61,6 +67,43 @@ export function BudgetsScreen() {
   const [budgetToEdit, setBudgetToEdit] = useState<Budget | null>(null);
   const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
 
+  // AI Goal Setting state (T-55 / US-25)
+  const [recSavingsLevel, setRecSavingsLevel] = useState<SavingsLevelPercent>(10);
+  const [recCategoryId, setRecCategoryId] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState<BudgetRecommendation | null>(null);
+  const [isRecLoading, setIsRecLoading] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+
+  const fetchRecommendation = useCallback(
+    async (level: SavingsLevelPercent, catId: string | null) => {
+      setIsRecLoading(true);
+      setRecError(null);
+      try {
+        const rec = await budgetsApi.getBudgetRecommendation({
+          savingsLevelPercent: level,
+          categoryId: catId,
+        });
+        setRecommendation(rec);
+      } catch (err) {
+        setRecError(err instanceof Error ? err.message : 'Failed to load recommendation');
+      } finally {
+        setIsRecLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    fetchRecommendation(recSavingsLevel, recCategoryId);
+  }, [fetchRecommendation, recSavingsLevel, recCategoryId]);
+
+  const handleRefresh = async () => {
+    await Promise.all([
+      refresh(),
+      fetchRecommendation(recSavingsLevel, recCategoryId),
+    ]);
+  };
+
   // Filtered budgets list
   const filteredBudgets = useMemo(() => {
     if (filterPeriod === 'all') return budgets;
@@ -76,6 +119,39 @@ export function BudgetsScreen() {
   // Open edit form
   const handleOpenEdit = (budget: Budget) => {
     setBudgetToEdit(budget);
+    setIsFormModalVisible(true);
+  };
+
+  // Apply AI Recommendation: prefills form for confirmation
+  const handleApplyRecommendation = (rec: BudgetRecommendation) => {
+    const existing = budgets.find(
+      (b) => b.period === 'monthly' && (b.categoryId ?? null) === (rec.categoryId ?? null)
+    );
+
+    if (existing) {
+      setBudgetToEdit({
+        ...existing,
+        limitPaise: rec.recommendedLimitPaise,
+      });
+    } else {
+      setBudgetToEdit({
+        id: 'RECOMMENDED_DRAFT',
+        period: 'monthly',
+        categoryId: rec.categoryId,
+        limitPaise: rec.recommendedLimitPaise,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        progress: {
+          periodStart: '',
+          periodEnd: '',
+          spentPaise: 0,
+          remainingPaise: rec.recommendedLimitPaise,
+          overByPaise: 0,
+          percentUsed: 0,
+          status: 'under',
+        },
+      });
+    }
     setIsFormModalVisible(true);
   };
 
@@ -158,7 +234,7 @@ export function BudgetsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={refresh}
+            onRefresh={handleRefresh}
             tintColor={theme.colors.primary}
             colors={[theme.colors.primary]}
           />
@@ -190,6 +266,19 @@ export function BudgetsScreen() {
             />
           </AppCard>
         )}
+
+        {/* AI Recommendation Card (T-55 / US-25) */}
+        <BudgetRecommendationCard
+          recommendation={recommendation}
+          isLoading={isRecLoading}
+          error={recError}
+          selectedSavingsLevel={recSavingsLevel}
+          onChangeSavingsLevel={setRecSavingsLevel}
+          selectedCategoryId={recCategoryId}
+          onChangeCategory={setRecCategoryId}
+          onRetry={() => fetchRecommendation(recSavingsLevel, recCategoryId)}
+          onApply={handleApplyRecommendation}
+        />
 
         {/* Loading spinner */}
         {isLoading && !isRefreshing ? (
@@ -229,7 +318,15 @@ export function BudgetsScreen() {
           await createBudget(payload);
         }}
         onSubmitUpdate={async (id, payload) => {
-          await updateBudget(id, payload);
+          if (id === 'RECOMMENDED_DRAFT') {
+            await createBudget({
+              period: 'monthly',
+              categoryId: budgetToEdit?.categoryId ?? null,
+              limitPaise: payload.limitPaise,
+            });
+          } else {
+            await updateBudget(id, payload);
+          }
         }}
         isSubmitting={isSubmitting}
       />
