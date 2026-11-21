@@ -16,7 +16,11 @@ from app.schemas.budget import (
     BudgetListResponse,
     BudgetUpdate,
 )
-from app.services import budget_service
+from app.schemas.budget_recommendation import (
+    BudgetRecommendationDataResponse,
+    BudgetRecommendationRequest,
+)
+from app.services import budget_recommendation_service, budget_service
 
 router = APIRouter()
 
@@ -60,6 +64,25 @@ async def create_budget(
     if is_replay:
         response.headers["X-Idempotent-Replay"] = "true"
     return BudgetDataResponse(data=budget)
+
+
+@router.post(
+    "/recommend",
+    response_model=BudgetRecommendationDataResponse,
+    summary="Get an AI budget goal recommendation",
+    description="Calculates a recommended budget based on the last 3 completed calendar months of "
+    "spending (user's allocated share only, excluding settlements and deleted expenses). "
+    "Trims one-off transaction spikes, applies the requested savings target (0%, 5%, or 10%), "
+    "and rounds to the nearest ₹100. Returns the full calculation figures and an explanation. "
+    "Advisory-only: never creates or modifies a budget.",
+)
+async def recommend_budget(
+    payload: BudgetRecommendationRequest,
+    current_user: CurrentUser,
+    db: Db,
+) -> BudgetRecommendationDataResponse:
+    recommendation = await budget_recommendation_service.recommend_budget(db, current_user, payload)
+    return BudgetRecommendationDataResponse(data=recommendation)
 
 
 @router.get("/{budget_id}", response_model=BudgetDataResponse, summary="Get a budget with current-period progress")
