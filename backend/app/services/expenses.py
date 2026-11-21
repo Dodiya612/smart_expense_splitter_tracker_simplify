@@ -15,6 +15,7 @@ from app.models.expense import Expense
 from app.models.idempotency import IdempotencyRecord
 from app.models.receipt import Receipt
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate
+from app.services import budget_service
 from app.services.receipt_service import link_receipt_to_expense
 from app.services.receipt_storage import ReceiptStorage, get_receipt_storage
 
@@ -195,6 +196,7 @@ async def create_expense(
     try:
         await db.commit()
         await db.refresh(expense)
+        await budget_service.check_after_commit([user_id])
         return expense, False
     except IntegrityError as exc:
         await db.rollback()
@@ -429,6 +431,7 @@ async def update_expense(
         )
 
     await db.commit()
+    await budget_service.check_after_commit([user_id])
 
     # Re-fetch the updated expense
     return await get_expense(db, user_id, expense_id, include_deleted=False)
@@ -453,6 +456,7 @@ async def soft_delete_expense(
 
     await db.commit()
     await db.refresh(expense)
+    await budget_service.check_after_commit([user_id])
     logger.info(f"Soft-deleted expense {expense_id} for user {user_id}.")
     return expense
 
@@ -485,6 +489,7 @@ async def hard_delete_expense(
 
     await db.delete(expense)
     await db.commit()
+    await budget_service.check_after_commit([user_id])
 
     # External storage blob is ONLY deleted after DB deletion commits
     if storage_key and not is_db:
@@ -524,6 +529,7 @@ async def restore_expense(
 
     await db.commit()
     await db.refresh(expense)
+    await budget_service.check_after_commit([user_id])
     logger.info(f"Restored expense {expense_id} for user {user_id}.")
     return expense
 

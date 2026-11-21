@@ -35,7 +35,7 @@ from app.core.database import Base
 
 # Every kind maps to a real operation in the app. Keep in sync with the CHECK
 # constraints created by alembic/versions/011_create_notifications.py (and updated by
-# 014_password_change.py and 015_recurring_expenses.py).
+# 014_password_change.py, 015_recurring_expenses.py and 016_budgets.py).
 NOTIFICATION_KINDS: tuple[str, ...] = (
     "group_expense_created",
     "group_expense_updated",
@@ -52,6 +52,9 @@ NOTIFICATION_KINDS: tuple[str, ...] = (
     # T-44 recurring expenses. Added by alembic/versions/015_recurring_expenses.py.
     "recurring_expense_upcoming",
     "recurring_expense_skipped",
+    # T-48 budget thresholds (80% and 100%). Added by alembic/versions/016_budgets.py.
+    "budget_warning",
+    "budget_exceeded",
 )
 
 # Kinds a user may never switch off; the preference API and emit() both honour this set.

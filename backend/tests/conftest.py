@@ -4,7 +4,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.core.config import settings
 from app.core.database import engine
-from app.services import notifications
+from app.services import budget_service, notifications
 from tests import notification_fakes, rate_limit_fakes
 from app.core import rate_limiter
 
@@ -34,6 +34,19 @@ def fake_notification_store(monkeypatch):
     monkeypatch.setattr(notifications, "active_member_roles", notification_fakes.no_database_membership)
     yield
     notification_fakes.clear_emitted_notifications()
+
+
+@pytest.fixture(autouse=True)
+def budget_checks_recorded(monkeypatch):
+    """Keep fake-session tests off the database: post-commit budget checks (T-48) only record
+    which users they were asked to check. The real check runs in tests/test_budgets_pg.py."""
+    checked: list = []
+
+    async def record(user_ids):
+        checked.append(sorted(str(u) for u in user_ids))
+
+    monkeypatch.setattr(budget_service, "_check_users", record)
+    return checked
 
 
 @pytest.fixture(autouse=True)

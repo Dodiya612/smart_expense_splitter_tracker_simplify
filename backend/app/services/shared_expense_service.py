@@ -25,7 +25,7 @@ from app.schemas.shared_expense import (
     SharedExpenseUpdateRequest,
 )
 from app.services.group_service import check_group_membership, get_group_or_404
-from app.services import idempotency, settlement_service
+from app.services import budget_service, idempotency, settlement_service
 from app.services.ledger import allocate, simplify
 from app.services.notifications import notify_group_members
 
@@ -392,6 +392,9 @@ async def create_shared_expense(
     except Exception:
         await db.rollback()
         raise
+
+    # Every user with a share has new spending: check their budgets (never raises).
+    await budget_service.check_after_commit(shares_map.keys())
 
     # Notify active group members after transaction commits
     await _notify_expense_created(db, group, current_user, expense.id, expense.description, payload.amount_paise)
@@ -858,6 +861,9 @@ async def update_shared_expense(
         await db.rollback()
         raise
 
+    # Users who had a share before or have one now: their spending may have moved.
+    await budget_service.check_after_commit([*before_snapshot["shares"], *shares_map])
+
     # 12. Dispatch notification to all active group members ONLY after successful commit
     # The version is part of the key so a later edit of the same expense notifies again.
     await notify_group_members(
@@ -1036,6 +1042,9 @@ async def delete_shared_expense(
     except Exception:
         await db.rollback()
         raise
+
+    # Every user who had a share loses that spending.
+    await budget_service.check_after_commit(before_snapshot["shares"])
 
     # Notify all active members after commit
     await notify_group_members(

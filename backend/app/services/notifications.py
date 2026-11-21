@@ -120,6 +120,17 @@ def render_notification(kind: str, payload: Dict[str, Any]) -> tuple[str, str]:
         on = payload.get("occurrence_date") or "its date"
         reason = payload.get("reason_text") or "it could not be created"
         return "Recurring expense skipped", f"{description}{amount_part} for {on} was not added: {reason}."
+    if kind in ("budget_warning", "budget_exceeded"):
+        period = "weekly" if payload.get("period") == "weekly" else "monthly"
+        scope = f"{payload['category_name']} budget" if payload.get("category_name") else "overall budget"
+        spent = format_inr(payload.get("spent_paise"))
+        limit = format_inr(payload.get("limit_paise"))
+        figures = f" ({spent} of {limit})" if spent and limit else ""
+        used = payload.get("percent_used")
+        percent = f"{used}%" if isinstance(used, int) and not isinstance(used, bool) else None
+        if kind == "budget_warning":
+            return "Budget at 80%", f"You have used {percent or '80%'} of your {period} {scope}{figures}."
+        return "Budget exceeded", f"You have used {percent or '100%'} of your {period} {scope}{figures}."
     return "Notification", ""
 
 

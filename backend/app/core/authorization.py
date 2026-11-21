@@ -17,6 +17,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import Select, select
 
+from app.models.budget import Budget
 from app.models.category import Category
 from app.models.expense import Expense
 from app.models.recurring import RecurringRule
@@ -314,6 +315,33 @@ class RecurringRulePolicy:
     def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
         """Scope a rule query to the authenticated owner."""
         return stmt.where(RecurringRule.owner_id == user_id)
+
+
+class BudgetPolicy:
+    """Record-level access policy for budgets (US-25 / T-48).
+
+    A budget is visible to and changeable by its owner only. A deleted budget, another
+    user's budget and an id that does not exist all get the same 404.
+    """
+
+    @staticmethod
+    def not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "BUDGET_NOT_FOUND", "message": "Budget not found."},
+        )
+
+    @staticmethod
+    def authorize(current_user: User, budget: Budget | None, action: Action = Action.READ) -> Budget:
+        """Return the budget if the user owns it and it is not deleted, otherwise raise 404."""
+        if budget is None or budget.user_id != current_user.id or budget.deleted_at is not None:
+            raise BudgetPolicy.not_found()
+        return budget
+
+    @staticmethod
+    def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
+        """Scope a budget query to the authenticated owner's active budgets."""
+        return stmt.where(Budget.user_id == user_id, Budget.deleted_at.is_(None))
 
 
 class GroupPolicy:

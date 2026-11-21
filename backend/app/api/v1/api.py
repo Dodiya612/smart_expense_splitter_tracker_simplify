@@ -38,6 +38,8 @@ api_router.include_router(
     tags=["Recurring Expenses"],
 )
 
+api_router.include_router(budgets.router, prefix="/budgets", tags=["Budgets"])
+
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(
     notifications.preferences_router,
