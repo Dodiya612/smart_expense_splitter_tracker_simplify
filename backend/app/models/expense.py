@@ -36,6 +36,7 @@ class Expense(Base):
     __table_args__ = (
         CheckConstraint("amount_minor > 0", name="ck_expenses_amount_positive"),
         Index("ix_expenses_user_deleted_date", "user_id", "deleted_at", "expense_date"),
+        Index("ix_expenses_group_deleted_date", "group_id", "deleted_at", "expense_date"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

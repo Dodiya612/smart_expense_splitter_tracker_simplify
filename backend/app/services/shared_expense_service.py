@@ -414,23 +414,49 @@ async def list_shared_expenses(
     db: AsyncSession,
     group_id: uuid.UUID,
     current_user: User,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> List[SharedExpenseResponse]:
-    """List all non-deleted shared expenses for a group in reverse chronological order."""
+    """List non-deleted shared expenses for a group in reverse chronological order with keyset pagination support (US-35)."""
     group = await get_group_or_404(db, group_id)
     check_group_membership(group, current_user, require_admin=False)
 
-    result = await db.execute(
+    conditions = [
+        Expense.group_id == group_id,
+        Expense.deleted_at.is_(None),
+    ]
+
+    if cursor:
+        from app.services.expenses import decode_expense_cursor
+
+        decoded = decode_expense_cursor(cursor)
+        if decoded:
+            c_date, c_created_at, c_id = decoded
+            conditions.append(
+                or_(
+                    Expense.expense_date < c_date,
+                    and_(Expense.expense_date == c_date, Expense.created_at < c_created_at),
+                    and_(
+                        Expense.expense_date == c_date,
+                        Expense.created_at == c_created_at,
+                        Expense.id < c_id,
+                    ),
+                )
+            )
+
+    stmt = (
         select(Expense)
         .options(
             selectinload(Expense.payments),
             selectinload(Expense.shares),
         )
-        .where(
-            Expense.group_id == group_id,
-            Expense.deleted_at.is_(None),
-        )
-        .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
+        .where(*conditions)
+        .order_by(Expense.expense_date.desc(), Expense.created_at.desc(), Expense.id.desc())
     )
+    if limit is not None and limit > 0:
+        stmt = stmt.limit(limit)
+
+    result = await db.execute(stmt)
     expenses = result.scalars().all()
     return [format_shared_expense_response(e) for e in expenses]
 

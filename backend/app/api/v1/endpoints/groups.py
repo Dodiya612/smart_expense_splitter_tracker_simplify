@@ -256,9 +256,13 @@ async def list_shared_expenses(
     group_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Page limit (1-100)"),
+    cursor: Optional[str] = Query(None, max_length=200, description="Keyset pagination cursor"),
 ):
-    """List all shared expenses for this group, ordered from newest to oldest."""
-    return await shared_expense_service.list_shared_expenses(db, group_id, current_user)
+    """List all shared expenses for this group, ordered from newest to oldest. Supports keyset pagination (US-35)."""
+    return await shared_expense_service.list_shared_expenses(
+        db, group_id, current_user, limit=limit, cursor=cursor
+    )
 
 
 @router.get(

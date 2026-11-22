@@ -35,9 +35,18 @@ class ApiErrorResponse(BaseSchema):
     is_retryable: bool = False
 
 
+class MaintenanceBannerConfig(BaseSchema):
+    """Maintenance banner status and announcement details."""
+    active: bool = False
+    message: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+
 class HealthResponse(BaseSchema):
     """Health check response schema."""
     status: str
     database: str
     environment: str
     version: str
+    maintenance: Optional[MaintenanceBannerConfig] = None

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import logging
@@ -6,7 +7,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -269,6 +270,51 @@ async def get_expense(
     return expense
 
 
+class ExpenseListResult(tuple):
+    """
+    Subclass of tuple returning (expenses, total) for 100% backward compatibility
+    while also exposing .next_cursor for keyset / seek pagination (US-35 / T-61).
+    """
+
+    expenses: list[Expense]
+    total: int
+    next_cursor: str | None
+
+    def __new__(
+        cls,
+        expenses: list[Expense],
+        total: int,
+        next_cursor: str | None = None,
+    ):
+        instance = super().__new__(cls, (expenses, total))
+        instance.expenses = expenses
+        instance.total = total
+        instance.next_cursor = next_cursor
+        return instance
+
+
+def encode_expense_cursor(expense: Expense) -> str:
+    """Encode an expense into a URL-safe base64 keyset cursor."""
+    raw = f"{expense.expense_date.isoformat()}|{expense.created_at.isoformat()}|{expense.id}"
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def decode_expense_cursor(cursor_str: str) -> tuple[date, datetime, uuid.UUID] | None:
+    """Decode a keyset cursor string; returns (expense_date, created_at, id) or None."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor_str.encode("ascii")).decode("utf-8")
+        parts = raw.split("|")
+        if len(parts) == 3:
+            return (
+                date.fromisoformat(parts[0]),
+                datetime.fromisoformat(parts[1]),
+                uuid.UUID(parts[2]),
+            )
+    except Exception:
+        pass
+    return None
+
+
 async def list_expenses(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -281,13 +327,15 @@ async def list_expenses(
     payment_mode: str | None = None,
     limit: int = 50,
     offset: int = 0,
-) -> tuple[list[Expense], int]:
+    cursor: str | None = None,
+) -> ExpenseListResult:
     """
     List personal expenses for the authenticated user, excluding soft-deleted items.
     Supports combined filtering by category, date range, amount range, payment mode,
-    trigram/substring search across description, merchant, and notes, and pagination.
+    trigram/substring search across description, merchant, and notes, and both
+    keyset cursor pagination (O(1) seek) and offset pagination.
     Returns:
-      (expenses: List[Expense], total_count: int)
+      ExpenseListResult((expenses: List[Expense], total_count: int), next_cursor)
     """
     base_where = [
         Expense.user_id == user_id,
@@ -321,6 +369,26 @@ async def list_expenses(
     if payment_mode:
         base_where.append(Expense.payment_mode.ilike(payment_mode.strip()))
 
+    is_keyset = False
+    if cursor:
+        decoded = decode_expense_cursor(cursor)
+        if decoded:
+            is_keyset = True
+            c_date, c_created_at, c_id = decoded
+            base_where.append(
+                or_(
+                    Expense.expense_date < c_date,
+                    and_(Expense.expense_date == c_date, Expense.created_at < c_created_at),
+                    and_(
+                        Expense.expense_date == c_date,
+                        Expense.created_at == c_created_at,
+                        Expense.id < c_id,
+                    ),
+                )
+            )
+        elif cursor.isdigit():
+            offset = int(cursor)
+
     # 1. Total count
     count_stmt = select(func.count(Expense.id)).where(*base_where)
     count_res = await db.execute(count_stmt)
@@ -330,14 +398,21 @@ async def list_expenses(
     stmt = (
         select(Expense)
         .where(*base_where)
-        .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
+        .order_by(Expense.expense_date.desc(), Expense.created_at.desc(), Expense.id.desc())
         .limit(limit)
-        .offset(offset)
     )
+    if not is_keyset and offset > 0:
+        stmt = stmt.offset(offset)
+
     result = await db.execute(stmt)
     expenses = list(result.scalars().all())
 
-    return expenses, total_count
+    if is_keyset:
+        next_cursor = encode_expense_cursor(expenses[-1]) if len(expenses) == limit else None
+    else:
+        next_cursor = str(offset + limit) if (offset + limit) < total_count else None
+
+    return ExpenseListResult(expenses, total_count, next_cursor)
 
 
 async def update_expense(
