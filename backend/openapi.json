@@ -2066,10 +2066,154 @@
           }
         ]
       }
+    },
+    "/api/v1/ai/ask": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "Ask AI Assistant about expenses",
+        "description": "Natural language query assistant for personal expenses with LLM tool selection, deterministic date resolution in Asia/Kolkata, user-level data isolation, strict grounding guard, and fallback suggestions.",
+        "operationId": "ask_assistant_endpoint_api_v1_ai_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "AskRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question",
+            "description": "User question about their expenses"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "description": "Payload for natural language expense query assistant."
+      },
+      "AskResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AskResponseData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "AskResponse",
+        "description": "API envelope for assistant response."
+      },
+      "AskResponseData": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "Grounded, natural language answer or safe fallback template"
+          },
+          "toolUsed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolused",
+            "description": "Name of the query tool selected and executed, if any"
+          },
+          "toolParameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolparameters",
+            "description": "Resolved parameters passed to the query tool"
+          },
+          "toolResult": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolresult",
+            "description": "Structured data returned by the tool execution"
+          },
+          "grounded": {
+            "type": "boolean",
+            "title": "Grounded",
+            "description": "Whether the answer was strictly grounded in tool data",
+            "default": true
+          },
+          "fallbackSuggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fallbacksuggestions",
+            "description": "Helpful suggested questions when fallback is triggered or query is unclear"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "AskResponseData",
+        "description": "Data envelope for assistant response."
+      },
       "AuthResponse": {
         "properties": {
           "user": {

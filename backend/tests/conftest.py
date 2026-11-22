@@ -14,7 +14,10 @@ async def client():
 
 
 @pytest.fixture(autouse=True)
-async def dispose_engine_between_tests():
-    """Ensure SQLAlchemy connection pool does not leak connections across pytest-asyncio event loops."""
+def dispose_engine_between_tests():
+    """Ensure SQLAlchemy connection pool does not leak connections across test runs."""
     yield
-    await engine.dispose()
+    try:
+        engine.sync_engine.dispose()
+    except Exception:
+        pass

@@ -1,5 +1,10 @@
 """Common schemas and API models."""
 
+from app.schemas.assistant import (
+    AskRequest,
+    AskResponse,
+    AskResponseData,
+)
 from app.schemas.auth import (
     AuthResponse,
     LogoutRequest,
@@ -68,6 +73,9 @@ from app.schemas.shared_expense import (
 )
 
 __all__ = [
+    "AskRequest",
+    "AskResponse",
+    "AskResponseData",
     "ApiErrorDetail",
     "ApiErrorResponse",
     "AuthResponse",

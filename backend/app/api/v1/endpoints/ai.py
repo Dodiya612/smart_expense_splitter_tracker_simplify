@@ -8,12 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.user import User
+from app.schemas.assistant import AskRequest, AskResponse
 from app.schemas.category_suggestion import (
     CategoryFeedbackRequest,
     CategoryFeedbackResponse,
     CategorySuggestionRequest,
     CategorySuggestionResponse,
 )
+from app.ai.assistant_service import ask_assistant
 from app.services.category_suggestion_service import (
     record_feedback,
     suggest_category,
@@ -97,4 +99,30 @@ async def feedback_alias(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CategoryFeedbackResponse:
     return await feedback_endpoint(request, current_user, db)
+
+
+@router.post(
+    "/ask",
+    response_model=AskResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Ask AI Assistant about expenses",
+    description=(
+        "Natural language query assistant for personal expenses with LLM tool selection, "
+        "deterministic date resolution in Asia/Kolkata, user-level data isolation, "
+        "strict grounding guard, and fallback suggestions."
+    ),
+)
+async def ask_assistant_endpoint(
+    request: AskRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AskResponse:
+    """Endpoint POST /api/v1/ai/ask."""
+    result = await ask_assistant(
+        db=db,
+        user_id=current_user.id,
+        question=request.question,
+    )
+    return AskResponse(data=result)
+
 
