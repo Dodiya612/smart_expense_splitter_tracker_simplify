@@ -18,11 +18,18 @@
  * (instant-appearance requirement, US-07).
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Href, router, useLocalSearchParams } from 'expo-router';
 import { decodeDraft } from '@/features/bills/utils/billDraft';
-import { ExpenseFormScreen } from '@/features/expenses/screens/ExpenseFormScreen';
+import { RouteErrorBoundary } from '@/components/navigation/RouteErrorBoundary';
+import { ExpenseFormSkeleton } from '@/features/expenses/components/ExpenseFormSkeleton';
 import type { Expense } from '@/features/expenses/types';
+
+const ExpenseFormScreen = lazy(() =>
+  import('@/features/expenses/screens/ExpenseFormScreen').then((module) => ({
+    default: module.ExpenseFormScreen,
+  }))
+);
 
 export default function AddExpenseRoute() {
   const params = useLocalSearchParams<{ expense?: string; draft?: string }>();
@@ -60,12 +67,16 @@ export default function AddExpenseRoute() {
   }
 
   return (
-    <ExpenseFormScreen
-      existingExpense={existingExpense}
-      billDraft={billDraft}
-      onSuccess={handleSuccess}
-      onCancel={handleCancel}
-      onScanBill={handleScanBill}
-    />
+    <RouteErrorBoundary routeName="Add Expense">
+      <Suspense fallback={<ExpenseFormSkeleton />}>
+        <ExpenseFormScreen
+          existingExpense={existingExpense}
+          billDraft={billDraft}
+          onSuccess={handleSuccess}
+          onCancel={handleCancel}
+          onScanBill={handleScanBill}
+        />
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }

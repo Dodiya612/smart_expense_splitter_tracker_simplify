@@ -12,7 +12,7 @@
  *   - Full T-20 delete-with-confirm and 10-second undo toast integration
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -31,20 +31,25 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UndoToast } from '@/components/ui/UndoToast';
+import { VirtualizedList } from '@/components/ui/VirtualizedList';
+import { WakingUpBanner } from '@/components/ui/WakingUpBanner';
 import { useTheme } from '@/theme';
 import { CATEGORIES, type Expense } from '../types';
 import { useExpenses } from '../hooks/useExpenses';
 import { useDeleteExpense } from '../hooks/useDeleteExpense';
 import { ExpenseListItem } from '../components/ExpenseListItem';
+import { ExpenseHistorySkeleton } from '../components/ExpenseHistorySkeleton';
 
 export interface ExpenseHistoryScreenProps {
   initialCategoryId?: string;
   onSelectExpense?: (expense: Expense) => void;
+  virtualized?: boolean;
 }
 
 export function ExpenseHistoryScreen({
   initialCategoryId,
   onSelectExpense,
+  virtualized,
 }: ExpenseHistoryScreenProps = {}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -92,6 +97,24 @@ export function ExpenseHistoryScreen({
       return true;
     });
   }, [expenses, deletedIds, restoredItems]);
+
+  // ── Waking-Up State Detection (US-32 / T-62) ────────────────────────────────
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (isLoading && displayedExpenses.length === 0) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3500);
+    } else {
+      setIsWakingUp(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, displayedExpenses.length]);
+
+  const isVirtualized = virtualized ?? displayedExpenses.length >= 100;
 
   // ── T-20 Deletion Hook ──────────────────────────────────────────────────────
   const {
@@ -491,48 +514,107 @@ export function ExpenseHistoryScreen({
     );
   };
 
+  if (isLoading && displayedExpenses.length === 0) {
+    return (
+      <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+        {isWakingUp && (
+          <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: insets.top + theme.spacing.md }}>
+            <WakingUpBanner visible={isWakingUp} />
+          </View>
+        )}
+        <ExpenseHistorySkeleton />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      <FlatList
-        data={displayedExpenses}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ExpenseListItem
-            expense={item}
-            onPress={handleItemPress}
-            onEdit={handleItemPress}
-            onDelete={requestDelete}
-          />
-        )}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={renderEmptyComponent}
-        onEndReached={() => {
-          if (hasMore && !isLoadingMore && !isLoading) {
-            void loadMore();
+      {isVirtualized ? (
+        <VirtualizedList
+          data={displayedExpenses}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <ExpenseListItem
+              expense={item}
+              onPress={handleItemPress}
+              onEdit={handleItemPress}
+              onDelete={requestDelete}
+            />
+          )}
+          itemHeight={150}
+          overscan={5}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={renderEmptyComponent}
+          onEndReached={() => {
+            if (hasMore && !isLoadingMore && !isLoading) {
+              void loadMore();
+            }
+          }}
+          onEndReachedThreshold={0.4}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={theme.colors.primary}
+            />
           }
-        }}
-        onEndReachedThreshold={0.4}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={refresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-        contentContainerStyle={[
-          styles.listContent,
-          {
-            paddingHorizontal: theme.spacing.lg,
-            paddingTop: insets.top + theme.spacing.md,
-            paddingBottom: insets.bottom + theme.spacing.xxxl,
-            gap: theme.spacing.md,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-        accessibilityRole="list"
-        accessibilityLabel="Paginated transaction history"
-      />
+          contentContainerStyle={[
+            styles.listContent,
+            {
+              paddingHorizontal: theme.spacing.lg,
+              paddingTop: insets.top + theme.spacing.md,
+              paddingBottom: insets.bottom + theme.spacing.xxxl,
+              gap: theme.spacing.md,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          accessibilityRole="list"
+          accessibilityLabel="Paginated transaction history"
+          testID="virtualized-expense-list"
+        />
+      ) : (
+        <FlatList
+          data={displayedExpenses}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <ExpenseListItem
+              expense={item}
+              onPress={handleItemPress}
+              onEdit={handleItemPress}
+              onDelete={requestDelete}
+            />
+          )}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={renderEmptyComponent}
+          onEndReached={() => {
+            if (hasMore && !isLoadingMore && !isLoading) {
+              void loadMore();
+            }
+          }}
+          onEndReachedThreshold={0.4}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+          contentContainerStyle={[
+            styles.listContent,
+            {
+              paddingHorizontal: theme.spacing.lg,
+              paddingTop: insets.top + theme.spacing.md,
+              paddingBottom: insets.bottom + theme.spacing.xxxl,
+              gap: theme.spacing.md,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          accessibilityRole="list"
+          accessibilityLabel="Paginated transaction history"
+        />
+      )}
 
       {/* ── T-20: Confirm delete dialog (US-08) ─────────────────── */}
       <ConfirmDialog
