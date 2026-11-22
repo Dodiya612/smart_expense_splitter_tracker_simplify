@@ -1,5 +1,7 @@
 import uuid
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -20,12 +22,15 @@ from app.core.authorization import (
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.main import app
+from app.models.budget import Budget
 from app.models.category import Category
 from app.models.category_feedback import CategorySuggestionFeedback
 from app.models.expense import Expense
 from app.models.idempotency import IdempotencyRecord
+from app.models.recurring import RecurringRule
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.services.budget_service import SPENDING_OPTION
 
 
 # ==============================================================================
@@ -41,6 +46,8 @@ class FakeAuthTestDB:
         self.tokens: dict[uuid.UUID, RefreshToken] = {}
         self.feedback: list[Any] = []
         self.ai_logs: list[Any] = []
+        self.recurring_rules: dict[uuid.UUID, RecurringRule] = {}
+        self.budgets: dict[uuid.UUID, Budget] = {}
 
 
 class FakeScalars:
@@ -72,6 +79,9 @@ class FakeResult:
     def scalars(self):
         return FakeScalars(self._items)
 
+    def all(self):
+        return list(self._items)
+
     def one(self):
         if self._tuple_res is not None:
             return self._tuple_res
@@ -101,6 +111,17 @@ class FakeAuthAsyncSession:
                 self.db.expenses[obj.id] = obj
             elif isinstance(obj, RefreshToken):
                 self.db.tokens[obj.id] = obj
+            elif isinstance(obj, RecurringRule):
+                self.db.recurring_rules[obj.id] = obj
+            elif isinstance(obj, Budget):
+                clash = any(
+                    b.id != obj.id and b.deleted_at is None and obj.deleted_at is None
+                    and (b.user_id, b.period, b.category_id) == (obj.user_id, obj.period, obj.category_id)
+                    for b in self.db.budgets.values()
+                )
+                if clash:
+                    raise IntegrityError("unique index uq_budgets_active_*", params={}, orig=Exception())
+                self.db.budgets[obj.id] = obj
             elif isinstance(obj, IdempotencyRecord):
                 k = (obj.user_id, obj.key)
                 if k in self.db.idempotency_records and self.db.idempotency_records[k].id != obj.id:
@@ -122,6 +143,53 @@ class FakeAuthAsyncSession:
         await self.commit()
         sql_str = str(stmt).lower()
         params = stmt.compile().params
+
+        # 00. Budget spending (T-48): the user's live personal expenses dated in the period,
+        #     summed per category (shared expenses are covered by tests/test_budgets_pg.py).
+        spending = stmt.get_execution_options().get(SPENDING_OPTION) if hasattr(stmt, "get_execution_options") else None
+        if spending:
+            f = spending["filter"]
+            totals: dict[uuid.UUID, int] = defaultdict(int)
+            for e in self.db.expenses.values():
+                if (
+                    e.user_id == f.user_id and e.deleted_at is None and e.group_id is None
+                    and f.start <= e.expense_date <= f.end
+                ):
+                    totals[e.category_id] += e.amount_minor
+            return FakeResult([SimpleNamespace(category_id=c, share_paise=v) for c, v in totals.items()])
+
+        # 01. Budgets (T-48): always scoped to the owner's active budgets by BudgetPolicy.
+        if "from budgets" in sql_str:
+            matched = [
+                b for b in self.db.budgets.values()
+                if b.user_id == params.get("user_id_1")
+                and ("budgets.deleted_at is null" not in sql_str or b.deleted_at is None)
+                and ("id_1" not in params or b.id == params["id_1"])
+                and ("period_1" not in params or b.period == params["period_1"])
+                and ("category_id_1" not in params or b.category_id == params["category_id_1"])
+                and ("budgets.category_id is null" not in sql_str or b.category_id is None)
+            ]
+            if "count(budgets.id)" in sql_str:
+                return FakeResult([len(matched)])
+            matched.sort(key=lambda b: (b.created_at, str(b.id)))
+            if "param_1" in params:
+                matched = matched[params.get("param_2", 0):][: params["param_1"]]
+            if sql_str.startswith("select budgets.id \nfrom"):
+                return FakeResult([b.id for b in matched])
+            return FakeResult(matched)
+
+        # 0. Recurring rules (T-44): always scoped to the owner by RecurringRulePolicy.
+        if "from recurring_rules" in sql_str:
+            owner_id = next((v for k, v in params.items() if k.startswith("owner_id")), None)
+            rule_id = next((v for k, v in params.items() if k.startswith("id_")), None)
+            matched = [
+                r for r in self.db.recurring_rules.values()
+                if (owner_id is None or r.owner_id == owner_id) and (rule_id is None or r.id == rule_id)
+            ]
+            if "count(recurring_rules.id)" in sql_str:
+                return FakeResult([len(matched)])
+            matched.sort(key=lambda r: (r.created_at, r.id), reverse=True)
+            return FakeResult(matched)
 
         # 1. SELECT User
         if "from users" in sql_str:
@@ -469,6 +537,26 @@ async def test_stranger_unauthenticated_requests_all_protected_endpoints(client_
             "chosenCategoryId": "00000000-0000-4000-8000-000000000001",
             "accepted": True,
         }),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances", None),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified", None),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements", None),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements", None),
+        ("GET", "/api/v1/analytics/summary", None),
+        ("GET", "/api/v1/analytics/trends", None),
+        ("GET", "/api/v1/analytics/categories", None),
+        ("POST", "/api/v1/recurring", {"frequency": "daily", "startDate": "2030-01-01", "amountPaise": 100, "categoryId": "00000000-0000-4000-8000-000000000001", "description": "Rent"}),
+        ("GET", "/api/v1/recurring", None),
+        ("GET", f"/api/v1/recurring/{random_uuid}", None),
+        ("PATCH", f"/api/v1/recurring/{random_uuid}", {"amountPaise": 200}),
+        ("POST", f"/api/v1/recurring/{random_uuid}/pause", None),
+        ("POST", f"/api/v1/recurring/{random_uuid}/resume", None),
+        ("POST", f"/api/v1/recurring/{random_uuid}/cancel", None),
+        ("GET", f"/api/v1/recurring/{random_uuid}/occurrences", None),
+        ("GET", "/api/v1/budgets", None),
+        ("POST", "/api/v1/budgets", {"period": "monthly", "limitPaise": 100000}),
+        ("GET", f"/api/v1/budgets/{random_uuid}", None),
+        ("PATCH", f"/api/v1/budgets/{random_uuid}", {"limitPaise": 200000}),
+        ("DELETE", f"/api/v1/budgets/{random_uuid}", None),
     ]
 
     for method, path, body in endpoints:
@@ -504,6 +592,26 @@ async def test_stranger_invalid_token_rejected_all_protected_endpoints(client_au
         ("POST", f"/api/v1/expenses/{random_uuid}/restore"),
         ("POST", "/api/v1/ai/category-suggestion"),
         ("POST", "/api/v1/ai/category-suggestion/feedback"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
+        ("POST", "/api/v1/recurring"),
+        ("GET", "/api/v1/recurring"),
+        ("GET", f"/api/v1/recurring/{random_uuid}"),
+        ("PATCH", f"/api/v1/recurring/{random_uuid}"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/pause"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/resume"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/cancel"),
+        ("GET", f"/api/v1/recurring/{random_uuid}/occurrences"),
+        ("GET", "/api/v1/budgets"),
+        ("POST", "/api/v1/budgets"),
+        ("GET", f"/api/v1/budgets/{random_uuid}"),
+        ("PATCH", f"/api/v1/budgets/{random_uuid}"),
+        ("DELETE", f"/api/v1/budgets/{random_uuid}"),
     ]
 
     for method, path in endpoints:
@@ -534,6 +642,26 @@ async def test_stranger_expired_token_rejected_all_protected_endpoints(client_au
         ("POST", f"/api/v1/expenses/{random_uuid}/restore"),
         ("POST", "/api/v1/ai/category-suggestion"),
         ("POST", "/api/v1/ai/category-suggestion/feedback"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances"),
+        ("GET", f"/api/v1/groups/{random_uuid}/balances/simplified"),
+        ("GET", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("POST", f"/api/v1/groups/{random_uuid}/settlements"),
+        ("GET", "/api/v1/analytics/summary"),
+        ("GET", "/api/v1/analytics/trends"),
+        ("GET", "/api/v1/analytics/categories"),
+        ("POST", "/api/v1/recurring"),
+        ("GET", "/api/v1/recurring"),
+        ("GET", f"/api/v1/recurring/{random_uuid}"),
+        ("PATCH", f"/api/v1/recurring/{random_uuid}"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/pause"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/resume"),
+        ("POST", f"/api/v1/recurring/{random_uuid}/cancel"),
+        ("GET", f"/api/v1/recurring/{random_uuid}/occurrences"),
+        ("GET", "/api/v1/budgets"),
+        ("POST", "/api/v1/budgets"),
+        ("GET", f"/api/v1/budgets/{random_uuid}"),
+        ("PATCH", f"/api/v1/budgets/{random_uuid}"),
+        ("DELETE", f"/api/v1/budgets/{random_uuid}"),
     ]
 
     for method, path in endpoints:
@@ -1427,6 +1555,27 @@ def test_group_member_admin_privilege_enforcement(user_a, user_b, admin_user):
     GroupPolicy.authorize_admin(admin_user, group_id, members, admins)
 
 
+def test_group_member_or_404_hides_group_from_stranger(user_a, user_b, user_c):
+    """
+    US-20 (T-32): balances and settlements endpoints hide the group from strangers.
+    - Group Members (User A, User B) pass.
+    - Stranger / Non-Member (User C) gets HTTP 404 GROUP_NOT_FOUND, the same response as a
+      group that does not exist, so the group's existence is not leaked.
+    HTTP-level coverage of all four endpoints: tests/test_settlements.py
+    (test_stranger_gets_404_on_all_balance_and_settlement_endpoints).
+    """
+    group_id = uuid.uuid4()
+    group_members = {user_a.id, user_b.id}
+
+    GroupPolicy.authorize_member_or_404(user_a, group_id, group_members)
+    GroupPolicy.authorize_member_or_404(user_b, group_id, group_members)
+
+    with pytest.raises(Exception) as exc_stranger:
+        GroupPolicy.authorize_member_or_404(user_c, group_id, group_members)
+    assert exc_stranger.value.status_code == 404
+    assert exc_stranger.value.detail == {"code": "GROUP_NOT_FOUND", "message": "Group not found."}
+
+
 @pytest.mark.anyio
 async def test_admin_actor_permissions_and_scope(client_auth, headers_admin, admin_user):
     """
@@ -1632,3 +1781,142 @@ def test_validate_protected_fields_utility():
             validate_protected_fields_update({protected_key: "value"})
         assert exc_protected.value.status_code == 400
         assert exc_protected.value.detail["code"] == "PROTECTED_FIELD_MODIFICATION"
+
+
+# ==============================================================================
+# Recurring expense rules (US-14 / T-44): owner only, strangers get 404
+# ==============================================================================
+
+
+def _recurring_rule(owner_id: uuid.UUID) -> "RecurringRule":
+    now = datetime.now(UTC)
+    return RecurringRule(
+        id=uuid.uuid4(), owner_id=owner_id, group_id=None, frequency="monthly",
+        start_date=now.date(), end_date=None, next_run_date=now.date(), status="active",
+        amount_paise=150000, category_id=uuid.UUID("00000000-0000-4000-8000-000000000001"),
+        description="Rent", notes=None, merchant=None, payment_mode=None, split=None,
+        created_at=now, updated_at=now, paused_at=None, cancelled_at=None,
+    )
+
+
+@pytest.mark.anyio
+async def test_recurring_rules_idor_returns_404_and_never_changes_the_rule(
+    client_auth, headers_a, headers_b, user_a, user_b, auth_db
+):
+    """Another user's rule id behaves exactly like an id that does not exist, on every endpoint."""
+    rule_a = _recurring_rule(user_a.id)
+    auth_db.recurring_rules[rule_a.id] = rule_a
+    missing = uuid.uuid4()
+
+    for rule_id in (rule_a.id, missing):
+        for method, path, body in [
+            ("GET", f"/api/v1/recurring/{rule_id}", None),
+            ("PATCH", f"/api/v1/recurring/{rule_id}", {"amountPaise": 1}),
+            ("POST", f"/api/v1/recurring/{rule_id}/pause", None),
+            ("POST", f"/api/v1/recurring/{rule_id}/resume", None),
+            ("POST", f"/api/v1/recurring/{rule_id}/cancel", None),
+            ("GET", f"/api/v1/recurring/{rule_id}/occurrences", None),
+        ]:
+            resp = await client_auth.request(method, path, json=body, headers=headers_b)
+            assert resp.status_code == 404, f"{method} {path} leaked access (got {resp.status_code})"
+            assert resp.json()["code"] == "RECURRING_RULE_NOT_FOUND"
+            assert "Rent" not in resp.text
+
+    assert rule_a.status == "active" and rule_a.amount_paise == 150000
+    own = await client_auth.get(f"/api/v1/recurring/{rule_a.id}", headers=headers_a)
+    assert own.status_code == 200 and own.json()["data"]["id"] == str(rule_a.id)
+
+
+@pytest.mark.anyio
+async def test_recurring_rule_list_is_scoped_and_ownership_cannot_be_spoofed(
+    client_auth, headers_a, headers_b, user_a, user_b, auth_db
+):
+    rule_a = _recurring_rule(user_a.id)
+    auth_db.recurring_rules[rule_a.id] = rule_a
+
+    listed_b = await client_auth.get("/api/v1/recurring", headers=headers_b)
+    assert listed_b.status_code == 200
+    assert listed_b.json()["data"] == [] and listed_b.json()["meta"]["total"] == 0
+    listed_a = await client_auth.get("/api/v1/recurring", headers=headers_a)
+    assert [r["id"] for r in listed_a.json()["data"]] == [str(rule_a.id)]
+
+    # Ownership fields are not part of the schema: rejected, never trusted.
+    for field in ("ownerId", "owner_id", "userId", "user_id"):
+        body = {
+            "frequency": "daily", "startDate": datetime.now(UTC).date().isoformat(),
+            "amountPaise": 100, "categoryId": "00000000-0000-4000-8000-000000000001",
+            "description": "Spoof", field: str(user_a.id),
+        }
+        resp = await client_auth.post("/api/v1/recurring", json=body, headers=headers_b)
+        assert resp.status_code == 422, field
+    assert all(r.owner_id == user_a.id for r in auth_db.recurring_rules.values())
+
+
+# ==============================================================================
+# Budgets (US-25 / T-48): owner only, strangers get 404
+# ==============================================================================
+
+
+def _budget(owner_id: uuid.UUID, period: str = "monthly", limit_paise: int = 500000) -> Budget:
+    now = datetime.now(UTC)
+    return Budget(
+        id=uuid.uuid4(), user_id=owner_id, period=period, category_id=None,
+        limit_paise=limit_paise, created_at=now, updated_at=now, deleted_at=None,
+    )
+
+
+@pytest.mark.anyio
+async def test_budgets_idor_returns_404_and_never_changes_the_budget(
+    client_auth, headers_a, headers_b, user_a, user_b, auth_db
+):
+    """Another user's budget id behaves exactly like an id that does not exist, on every endpoint."""
+    budget_a = _budget(user_a.id)
+    auth_db.budgets[budget_a.id] = budget_a
+    missing = uuid.uuid4()
+
+    for budget_id in (budget_a.id, missing):
+        for method, path, body in [
+            ("GET", f"/api/v1/budgets/{budget_id}", None),
+            ("PATCH", f"/api/v1/budgets/{budget_id}", {"limitPaise": 1}),
+            ("DELETE", f"/api/v1/budgets/{budget_id}", None),
+        ]:
+            resp = await client_auth.request(method, path, json=body, headers=headers_b)
+            assert resp.status_code == 404, f"{method} {path} leaked access (got {resp.status_code})"
+            assert resp.json()["code"] == "BUDGET_NOT_FOUND"
+            assert "500000" not in resp.text
+
+    assert budget_a.limit_paise == 500000 and budget_a.deleted_at is None
+    own = await client_auth.get(f"/api/v1/budgets/{budget_a.id}", headers=headers_a)
+    assert own.status_code == 200 and own.json()["data"]["id"] == str(budget_a.id)
+
+    # A deleted budget is 404 for its owner too.
+    deleted = await client_auth.delete(f"/api/v1/budgets/{budget_a.id}", headers=headers_a)
+    assert deleted.status_code == 204
+    gone = await client_auth.get(f"/api/v1/budgets/{budget_a.id}", headers=headers_a)
+    assert gone.status_code == 404 and gone.json()["code"] == "BUDGET_NOT_FOUND"
+
+
+@pytest.mark.anyio
+async def test_budget_list_is_scoped_and_ownership_cannot_be_spoofed(
+    client_auth, headers_a, headers_b, user_a, user_b, auth_db
+):
+    budget_a = _budget(user_a.id)
+    auth_db.budgets[budget_a.id] = budget_a
+
+    listed_b = await client_auth.get("/api/v1/budgets", headers=headers_b)
+    assert listed_b.status_code == 200
+    assert listed_b.json()["data"] == [] and listed_b.json()["meta"]["total"] == 0
+    listed_a = await client_auth.get("/api/v1/budgets", headers=headers_a)
+    assert [b["id"] for b in listed_a.json()["data"]] == [str(budget_a.id)]
+
+    # Ownership fields are not part of the schema: rejected, never trusted.
+    for field in ("userId", "user_id", "ownerId", "owner_id"):
+        body = {"period": "weekly", "limitPaise": 100, field: str(user_a.id)}
+        resp = await client_auth.post("/api/v1/budgets", json=body, headers=headers_b)
+        assert resp.status_code == 422, field
+        patch = await client_auth.patch(
+            f"/api/v1/budgets/{budget_a.id}", json={"limitPaise": 100, field: str(user_b.id)}, headers=headers_a
+        )
+        assert patch.status_code == 422, field
+    assert all(b.user_id == user_a.id for b in auth_db.budgets.values())
+    assert budget_a.limit_paise == 500000

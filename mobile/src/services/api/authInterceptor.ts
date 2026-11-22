@@ -33,8 +33,13 @@ export function notifyAuthFailure(): void {
  */
 let refreshPromise: Promise<string> | null = null;
 
+/** True while runWithRefreshLock holds the single-flight slot; counts callers that waited. */
+let lockActive = false;
+let lockWaiters = 0;
+
 export async function requestTokenRefresh(): Promise<string> {
   if (refreshPromise) {
+    if (lockActive) lockWaiters += 1;
     return refreshPromise;
   }
 
@@ -141,8 +146,64 @@ export async function requestTokenRefresh(): Promise<string> {
 }
 
 /**
+ * Runs `task` while holding the refresh single-flight slot (T-50, change password).
+ *
+ * The task replaces this device's tokens on the server (the refresh token is rotated).
+ * If another request hit a 401 meanwhile and refreshed with the stored, now-replaced
+ * refresh token, the server would treat it as token reuse and sign this device out.
+ * Holding the slot makes such requests wait; once the task has stored the new tokens they
+ * continue with the new access token. If the task fails, waiting requests get a normal
+ * refresh instead.
+ *
+ * The task itself must not call requestTokenRefresh (it would wait on itself).
+ */
+export async function runWithRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  // Let a refresh (or another locked task) that is already running finish first.
+  while (refreshPromise) {
+    try {
+      await refreshPromise;
+    } catch {
+      // Its own caller handles that failure.
+    }
+  }
+
+  let resolveGate: (token: string) => void = () => undefined;
+  let rejectGate: (err: unknown) => void = () => undefined;
+  const gate = new Promise<string>((resolve, reject) => {
+    resolveGate = resolve;
+    rejectGate = reject;
+  });
+  gate.catch(() => undefined); // nobody may be waiting; never an unhandled rejection
+  refreshPromise = gate;
+  lockActive = true;
+  lockWaiters = 0;
+
+  let succeeded = false;
+  try {
+    const result = await task();
+    succeeded = true;
+    return result;
+  } finally {
+    const waiters = lockWaiters;
+    lockActive = false;
+    lockWaiters = 0;
+    refreshPromise = null;
+    const stored = succeeded ? await tokenStorage.getAccessToken() : null;
+    if (stored) {
+      resolveGate(stored);
+    } else if (waiters > 0) {
+      requestTokenRefresh().then(resolveGate, rejectGate);
+    } else {
+      rejectGate(new ApiError('SESSION_EXPIRED', 'Session expired. Please log in again.', false));
+    }
+  }
+}
+
+/**
  * Resets the single-flight refresh state (used primarily in tests).
  */
 export function _resetRefreshMutex(): void {
   refreshPromise = null;
+  lockActive = false;
+  lockWaiters = 0;
 }

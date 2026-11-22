@@ -12,6 +12,7 @@ from app.main import app
 from app.models.category import Category
 from app.models.expense import Expense
 from app.models.idempotency import IdempotencyRecord
+from app.models.receipt import Receipt
 from app.models.user import User
 
 
@@ -20,6 +21,7 @@ class FakeExpenseDB:
         self.users: dict[uuid.UUID, User] = {}
         self.categories: dict[uuid.UUID, Category] = {}
         self.expenses: dict[uuid.UUID, Expense] = {}
+        self.receipts: dict[uuid.UUID, Receipt] = {}
         self.idempotency_records: dict[tuple[uuid.UUID, str], IdempotencyRecord] = {}
 
 
@@ -76,6 +78,8 @@ class FakeAsyncSession:
                 self.db.categories[obj.id] = obj
             elif isinstance(obj, Expense):
                 self.db.expenses[obj.id] = obj
+            elif isinstance(obj, Receipt):
+                self.db.receipts[obj.id] = obj
             elif isinstance(obj, IdempotencyRecord):
                 k = (obj.user_id, obj.key)
                 if (
@@ -142,6 +146,14 @@ class FakeAsyncSession:
                 ):
                     matched.append(rec)
             return FakeResult(matched)
+
+        # SELECT Receipt
+        if "from receipts" in sql_str:
+            rid = params.get("id_1") or params.get("id")
+            if rid is not None:
+                matched = [r for r in self.db.receipts.values() if r.id == rid]
+                return FakeResult(matched)
+            return FakeResult(list(self.db.receipts.values()))
 
         # 4. UPDATE Expense
         if sql_str.startswith("update expenses"):
@@ -848,8 +860,51 @@ async def test_update_missing_version_rejected(async_client, auth_headers):
 
 
 @pytest.mark.anyio
-async def test_receipt_id_support(async_client, auth_headers):
+async def test_receipt_id_support(async_client, auth_headers, fake_db, test_user, other_user):
+    # 1. Non-existent receipt ID returns 404
+    missing_id = uuid.uuid4()
+    bad_res = await async_client.post(
+        "/api/v1/expenses",
+        json={
+            "amount_minor": 4500,
+            "description": "Expense with missing receipt",
+            "category_id": "00000000-0000-4000-8000-000000000001",
+            "receipt_id": str(missing_id),
+        },
+        headers=auth_headers,
+    )
+    assert bad_res.status_code == 404
+
+    # 2. Receipt owned by another user returns 404
+    foreign_id = uuid.uuid4()
+    fake_db.receipts[foreign_id] = Receipt(
+        id=foreign_id,
+        user_id=other_user.id,
+        storage_key=f"receipts/{foreign_id}.jpg",
+        content_type="image/jpeg",
+        file_size=12345,
+    )
+    foreign_res = await async_client.post(
+        "/api/v1/expenses",
+        json={
+            "amount_minor": 4500,
+            "description": "Expense with someone else's receipt",
+            "category_id": "00000000-0000-4000-8000-000000000001",
+            "receipt_id": str(foreign_id),
+        },
+        headers=auth_headers,
+    )
+    assert foreign_res.status_code == 404
+
+    # 3. Valid receipt owned by current user succeeds
     rec_id = uuid.uuid4()
+    fake_db.receipts[rec_id] = Receipt(
+        id=rec_id,
+        user_id=test_user.id,
+        storage_key=f"receipts/{rec_id}.jpg",
+        content_type="image/jpeg",
+        file_size=12345,
+    )
     create_res = await async_client.post(
         "/api/v1/expenses",
         json={

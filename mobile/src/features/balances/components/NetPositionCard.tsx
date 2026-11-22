@@ -3,8 +3,8 @@
  *
  * Displays:
  * - Net balance standing across the group.
- * - Clear breakdowns of "You are owed" (+ green) and "You owe" (- red).
- * - Full accessible labeling and INR currency formatting.
+ * - Breakdowns of "You are owed" and "You owe" with +/- signs and text labels (never colour alone).
+ * - Amounts through the shared INR formatter (src/utils/money.ts).
  */
 
 import React from 'react';
@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
 import { AppText } from '@/components/ui/AppText';
 import { useTheme } from '@/theme';
+import { formatPaise } from '@/utils/money';
+import { myPositionLabel } from '../utils/balanceLabels';
 
 export interface NetPositionCardProps {
   netBalancePaise: number;
@@ -21,14 +23,6 @@ export interface NetPositionCardProps {
   currency?: string;
 }
 
-export function formatInr(paise: number): string {
-  const absPaise = Math.abs(paise);
-  const rupees = absPaise / 100;
-  return `₹${rupees.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 export function NetPositionCard({
   netBalancePaise,
@@ -51,7 +45,7 @@ export function NetPositionCard({
 
   const a11ySummary = isSettled
     ? 'All balances in this group are settled.'
-    : `Net standing: you are owed ${formatInr(youAreOwedPaise)}, and you owe ${formatInr(youOwePaise)}.`;
+    : `Net standing: you are owed ${formatPaise(youAreOwedPaise)}, and you owe ${formatPaise(youOwePaise)}.`;
 
   return (
     <AppCard
@@ -68,14 +62,14 @@ export function NetPositionCard({
     >
       {/* ── Top Header ────────────────────────────────────────── */}
       <View style={styles.headerRow}>
-        <View style={styles.titleWithIcon}>
+        <View style={[styles.titleWithIcon, { gap: theme.spacing.sm }]}>
           <Ionicons
             name="wallet-outline"
             size={20}
             color={theme.colors.primary}
           />
           <AppText variant="bodyStrong" color="textPrimary">
-            Your Balance in Group
+            Your position in this group
           </AppText>
         </View>
 
@@ -89,6 +83,8 @@ export function NetPositionCard({
                   ? theme.colors.negative.soft
                   : theme.colors.surfaceMuted,
               borderRadius: theme.radii.pill,
+              paddingHorizontal: theme.spacing.sm,
+              paddingVertical: theme.spacing.xs,
               borderColor: isNetCreditor
                 ? theme.colors.positive.fill
                 : isNetDebtor
@@ -108,29 +104,20 @@ export function NetPositionCard({
               fontFamily: theme.fontFamily.semibold,
             }}
           >
-            {isNetCreditor
-              ? 'You are owed'
-              : isNetDebtor
-                ? 'You owe'
-                : 'Settled up'}
+            {myPositionLabel(netBalancePaise)}
           </AppText>
         </View>
       </View>
 
       {/* ── Net Big Number ────────────────────────────────────── */}
-      <View style={styles.netAmountBlock}>
+      <View style={{ marginVertical: theme.spacing.xs }}>
         <AppText
-          style={[
-            styles.netAmountText,
-            {
-              color: netColor,
-              fontFamily: theme.fontFamily.bold,
-            },
-          ]}
-          accessibilityLabel={`Net position ${netPrefix}${formatInr(netBalancePaise)}`}
+          variant="moneyLarge"
+          style={{ color: netColor }}
+          accessibilityLabel={`Net position ${netPrefix}${formatPaise(Math.abs(netBalancePaise))}`}
         >
           {netPrefix}
-          {formatInr(netBalancePaise)}
+          {formatPaise(Math.abs(netBalancePaise))}
         </AppText>
       </View>
 
@@ -156,7 +143,7 @@ export function NetPositionCard({
             },
           ]}
         >
-          <View style={styles.tileHeader}>
+          <View style={[styles.tileHeader, { gap: theme.spacing.xs }]}>
             <Ionicons
               name="arrow-down-circle"
               size={16}
@@ -167,10 +154,10 @@ export function NetPositionCard({
             </AppText>
           </View>
           <AppText
-            variant="bodyStrong"
-            style={{ color: theme.colors.positive.text, marginTop: 2 }}
+            variant="money"
+            style={{ color: theme.colors.positive.text, marginTop: theme.spacing.xs }}
           >
-            +{formatInr(youAreOwedPaise)}
+            +{formatPaise(youAreOwedPaise)}
           </AppText>
         </View>
 
@@ -185,7 +172,7 @@ export function NetPositionCard({
             },
           ]}
         >
-          <View style={styles.tileHeader}>
+          <View style={[styles.tileHeader, { gap: theme.spacing.xs }]}>
             <Ionicons
               name="arrow-up-circle"
               size={16}
@@ -196,10 +183,10 @@ export function NetPositionCard({
             </AppText>
           </View>
           <AppText
-            variant="bodyStrong"
-            style={{ color: theme.colors.negative.text, marginTop: 2 }}
+            variant="money"
+            style={{ color: theme.colors.negative.text, marginTop: theme.spacing.xs }}
           >
-            -{formatInr(youOwePaise)}
+            -{formatPaise(youOwePaise)}
           </AppText>
         </View>
       </View>
@@ -219,20 +206,9 @@ const styles = StyleSheet.create({
   titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
     borderWidth: 1,
-  },
-  netAmountBlock: {
-    marginVertical: 4,
-  },
-  netAmountText: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontVariant: ['tabular-nums'],
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -244,6 +220,5 @@ const styles = StyleSheet.create({
   tileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
 });

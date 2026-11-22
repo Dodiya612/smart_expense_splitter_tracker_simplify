@@ -11,6 +11,7 @@ import { useKeyboardAwareScroll } from '@/features/auth/hooks/useKeyboardAwareSc
 import { useLogin } from '@/features/auth/hooks/useLogin';
 import { AuthFormErrors, LoginFormValues } from '@/features/auth/types';
 import { validateLogin } from '@/features/auth/utils/validation';
+import { consumePendingJoinPath } from '@/features/groups/utils/pendingJoin';
 import { useTheme } from '@/theme';
 
 export function LoginScreen() {
@@ -47,14 +48,14 @@ export function LoginScreen() {
     setFieldErrors({});
     const success = await login(values);
     if (success) {
-      router.replace('/(tabs)/home' as Href);
+      router.replace((consumePendingJoinPath() ?? '/(tabs)/home') as Href);
     }
   };
 
   const handleRetry = async () => {
     const success = await retry();
     if (success) {
-      router.replace('/(tabs)/home' as Href);
+      router.replace((consumePendingJoinPath() ?? '/(tabs)/home') as Href);
     }
   };
 

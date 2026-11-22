@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 import string
 import uuid
@@ -7,6 +8,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +22,7 @@ from app.models.group import (
     InvitationStatus,
 )
 from app.models.user import User
+from app.services.notifications import current_member_roles, notify_group_members, notify_users
 from app.schemas.group import (
     CreateInvitationRequest,
     GroupCreateRequest,
@@ -30,6 +33,7 @@ from app.schemas.group import (
     InvitationResponse,
     JoinCodeResponse,
 )
+from app.services import idempotency
 
 
 def utcnow() -> datetime:
@@ -143,11 +147,23 @@ async def create_group(
     db: AsyncSession,
     user: User,
     payload: GroupCreateRequest,
-) -> Tuple[Group, str]:
+    idempotency_key: Optional[str] = None,
+) -> Tuple[GroupResponse, bool]:
     """
     Creates a new group, makes the user owner/admin, and creates an initial join code.
-    Returns the created Group and the single-use plaintext join code.
+    Returns (response with the single-use plaintext join code, is_replay).
+
+    With an Idempotency-Key (US-34): a retry with the same body replays the original
+    response (is_replay=True); the same key with a different body is 409. The stored
+    replay never contains the plaintext join code, because join codes are kept only
+    as hashes; a replay therefore returns join_code=None.
     """
+    idempotency_key, hashed_request, replay = await idempotency.prepare(
+        db, user.id, idempotency_key, "group_create", None, payload, GroupResponse
+    )
+    if replay is not None:
+        return replay, True
+
     now = utcnow()
     group = Group(
         name=payload.name,
@@ -184,10 +200,48 @@ async def create_group(
     )
     db.add(invitation)
 
-    await db.commit()
+    if idempotency_key and hashed_request:
+        # Built from the in-memory rows (no lazy loads before commit); no join code.
+        stored_response = GroupResponse(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            type=group.type,
+            created_by=group.created_by,
+            archived_at=None,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+            members=[
+                GroupMemberResponse(
+                    user_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    role=member.role,
+                    status=member.status,
+                    joined_at=member.joined_at,
+                )
+            ],
+            current_user_role=member.role,
+            join_code=None,
+        )
+        idempotency.stage_record(
+            db, user.id, idempotency_key, hashed_request, stored_response, group.id
+        )
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        # Concurrent retry with the same key: return the winner's response.
+        replay = await idempotency.replay_after_conflict(
+            db, user.id, idempotency_key, hashed_request, GroupResponse
+        )
+        if replay is None:
+            raise
+        return replay, True
     # Refresh group with relationships loaded
     group = await get_group_or_404(db, group.id)
-    return group, raw_code
+    return format_group_response(group, user.id, join_code=raw_code), False
 
 
 async def list_user_groups(
@@ -315,6 +369,67 @@ async def revoke_join_code(
     await db.commit()
 
 
+logger = logging.getLogger(__name__)
+
+
+def _group_payload(group: Group, actor: User) -> dict:
+    return {
+        "group_id": str(group.id),
+        "group_name": group.name,
+        "actor_name": actor.name,
+    }
+
+
+async def _notify_member_joined(
+    db: AsyncSession,
+    group: Group, joiner: User, joined_at: datetime, exclude: tuple | list = ()
+) -> None:
+    """Post-commit: active members (not the joiner) hear that someone joined.
+
+    The joined_at time is in the key, so someone who leaves and rejoins notifies again.
+    """
+    try:
+        await notify_group_members(
+            group, joiner.id, "member_joined",
+            f"{group.id}:{joiner.id}:{joined_at.isoformat()}",
+            _group_payload(group, joiner),
+            exclude=exclude,
+            db=db,
+        )
+    except Exception:  # noqa: BLE001 - the join is already committed
+        logger.exception("Join notification failed after commit; membership kept.")
+
+
+async def _notify_member_removed(
+    db: AsyncSession,
+    group: Group, actor: User, member: GroupMember, is_leaving: bool
+) -> None:
+    """Post-commit: tell the removed user, and tell the active admins.
+
+    ``group`` was loaded before the status change but the member row is the same
+    object, so ``group.members`` already shows the new status; the removed user is
+    never counted as an active recipient.
+    """
+    by_id = {m.user_id: m for m in group.members}
+    target = by_id.get(member.user_id)
+    target_name = target.user.name if target is not None and target.user is not None else "A member"
+    ref = f"{group.id}:{member.user_id}:{member.updated_at.isoformat()}"
+    payload = {**_group_payload(group, actor), "target_id": str(member.user_id), "target_name": target_name}
+    roles = await current_member_roles(db, group)
+    admins = [
+        user_id for user_id, role in roles.items()
+        if role == GroupMemberRole.ADMIN.value and user_id != member.user_id
+    ]
+    if is_leaving:
+        await notify_users(admins, actor.id, "member_left", ref, payload, group_id=group.id)
+        return
+    await notify_users(
+        [member.user_id], actor.id, "member_removed", ref,
+        {**payload, "you": True}, group_id=group.id,
+    )
+    await notify_users(admins, actor.id, "member_removed", ref, payload, group_id=group.id)
+
+
 async def join_group_by_code(
     db: AsyncSession,
     current_user: User,
@@ -396,6 +511,7 @@ async def join_group_by_code(
     await db.commit()
     # Reload group to return updated state
     updated_group = await get_group_or_404(db, group.id)
+    await _notify_member_joined(db, updated_group, current_user, now)
     return format_group_response(updated_group, current_user.id)
 
 
@@ -406,17 +522,29 @@ async def remove_member(
     current_user: User,
 ) -> None:
     """
-    Owner/admin removes a member from the group.
-    Sets status to 'removed' to preserve ledger history.
-    Cannot remove group owner/creator.
+    Removes a member from the group, or lets a member leave (US-17 AC5, US-22).
+
+    - Owner/admin removing someone else: status becomes 'removed'.
+    - A member removing themselves (leaving): any active member may do this;
+      status becomes 'left'. A balance does not block leaving; the app warns first.
+    - The group owner can be neither removed nor leave, so an admin always remains.
+
+    Membership rows are never deleted, so past shares and history stay intact,
+    and people who left can no longer be added to new expenses.
     """
     group = await get_group_or_404(db, group_id)
-    check_group_membership(group, current_user, require_admin=True)
+    is_leaving = target_user_id == current_user.id
+    check_group_membership(group, current_user, require_admin=not is_leaving)
 
     if target_user_id == group.created_by:
+        message = (
+            "The group owner cannot leave the group."
+            if is_leaving
+            else "The group owner cannot be removed."
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "CANNOT_REMOVE_OWNER", "message": "The group owner cannot be removed."},
+            detail={"code": "CANNOT_REMOVE_OWNER", "message": message},
         )
 
     res = await db.execute(
@@ -433,10 +561,16 @@ async def remove_member(
             detail={"code": "MEMBER_NOT_FOUND", "message": "Member not found in this group."},
         )
 
-    # Soft removal per CF-08 and CF-16
-    member.status = GroupMemberStatus.REMOVED.value
+    # Soft removal per CF-08 and CF-16: leaving -> 'left', removal -> 'removed'
+    member.status = (
+        GroupMemberStatus.LEFT.value if is_leaving else GroupMemberStatus.REMOVED.value
+    )
     member.updated_at = utcnow()
     await db.commit()
+    try:
+        await _notify_member_removed(db, group, current_user, member, is_leaving)
+    except Exception:  # noqa: BLE001 - the removal is already committed
+        logger.exception("Membership notification failed after commit; change kept.")
 
 
 async def create_invitation(
@@ -510,6 +644,14 @@ async def create_invitation(
     db.add(invitation)
     await db.commit()
     await db.refresh(invitation)
+
+    if invited_user is not None:
+        await notify_users(
+            [invited_user.id], current_user.id, "invitation_received",
+            str(invitation.id),
+            {**_group_payload(group, current_user), "invitation_id": str(invitation.id)},
+            group_id=group.id,
+        )
 
     return InvitationResponse(
         id=invitation.id,
@@ -694,6 +836,14 @@ async def accept_invitation(
     await db.commit()
 
     updated_group = await get_group_or_404(db, group.id)
+    payload = _group_payload(updated_group, current_user)
+    # The inviter hears "accepted"; everyone else active hears "joined" (no double notice).
+    await notify_users(
+        [invitation.created_by], current_user.id, "invitation_accepted",
+        str(invitation.id), {**payload, "invitation_id": str(invitation.id)},
+        group_id=group.id,
+    )
+    await _notify_member_joined(db, updated_group, current_user, now, exclude=[invitation.created_by])
     return format_group_response(updated_group, current_user.id)
 
 
@@ -736,4 +886,15 @@ async def decline_invitation(
 
     invitation.status = InvitationStatus.DECLINED.value
     await db.commit()
+
+    try:
+        group = await get_group_or_404(db, invitation.group_id)
+        await notify_users(
+            [invitation.created_by], current_user.id, "invitation_declined",
+            str(invitation.id),
+            {**_group_payload(group, current_user), "invitation_id": str(invitation.id)},
+            group_id=group.id,
+        )
+    except Exception:  # noqa: BLE001 - the decline is already committed
+        logger.exception("Decline notification failed after commit; decline kept.")
 

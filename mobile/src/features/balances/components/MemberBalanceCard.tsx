@@ -5,7 +5,7 @@
  * - Counterparty name & initials badge.
  * - Directional status badge ("Owes you" / "You owe" / "Settled").
  * - Exact INR amount.
- * - Direct "Settle Up" action trigger button.
+ * - "Record settlement" button (records a repayment made outside the app).
  */
 
 import React from 'react';
@@ -14,8 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppCard } from '@/components/ui/AppCard';
 import { AppText } from '@/components/ui/AppText';
 import { useTheme } from '@/theme';
-import type { PeerStanding } from '../hooks/useGroupBalances';
-import { formatInr } from './NetPositionCard';
+import { formatPaise } from '@/utils/money';
+import type { PeerStanding } from '../types';
+import { peerLabel } from '../utils/balanceLabels';
 
 export interface MemberBalanceCardProps {
   standing: PeerStanding;
@@ -55,11 +56,7 @@ export function MemberBalanceCard({
       ? theme.colors.negative.soft
       : theme.colors.surfaceMuted;
 
-  const a11yLabel = isOwed
-    ? `${standing.name} owes you ${formatInr(amountPaise)}`
-    : isOwing
-      ? `You owe ${standing.name} ${formatInr(amountPaise)}`
-      : `${standing.name} is settled up`;
+  const a11yLabel = peerLabel(standing);
 
   return (
     <AppCard
@@ -71,10 +68,11 @@ export function MemberBalanceCard({
           backgroundColor: theme.colors.surface,
           borderColor: theme.colors.border,
           gap: theme.spacing.sm,
+          padding: theme.spacing.md,
         },
       ]}
     >
-      <View style={styles.mainRow}>
+      <View style={[styles.mainRow, { gap: theme.spacing.md }]}>
         {/* Member Avatar / Initials */}
         <View
           style={[
@@ -90,15 +88,15 @@ export function MemberBalanceCard({
           ]}
         >
           <AppText
-            variant="bodyStrong"
-            style={{ color: statusColor, fontSize: 14 }}
+            variant="small"
+            style={{ color: statusColor, fontFamily: theme.fontFamily.semibold }}
           >
             {initials}
           </AppText>
         </View>
 
         {/* Member Details */}
-        <View style={styles.nameBlock}>
+        <View style={[styles.nameBlock, { gap: theme.spacing.xs }]}>
           <AppText variant="bodyStrong" color="textPrimary">
             {standing.name}
           </AppText>
@@ -108,10 +106,11 @@ export function MemberBalanceCard({
               {
                 backgroundColor: badgeBg,
                 borderRadius: theme.radii.sm,
+                paddingHorizontal: theme.spacing.sm,
               },
             ]}
           >
-            <AppText variant="caption" style={{ color: statusColor, fontSize: 11 }}>
+            <AppText variant="caption" style={{ color: statusColor }}>
               {isOwed ? 'Owes you' : isOwing ? 'You owe' : 'Settled up'}
             </AppText>
           </View>
@@ -119,23 +118,20 @@ export function MemberBalanceCard({
 
         {/* Amount */}
         <View style={styles.amountBlock}>
-          <AppText
-            variant="bodyStrong"
-            style={[styles.amountText, { color: statusColor }]}
-          >
+          <AppText variant="money" style={{ color: statusColor }}>
             {isOwed ? '+' : isOwing ? '-' : ''}
-            {formatInr(amountPaise)}
+            {formatPaise(amountPaise)}
           </AppText>
         </View>
       </View>
 
       {/* Action Button */}
       {!isSettled && canSettle && onSettlePress ? (
-        <View style={[styles.actionRow, { borderTopColor: theme.colors.border, paddingTop: theme.spacing.xs }]}>
+        <View style={[styles.actionRow, { borderTopColor: theme.colors.border, paddingTop: theme.spacing.xs, marginTop: theme.spacing.xs }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Settle balance with ${standing.name}`}
-            accessibilityHint="Opens settlement dialog"
+            accessibilityLabel={`Record a settlement with ${standing.name}`}
+            accessibilityHint="Opens the settle sheet"
             onPress={() => onSettlePress(standing)}
             style={({ pressed }) => [
               styles.settleButton,
@@ -144,6 +140,9 @@ export function MemberBalanceCard({
                 borderColor: theme.colors.border,
                 borderRadius: theme.radii.sm,
                 minHeight: theme.minTouchTarget,
+                gap: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+                paddingVertical: theme.spacing.sm,
                 opacity: pressed ? 0.75 : 1,
               },
             ]}
@@ -160,7 +159,7 @@ export function MemberBalanceCard({
                 fontFamily: theme.fontFamily.semibold,
               }}
             >
-              {isOwing ? 'Pay / Settle Up' : 'Record Payment'}
+              Record settlement
             </AppText>
           </Pressable>
         </View>
@@ -172,14 +171,13 @@ export function MemberBalanceCard({
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    padding: 12,
   },
   mainRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   avatarCircle: {
+    // No size token fits a 40 pt avatar; kept as is (see T-33 report).
     width: 40,
     height: 40,
     alignItems: 'center',
@@ -187,33 +185,24 @@ const styles = StyleSheet.create({
   },
   nameBlock: {
     flex: 1,
-    gap: 4,
   },
   statusChip: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 6,
+    // No 1 pt spacing token; kept so the chip height stays the same (see T-33 report).
     paddingVertical: 1,
   },
   amountBlock: {
     alignItems: 'flex-end',
   },
-  amountText: {
-    fontSize: 16,
-    fontVariant: ['tabular-nums'],
-  },
   actionRow: {
     borderTopWidth: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 4,
   },
   settleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderWidth: 1,
   },
 });

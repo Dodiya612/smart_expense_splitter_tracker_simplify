@@ -36,7 +36,8 @@ export const PAYMENT_MODES: PaymentMode[] = [
 ];
 
 // ── Category ─────────────────────────────────────────────────────────────────
-// Provisional list; the backend / ML team will confirm ids.
+// One entry per default server category; utils/categoryIds.ts maps each id to
+// the seeded category UUID the backend stores (T-45).
 export interface Category {
   id: string;
   label: string;
@@ -52,9 +53,15 @@ export const CATEGORIES: Category[] = [
   { id: 'entertainment', label: 'Entertainment', paletteIndex: 4 },
   { id: 'utilities', label: 'Utilities', paletteIndex: 5 },
   { id: 'shopping', label: 'Shopping', paletteIndex: 6 },
-  { id: 'travel', label: 'Travel', paletteIndex: 7 },
+  { id: 'rent', label: 'Rent & Housing', paletteIndex: 7 },
+  { id: 'education', label: 'Education', paletteIndex: 4 },
+  { id: 'personal_care', label: 'Personal Care', paletteIndex: 6 },
+  { id: 'gifts', label: 'Gifts & Donations', paletteIndex: 0 },
   { id: 'other', label: 'Other', paletteIndex: 8 },
 ];
+
+// ── Recurring (T-45 / US-14) ─────────────────────────────────────────────────
+export type RepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 // ── Form values ───────────────────────────────────────────────────────────────
 /**
@@ -70,6 +77,8 @@ export interface ExpenseFormValues {
   notes: string;
   /** Set to 'true' string when the recurring toggle is on */
   isRecurring: boolean;
+  /** How often it repeats; only used when isRecurring is on (T-45). */
+  frequency: RepeatFrequency;
 }
 
 export type ExpenseFormErrors = {

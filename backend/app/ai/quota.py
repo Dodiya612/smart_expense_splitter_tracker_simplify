@@ -35,6 +35,19 @@ VALID_STATUSES: frozenset[str] = frozenset(
 )
 
 
+async def _rollback_after_db_error(db: AsyncSession) -> None:
+    """Roll back the caller's session after a caught database error (US-34).
+
+    Quota bookkeeping failures are tolerated, but a session whose statement or
+    commit failed is unusable until it is rolled back; without this the rest of
+    the request (for example the category fallback) would fail too.
+    """
+    try:
+        await db.rollback()
+    except SQLAlchemyError as exc:
+        logger.warning("Rollback after AI quota database error failed: %s", exc)
+
+
 def get_utc_day_start() -> datetime:
     """Return the start of the current day (00:00:00) in UTC."""
     return datetime.now(UTC).replace(
@@ -172,6 +185,7 @@ async def _finalize_reservation(
             return result.scalar_one_or_none()
         except SQLAlchemyError as exc:
             logger.warning("Failed to finalize AIUsageLog reservation %s: %s", reservation_id, exc)
+            await _rollback_after_db_error(db)
             return None
 
     try:
@@ -244,6 +258,7 @@ class AIQuotaService:
                     feature,
                     exc,
                 )
+                await _rollback_after_db_error(db)
                 return 0
 
         try:
@@ -371,6 +386,7 @@ class AIQuotaService:
                         )
                 except (SQLAlchemyError, OSError, RuntimeError) as exc:
                     logger.debug("PostgreSQL advisory lock skipped or unavailable: %s", exc)
+                    await _rollback_after_db_error(db)
 
             # 2. Inspect active usage including active pending reservations across all workers
             active_usage = await self.get_usage_count(
@@ -419,6 +435,7 @@ class AIQuotaService:
                     await db.refresh(pending_record)
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to persist pending AI reservation: %s", exc)
+                    await _rollback_after_db_error(db)
 
             # Record in-memory counter as defense-in-depth
             key = (user_id, feature)
@@ -539,6 +556,7 @@ async def log_ai_usage(
             return log_entry
         except SQLAlchemyError as exc:
             logger.warning("Failed to persist AIUsageLog to database: %s", exc)
+            await _rollback_after_db_error(db)
             return None
 
     try:

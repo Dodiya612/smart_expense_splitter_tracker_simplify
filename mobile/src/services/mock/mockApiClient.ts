@@ -3,9 +3,18 @@ import {
   ApiClient,
   ApiError,
   AuthResponse,
+  ChangePasswordPayload,
+  ChangePasswordResponse,
   LoginCredentials,
   SignupPayload,
 } from '@/services/api/types';
+import { mockBalancesGet, mockBalancesPost } from '@/services/mock/mockBalances';
+import {
+  mockAddPasswordChangedNotice,
+  mockNotificationsGet,
+  mockNotificationsPatch,
+  mockNotificationsPut,
+} from '@/services/mock/mockNotifications';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -16,6 +25,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * - Email containing "network.error" simulates a retryable network drop.
  * - Email containing "invalid" simulates bad credentials (non-retryable).
  * - Email containing "exists" simulates an existing account collision during sign-up.
+ * - Change password: current password "wrong" is rejected and "network.error" simulates a
+ *   retryable network drop; otherwise it succeeds and adds a password_changed notice.
  */
 export class MockApiClient implements ApiClient {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -101,8 +112,45 @@ export class MockApiClient implements ApiClient {
     };
   }
 
+  async changePassword(payload: ChangePasswordPayload): Promise<ChangePasswordResponse> {
+    await sleep(config.mockApiLatencyMs);
+    if (payload.currentPassword === 'network.error') {
+      throw new ApiError(
+        'NETWORK_ERROR',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+        true
+      );
+    }
+    if (payload.currentPassword === 'wrong') {
+      throw new ApiError('INVALID_CURRENT_PASSWORD', 'Your current password is incorrect.', false);
+    }
+    if (payload.newPassword !== payload.confirmNewPassword) {
+      throw new ApiError('PASSWORD_MISMATCH', 'The new password and its confirmation do not match.', false);
+    }
+    const revokedSessions = 1;
+    mockAddPasswordChangedNotice(revokedSessions);
+    return {
+      message: 'Your password has been changed.',
+      tokens: {
+        accessToken: 'mock_jwt_access_token',
+        refreshToken: 'mock_refresh_token',
+        tokenType: 'bearer',
+        expiresIn: 900,
+      },
+      revokedSessions,
+    };
+  }
+
   async get<T>(endpoint: string): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+
+    // Balances & settlements (T-33): same shapes as the backend, see mockBalances.ts.
+    const balances = mockBalancesGet(endpoint);
+    if (balances !== undefined) return balances as T;
+
+    // Notification centre (T-36): in-memory demo data, see mockNotifications.ts.
+    const notifications = mockNotificationsGet(endpoint);
+    if (notifications !== undefined) return notifications as T;
 
     throw new ApiError(
       'NOT_IMPLEMENTED',
@@ -111,8 +159,10 @@ export class MockApiClient implements ApiClient {
     );
   }
 
-  async post<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+  async post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const settlement = mockBalancesPost(endpoint, body, headers);
+    if (settlement !== undefined) return settlement as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock POST endpoint "${endpoint}" is not supported.`,
@@ -122,6 +172,8 @@ export class MockApiClient implements ApiClient {
 
   async patch<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const notification = mockNotificationsPatch(endpoint);
+    if (notification !== undefined) return notification as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock PATCH endpoint "${endpoint}" is not supported.`,
@@ -129,8 +181,10 @@ export class MockApiClient implements ApiClient {
     );
   }
 
-  async put<T>(endpoint: string, _body?: unknown, _headers?: Record<string, string>): Promise<T> {
+  async put<T>(endpoint: string, body?: unknown, _headers?: Record<string, string>): Promise<T> {
     await sleep(config.mockApiLatencyMs);
+    const preferences = mockNotificationsPut(endpoint, body);
+    if (preferences !== undefined) return preferences as T;
     throw new ApiError(
       'NOT_IMPLEMENTED',
       `Mock PUT endpoint "${endpoint}" is not supported.`,

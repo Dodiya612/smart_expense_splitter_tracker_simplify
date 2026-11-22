@@ -55,6 +55,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -92,6 +121,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -137,6 +195,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -174,6 +261,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TokenRefreshResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -341,6 +457,82 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Change the authenticated user's password and sign out every other device",
+        "description": "Verify the current password, store the new one and revoke every other session.\n\nOnly the authenticated user's own password can change: the account comes from the\nvalidated access token, never from the request body. In ONE transaction it:\n\n* locks the user row and verifies ``current_password`` against the locked hash;\n* stores the Argon2id hash of the new password and increments ``token_version``, which\n  makes every access token issued before now invalid on its next use (all devices);\n* revokes every unrevoked refresh token of the user: other devices can no longer\n  refresh, and this device's refresh token is rotated within its family.\n\nThis device gets a fresh token pair in the response and stays signed in. The\n``password_changed`` notice is stored only after the commit succeeds.",
+        "operationId": "change_password_api_v1_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/expenses": {
@@ -898,25 +1090,41 @@
         }
       }
     },
-    "/api/v1/groups": {
-      "get": {
+    "/api/v1/receipts/scan": {
+      "post": {
         "tags": [
-          "Groups"
+          "Receipts"
         ],
-        "summary": "List current user's groups",
-        "description": "List all active groups that the authenticated user is a member of.",
-        "operationId": "list_groups_api_v1_groups_get",
+        "summary": "Scan and process a receipt bill image",
+        "description": "Uploads a receipt image (JPEG or PNG), validates magic bytes, strips EXIF/GPS, compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction.",
+        "operationId": "scan_receipt_endpoint_api_v1_receipts_scan_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupListItemResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Groups Api V1 Groups Get"
+                  "$ref": "#/components/schemas/ReceiptScanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -927,23 +1135,95 @@
             "HTTPBearer": []
           }
         ]
-      },
+      }
+    },
+    "/api/v1/receipts/{receipt_id}/image": {
+      "get": {
+        "tags": [
+          "Receipts"
+        ],
+        "summary": "Retrieve receipt image content",
+        "description": "Retrieves the stored receipt image bytes. Accessible only by the receipt owner. Returns 404 for unauthorized users.",
+        "operationId": "get_receipt_image_endpoint_api_v1_receipts__receipt_id__image_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "receipt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Receipt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
       "post": {
         "tags": [
           "Groups"
         ],
         "summary": "Create a new group",
-        "description": "Create a new group with the specified group type.\nThe creator is assigned as admin, and an initial 7-day join code is generated and returned securely.",
+        "description": "Supports idempotent retries via the Idempotency-Key header. A replayed response does not repeat the join code (codes are stored only as hashes); generate a new one if needed.",
         "operationId": "create_group_api_v1_groups_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GroupCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -966,12 +1246,36 @@
               }
             }
           }
-        },
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List current user's groups",
+        "description": "List all active groups that the authenticated user is a member of.",
+        "operationId": "list_groups_api_v1_groups_get",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupListItemResponse"
+                  },
+                  "title": "Response List Groups Api V1 Groups Get"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/groups/join": {
@@ -999,6 +1303,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JoinGroupResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -1106,6 +1439,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1205,6 +1567,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1274,8 +1665,8 @@
         "tags": [
           "Groups"
         ],
-        "summary": "Remove a group member",
-        "description": "Owner/admin removes a member from the group.\nThe group owner cannot be removed.\nRemoval is soft, setting status to 'removed' to preserve financial history.",
+        "summary": "Remove a group member, or leave the group",
+        "description": "Owner/admin removes a member from the group (status 'removed').\nAny active member may pass their own user ID to leave (status 'left').\nThe group owner can be neither removed nor leave.\nBoth are soft changes, so financial history is preserved.",
         "operationId": "remove_member_api_v1_groups__group_id__members__user_id__delete",
         "security": [
           {
@@ -1327,7 +1718,7 @@
           "Groups"
         ],
         "summary": "Add a shared expense to group",
-        "description": "Create a shared expense within the specified group.\nSupports equal, exact, percentage, and parts-based split modes using the pure ledger engine.\nEnsures all payments, shares, and audit logs are recorded in one atomic transaction.",
+        "description": "Supports idempotent retries via the Idempotency-Key header.",
         "operationId": "create_shared_expense_api_v1_groups__group_id__expenses_post",
         "security": [
           {
@@ -1343,6 +1734,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Group Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -1437,7 +1844,7 @@
           "Groups"
         ],
         "summary": "Get group balances and suggested settlements",
-        "description": "Calculate dynamic net member balances and suggested minimal settlement transfers\nusing the pure ledger engine.",
+        "description": "Net position per member (expenses and settlements) and simplified transfers,\ncomputed only by the pure ledger engine. Non-members get 404.",
         "operationId": "get_group_balances_api_v1_groups__group_id__balances_get",
         "security": [
           {
@@ -1462,9 +1869,182 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Group Balances Api V1 Groups  Group Id  Balances Get"
+                  "$ref": "#/components/schemas/GroupBalancesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/balances/simplified": {
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get simplified repayment suggestions",
+        "description": "Greedy 'who pays whom' suggestions from ledger.simplify(). Non-members get 404.",
+        "operationId": "get_simplified_repayments_api_v1_groups__group_id__balances_simplified_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimplifiedRepaymentsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{group_id}/settlements": {
+      "post": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Record a full or partial settlement",
+        "description": "Records that one member repaid another. Never counted as spending or income. Supports idempotent retries via the Idempotency-Key header.",
+        "operationId": "create_settlement_api_v1_groups__group_id__settlements_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List settlements of group",
+        "description": "List all settlements recorded in this group, newest first. Non-members get 404.",
+        "operationId": "list_settlements_api_v1_groups__group_id__settlements_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SettlementResponse"
+                  },
+                  "title": "Response List Settlements Api V1 Groups  Group Id  Settlements Get"
                 }
               }
             }
@@ -1918,6 +2498,35 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1960,6 +2569,35 @@
           "204": {
             "description": "Successful Response"
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1998,6 +2636,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategorySuggestionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -2049,6 +2716,1640 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (code RATE_LIMIT_EXCEEDED).",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying (positive integer).",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rate limiter unavailable (code RATE_LIMITER_UNAVAILABLE); the request was not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending summary for a date range",
+        "description": "Your share and cash paid in the range, how many expenses, and what you are owed / owe now.",
+        "operationId": "get_summary_api_v1_analytics_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/trends": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending over time",
+        "description": "Share and cash paid per day, week (Monday\u2013Sunday) or month, with running totals. Empty buckets are included as 0.",
+        "operationId": "get_trends_api_v1_analytics_trends_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "description": "day, week or month.",
+              "default": "day",
+              "title": "Granularity"
+            },
+            "description": "day, week or month."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/categories": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Spending by category",
+        "description": "Share and cash paid per category in the range, largest share first.",
+        "operationId": "get_categories_api_v1_analytics_categories_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'.",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD, inclusive). Default: 1st of the month of 'to'."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata.",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD, inclusive). Default: today in Asia/Kolkata."
+          },
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this group's expenses (current or past members only; others get 404).",
+              "title": "Group Id"
+            },
+            "description": "Only this group's expenses (current or past members only; others get 404)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsCategoriesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_RANGE ('from' after 'to') or RANGE_TOO_LARGE (over 731 days)."
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "GROUP_NOT_FOUND: the group does not exist or you were never a member."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics-tools/daily-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Daily spending summary (today)",
+        "operationId": "daily_spending_api_v1_analytics_tools_daily_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/weekly-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Weekly spending summary (current ISO week)",
+        "operationId": "weekly_spending_api_v1_analytics_tools_weekly_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/monthly-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Monthly spending summary (current calendar month)",
+        "operationId": "monthly_spending_api_v1_analytics_tools_monthly_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/group-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Spending summary for a specific group",
+        "operationId": "group_spending_api_v1_analytics_tools_group_spending_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Group UUID",
+              "title": "Group Id"
+            },
+            "description": "Group UUID"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date (inclusive)",
+              "title": "From"
+            },
+            "description": "Start date (inclusive)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date (inclusive)",
+              "title": "To"
+            },
+            "description": "End date (inclusive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics-tools/total-spending": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Overall spending summary (no date limits)",
+        "operationId": "total_spending_api_v1_analytics_tools_total_spending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/daily-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Daily trends for the past 30 days",
+        "operationId": "daily_trends_api_v1_analytics_tools_daily_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/weekly-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Weekly trends for the past 12 weeks",
+        "operationId": "weekly_trends_api_v1_analytics_tools_weekly_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics-tools/monthly-trends": {
+      "get": {
+        "tags": [
+          "Analytics Tools"
+        ],
+        "summary": "Monthly trends for the past 12 months",
+        "operationId": "monthly_trends_api_v1_analytics_tools_monthly_trends_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsTrendsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/recurring": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Create a recurring expense rule",
+        "description": "Creates a daily, weekly, monthly or yearly rule (personal, or a group expense with its split). The first occurrence is start_date. Supports idempotent retries via the Idempotency-Key header (a replay adds X-Idempotent-Replay: true).",
+        "operationId": "create_rule_api_v1_recurring_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringRuleCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "List my recurring expense rules",
+        "description": "Your rules with their status and next run date, newest first.",
+        "operationId": "list_rules_api_v1_recurring_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "paused",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            },
+            "description": "Filter by status"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}": {
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Get a recurring expense rule",
+        "operationId": "get_rule_api_v1_recurring__rule_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Edit a recurring expense rule (future occurrences only)",
+        "description": "Changes amount, category, description, notes, merchant, payment mode, end date or (group rules) split. Expenses already created are not modified. A cancelled rule cannot be edited.",
+        "operationId": "update_rule_api_v1_recurring__rule_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringRuleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/pause": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Pause a recurring expense rule",
+        "description": "No occurrences and no reminders are produced while paused.",
+        "operationId": "pause_rule_api_v1_recurring__rule_id__pause_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/resume": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Resume a paused recurring expense rule",
+        "description": "Continues from the next scheduled date on or after today; the paused period is not back-filled.",
+        "operationId": "resume_rule_api_v1_recurring__rule_id__resume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/cancel": {
+      "post": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Cancel a recurring expense rule (final)",
+        "operationId": "cancel_rule_api_v1_recurring__rule_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRuleDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{rule_id}/occurrences": {
+      "get": {
+        "tags": [
+          "Recurring Expenses"
+        ],
+        "summary": "Occurrence history of a recurring expense rule",
+        "description": "Each handled date with the created expense id, or the reason it was skipped. Newest first.",
+        "operationId": "list_occurrences_api_v1_recurring__rule_id__occurrences_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringOccurrenceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets": {
+      "get": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "List my budgets with current-period progress",
+        "description": "Your active budgets, oldest first. Each shows spending (your share of every expense, never cash paid or settlements) for the current week (Monday to Sunday) or calendar month in Asia/Kolkata.",
+        "operationId": "list_budgets_api_v1_budgets_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size (1-100)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Create a budget",
+        "description": "A weekly or monthly limit, overall (omit categoryId) or for one category. At most one active budget per period and category (409 BUDGET_EXISTS). Alerts are sent at 80% and 100%, each once per period. Supports idempotent retries via the Idempotency-Key header (a replay adds X-Idempotent-Replay: true).",
+        "operationId": "create_budget_api_v1_budgets_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{budget_id}": {
+      "get": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Get a budget with current-period progress",
+        "operationId": "get_budget_api_v1_budgets__budget_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Change a budget's limit",
+        "description": "Only limitPaise can change; period, category, ownership and unknown fields are 422 (delete the budget and create a new one instead). A lower limit can send an alert at once; a higher limit never takes back an alert already sent this period.",
+        "operationId": "update_budget_api_v1_budgets__budget_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Delete a budget",
+        "description": "The budget stops being tracked and its period and category can be budgeted again.",
+        "operationId": "delete_budget_api_v1_budgets__budget_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List my notifications (newest first)",
+        "operationId": "list_notifications_api_v1_notifications_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "unread_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unread Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Number of my unread notifications",
+        "operationId": "unread_count_api_v1_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCountResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark all my notifications as read",
+        "operationId": "mark_all_read_api_v1_notifications_read_all_patch",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllReadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark one of my notifications as read",
+        "operationId": "mark_read_api_v1_notifications__notification_id__read_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notification-preferences": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get my notification settings",
+        "operationId": "get_preferences_api_v1_notification_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Update my notification settings",
+        "operationId": "update_preferences_api_v1_notification_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferencesUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2070,6 +4371,279 @@
   },
   "components": {
     "schemas": {
+      "AnalyticsCategoriesResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryBreakdownItem"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Sorted by share_paise, then cash_paid_paise (both descending), then name."
+          },
+          "total_share_paise": {
+            "type": "integer",
+            "title": "Total Share Paise"
+          },
+          "total_cash_paid_paise": {
+            "type": "integer",
+            "title": "Total Cash Paid Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "categories",
+          "total_share_paise",
+          "total_cash_paid_paise"
+        ],
+        "title": "AnalyticsCategoriesResponse"
+      },
+      "AnalyticsSummaryResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise",
+            "description": "Your spending in the range: your share of every expense."
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise",
+            "description": "What you actually paid in the range."
+          },
+          "expense_count": {
+            "type": "integer",
+            "title": "Expense Count",
+            "description": "Expenses in the range you have a share in or paid for."
+          },
+          "owed_to_you_paise": {
+            "type": "integer",
+            "title": "Owed To You Paise",
+            "description": "Current total others owe you across your groups (ledger engine; not limited to the range)."
+          },
+          "you_owe_paise": {
+            "type": "integer",
+            "title": "You Owe Paise",
+            "description": "Current total you owe across your groups (ledger engine; not limited to the range)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "share_paise",
+          "cash_paid_paise",
+          "expense_count",
+          "owed_to_you_paise",
+          "you_owe_paise"
+        ],
+        "title": "AnalyticsSummaryResponse"
+      },
+      "AnalyticsTrendsResponse": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date",
+            "description": "First day of the range (inclusive), Asia/Kolkata."
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date",
+            "description": "Last day of the range (inclusive), Asia/Kolkata."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "Time zone the dates are in.",
+            "default": "Asia/Kolkata"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "When set, only expenses of this group (personal expenses excluded)."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Granularity"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/TrendBucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "Every bucket in the range, empty ones as 0, oldest first."
+          },
+          "total_share_paise": {
+            "type": "integer",
+            "title": "Total Share Paise"
+          },
+          "total_cash_paid_paise": {
+            "type": "integer",
+            "title": "Total Cash Paid Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "granularity",
+          "buckets",
+          "total_share_paise",
+          "total_cash_paid_paise"
+        ],
+        "title": "AnalyticsTrendsResponse"
+      },
+      "ApiErrorDetail": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Msg"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ApiErrorDetail",
+        "description": "Specific validation error entry."
+      },
+      "ApiErrorResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ApiErrorDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "isRetryable": {
+            "type": "boolean",
+            "title": "Isretryable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiErrorResponse",
+        "description": "Standardized API Error envelope matching mobile ApiError expectations:\n{ \"code\": \"...\", \"message\": \"...\", \"detail\": [...], \"isRetryable\": false }"
+      },
       "AuthResponse": {
         "properties": {
           "user": {
@@ -2085,6 +4659,276 @@
           "tokens"
         ],
         "title": "AuthResponse"
+      },
+      "Body_scan_receipt_endpoint_api_v1_receipts_scan_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Receipt image file (JPEG or PNG, max 5 MB)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_scan_receipt_endpoint_api_v1_receipts_scan_post"
+      },
+      "BudgetCreate": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "title": "Period",
+            "description": "weekly (Monday to Sunday) or monthly (calendar month)."
+          },
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise",
+            "description": "Spending limit per period in integer paise (> 0)."
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid",
+            "description": "Limit spending in one category; omit for an overall budget."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period",
+          "limitPaise"
+        ],
+        "title": "BudgetCreate",
+        "description": "Payload for creating a budget. Omit ``category_id`` for an overall budget."
+      },
+      "BudgetDataResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BudgetResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BudgetDataResponse"
+      },
+      "BudgetListMeta": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "BudgetListMeta"
+      },
+      "BudgetListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/BudgetListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "BudgetListResponse"
+      },
+      "BudgetProgress": {
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date",
+            "title": "Periodstart"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date",
+            "title": "Periodend"
+          },
+          "spentPaise": {
+            "type": "integer",
+            "title": "Spentpaise"
+          },
+          "remainingPaise": {
+            "type": "integer",
+            "title": "Remainingpaise",
+            "description": "limit - spent; negative when over the limit."
+          },
+          "overByPaise": {
+            "type": "integer",
+            "title": "Overbypaise",
+            "description": "How far spending is over the limit; 0 when not over."
+          },
+          "percentUsed": {
+            "type": "integer",
+            "title": "Percentused",
+            "description": "floor(spent * 100 / limit)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "under",
+              "warning",
+              "exceeded"
+            ],
+            "title": "Status",
+            "description": "under (< 80%), warning (80% to < 100%) or exceeded (>= 100%)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "periodStart",
+          "periodEnd",
+          "spentPaise",
+          "remainingPaise",
+          "overByPaise",
+          "percentUsed",
+          "status"
+        ],
+        "title": "BudgetProgress",
+        "description": "Spending against the limit in the current period (Asia/Kolkata).\n\n``spent_paise`` is the user's share of every live expense dated in the period (a\npersonal expense counts in full, a shared expense counts the user's share). Cash paid\nand settlements never count."
+      },
+      "BudgetResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "title": "Period"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid"
+          },
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/BudgetProgress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "period",
+          "limitPaise",
+          "createdAt",
+          "updatedAt",
+          "progress"
+        ],
+        "title": "BudgetResponse"
+      },
+      "BudgetUpdate": {
+        "properties": {
+          "limitPaise": {
+            "type": "integer",
+            "title": "Limitpaise",
+            "description": "New spending limit per period in integer paise (> 0)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "limitPaise"
+        ],
+        "title": "BudgetUpdate",
+        "description": "Change the limit. The period and category cannot be changed (delete the budget and\ncreate a new one instead), because alerts already sent belong to the old definition."
+      },
+      "CategoryBreakdownItem": {
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Category Id"
+          },
+          "category_name": {
+            "type": "string",
+            "title": "Category Name"
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise"
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise"
+          },
+          "expense_count": {
+            "type": "integer",
+            "title": "Expense Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category_id",
+          "category_name",
+          "share_paise",
+          "cash_paid_paise",
+          "expense_count"
+        ],
+        "title": "CategoryBreakdownItem"
       },
       "CategoryFeedbackData": {
         "properties": {
@@ -2289,6 +5133,58 @@
         ],
         "title": "CategorySuggestionResponse",
         "description": "Enveloped suggestion response."
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Currentpassword"
+          },
+          "newPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Newpassword"
+          },
+          "confirmNewPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Confirmnewpassword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "confirmNewPassword"
+        ],
+        "title": "ChangePasswordRequest",
+        "description": "T-50. Length and strength rules for ``new_password`` are checked in the endpoint so\neach failure gets its own error code; these bounds only stop oversized input early.\nPassword values are never echoed back in responses or validation errors."
+      },
+      "ChangePasswordResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenBundle"
+          },
+          "revokedSessions": {
+            "type": "integer",
+            "title": "Revokedsessions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "tokens"
+        ],
+        "title": "ChangePasswordResponse"
       },
       "CreateInvitationRequest": {
         "properties": {
@@ -2942,6 +5838,56 @@
         "title": "ExpenseUpdate",
         "description": "Payload for updating an existing personal expense (supports partial updates)."
       },
+      "GroupBalancesResponse": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "net_positions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Net Positions"
+          },
+          "suggested_transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferItem"
+            },
+            "type": "array",
+            "title": "Suggested Transfers"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberBalanceItem"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "total_debt_paise": {
+            "type": "integer",
+            "title": "Total Debt Paise",
+            "description": "Sum of all creditors' positions (equals the sum owed by debtors)."
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "INR"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "net_positions",
+          "suggested_transfers",
+          "members",
+          "total_debt_paise"
+        ],
+        "title": "GroupBalancesResponse",
+        "description": "Balances for a group, from ledger.net_positions() and ledger.simplify().\n\nKeeps the original `group_id`, `net_positions` and `suggested_transfers`\nkeys of this endpoint and adds `members`, `total_debt_paise` and `currency`."
+      },
       "GroupCreateRequest": {
         "properties": {
           "name": {
@@ -3445,6 +6391,60 @@
         "type": "object",
         "title": "LogoutRequest"
       },
+      "MarkAllReadResponse": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "MarkAllReadResponse"
+      },
+      "MemberBalanceItem": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "net_balance_paise": {
+            "type": "integer",
+            "title": "Net Balance Paise",
+            "description": "> 0: others owe this member; < 0: this member owes others."
+          },
+          "owes_paise": {
+            "type": "integer",
+            "title": "Owes Paise"
+          },
+          "receives_paise": {
+            "type": "integer",
+            "title": "Receives Paise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "creditor",
+              "debtor",
+              "settled"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "net_balance_paise",
+          "owes_paise",
+          "receives_paise",
+          "status"
+        ],
+        "title": "MemberBalanceItem",
+        "description": "Net position for one group member."
+      },
       "MessageResponse": {
         "properties": {
           "message": {
@@ -3457,6 +6457,928 @@
           "message"
         ],
         "title": "MessageResponse"
+      },
+      "NotificationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Pass as `cursor` to fetch the next (older) page; null on the last page."
+          },
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "unread_count"
+        ],
+        "title": "NotificationListResponse"
+      },
+      "NotificationPreferenceItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "enabled"
+        ],
+        "title": "NotificationPreferenceItem"
+      },
+      "NotificationPreferenceResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "can_disable": {
+            "type": "boolean",
+            "title": "Can Disable",
+            "description": "False for security notices that cannot be switched off.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "enabled"
+        ],
+        "title": "NotificationPreferenceResponse"
+      },
+      "NotificationPreferencesResponse": {
+        "properties": {
+          "preferences": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationPreferenceResponse"
+            },
+            "type": "array",
+            "title": "Preferences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preferences"
+        ],
+        "title": "NotificationPreferencesResponse"
+      },
+      "NotificationPreferencesUpdateRequest": {
+        "properties": {
+          "preferences": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationPreferenceItem"
+            },
+            "type": "array",
+            "maxItems": 15,
+            "minItems": 1,
+            "title": "Preferences"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "preferences"
+        ],
+        "title": "NotificationPreferencesUpdateRequest"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "is_read": {
+            "type": "boolean",
+            "title": "Is Read"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "is_read",
+          "created_at"
+        ],
+        "title": "NotificationResponse"
+      },
+      "ReceiptScanResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReceiptScanResponseData"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Receipt processed successfully."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ReceiptScanResponse",
+        "description": "Standard envelope for receipt scanning endpoint."
+      },
+      "ReceiptScanResponseData": {
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Receiptid"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountminor"
+          },
+          "expenseDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expensedate"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "fileSize": {
+            "type": "integer",
+            "title": "Filesize"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "isDraft": {
+            "type": "boolean",
+            "title": "Isdraft",
+            "default": true
+          },
+          "ocrEngine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocrengine"
+          }
+        },
+        "type": "object",
+        "required": [
+          "receiptId",
+          "fileSize"
+        ],
+        "title": "ReceiptScanResponseData",
+        "description": "Extracted receipt information returned to client."
+      },
+      "RecurringListMeta": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "RecurringListMeta"
+      },
+      "RecurringOccurrenceListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringOccurrenceResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RecurringListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RecurringOccurrenceListResponse"
+      },
+      "RecurringOccurrenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "occurrenceDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Occurrencedate"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "skipped"
+            ],
+            "title": "Status"
+          },
+          "expenseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenseid",
+            "description": "The created expense; null if skipped or the expense was later hard-deleted."
+          },
+          "skipReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipreason",
+            "description": "Error code explaining why the date was skipped."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurrenceDate",
+          "status",
+          "createdAt"
+        ],
+        "title": "RecurringOccurrenceResponse"
+      },
+      "RecurringRuleCreate": {
+        "properties": {
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "yearly"
+            ],
+            "title": "Frequency",
+            "description": "daily, weekly, monthly or yearly."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate",
+            "description": "First occurrence (Asia/Kolkata); today or later."
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate",
+            "description": "Last possible occurrence date (inclusive)."
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise",
+            "description": "Amount of each expense in integer paise (> 0)."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid",
+            "description": "Set for a group rule; omit for a personal rule."
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Group rules only."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "frequency",
+          "startDate",
+          "amountPaise",
+          "categoryId",
+          "description"
+        ],
+        "title": "RecurringRuleCreate",
+        "description": "Payload for creating a recurring expense rule."
+      },
+      "RecurringRuleDataResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecurringRuleResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "RecurringRuleDataResponse"
+      },
+      "RecurringRuleListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringRuleResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RecurringListMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "RecurringRuleListResponse"
+      },
+      "RecurringRuleResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "groupId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groupid"
+          },
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "yearly"
+            ],
+            "title": "Frequency"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate"
+          },
+          "nextRunDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextrundate",
+            "description": "Next occurrence that will be created; null when none remains."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Categoryid"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "pausedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pausedat"
+          },
+          "cancelledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelledat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "frequency",
+          "startDate",
+          "status",
+          "amountPaise",
+          "categoryId",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "RecurringRuleResponse"
+      },
+      "RecurringRuleUpdate": {
+        "properties": {
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise"
+          },
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "paymentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentmode"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurringSplit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecurringRuleUpdate",
+        "description": "Partial edit. Changes apply to future occurrences only; expenses already created are\nnever modified. frequency, start_date and group_id cannot be changed (cancel and create\na new rule instead). Send ``null`` for end_date/notes/merchant/payment_mode to clear them."
+      },
+      "RecurringSplit": {
+        "properties": {
+          "paidByUserId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paidbyuserid",
+            "description": "Single payer (a group member)."
+          },
+          "payments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object",
+                "maxProperties": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payments",
+            "description": "Map of member UUID to integer paise paid; must sum to amount_paise."
+          },
+          "participantUserIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participantuserids",
+            "description": "Members who share the expense. Defaults to all active members at creation time."
+          },
+          "splitMode": {
+            "$ref": "#/components/schemas/SplitMode",
+            "description": "equal, exact, percentage or parts.",
+            "default": "equal"
+          },
+          "splitWeights": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "maxProperties": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitweights",
+            "description": "Per-member weights for exact (integer paise), percentage or parts modes."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecurringSplit",
+        "description": "How a group rule's expense is paid and split. Same fields and meaning as the\nshared-expense create request; omitted fields mean \"owner pays, all active members\nshare equally\" when each occurrence is created."
       },
       "RefreshTokenRequest": {
         "properties": {
@@ -3539,6 +7461,189 @@
           "expiresAt"
         ],
         "title": "SessionResponse"
+      },
+      "SettlementCreateRequest": {
+        "properties": {
+          "payer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payer Id",
+            "description": "UUID of the member making the repayment (debtor)."
+          },
+          "payee_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payee Id",
+            "description": "UUID of the member receiving the repayment (creditor)."
+          },
+          "amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.223372036854776e+18,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Paise",
+            "description": "Repayment amount in positive integer paise. Required unless is_full_settlement is true."
+          },
+          "is_full_settlement": {
+            "type": "boolean",
+            "title": "Is Full Settlement",
+            "description": "Settle everything the payer currently owes the payee. If amount_paise is also given it must equal that outstanding amount.",
+            "default": false
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method",
+            "description": "Payment channel (e.g. upi, cash, bank_transfer)."
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes about the settlement."
+          },
+          "settlement_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement Date",
+            "description": "Date of repayment (YYYY-MM-DD). Defaults to today in Asia/Kolkata."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "payer_id",
+          "payee_id"
+        ],
+        "title": "SettlementCreateRequest",
+        "description": "Payload to record a full or partial settlement between two group members."
+      },
+      "SettlementResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "payer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payer Id"
+          },
+          "payee_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Payee Id"
+          },
+          "amount_paise": {
+            "type": "integer",
+            "title": "Amount Paise"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "settlement_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Settlement Date"
+          },
+          "is_partial": {
+            "type": "boolean",
+            "title": "Is Partial",
+            "default": false
+          },
+          "remaining_debt_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Debt Paise",
+            "description": "What the payer still owed the payee right after this settlement (only set on the create response)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "group_id",
+          "payer_id",
+          "payee_id",
+          "amount_paise",
+          "status",
+          "settlement_date",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SettlementResponse",
+        "description": "A recorded settlement."
       },
       "SharedExpenseCreateRequest": {
         "properties": {
@@ -4096,6 +8201,39 @@
         "title": "SharedExpenseUpdateRequest",
         "description": "Payload for updating an existing shared expense within a group."
       },
+      "SimplifiedRepaymentsResponse": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Group Id"
+          },
+          "suggested_transfers": {
+            "items": {
+              "$ref": "#/components/schemas/TransferItem"
+            },
+            "type": "array",
+            "title": "Suggested Transfers"
+          },
+          "total_transfers": {
+            "type": "integer",
+            "title": "Total Transfers"
+          },
+          "total_amount_paise": {
+            "type": "integer",
+            "title": "Total Amount Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "suggested_transfers",
+          "total_transfers",
+          "total_amount_paise"
+        ],
+        "title": "SimplifiedRepaymentsResponse",
+        "description": "Greedy simplified repayment suggestions (ledger.simplify())."
+      },
       "SplitMode": {
         "type": "string",
         "enum": [
@@ -4162,6 +8300,87 @@
           "refreshToken"
         ],
         "title": "TokenRefreshResponse"
+      },
+      "TransferItem": {
+        "properties": {
+          "from_user": {
+            "type": "string",
+            "title": "From User"
+          },
+          "to_user": {
+            "type": "string",
+            "title": "To User"
+          },
+          "amount_paise": {
+            "type": "integer",
+            "title": "Amount Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_user",
+          "to_user",
+          "amount_paise"
+        ],
+        "title": "TransferItem",
+        "description": "Suggested repayment produced by ledger.simplify()."
+      },
+      "TrendBucket": {
+        "properties": {
+          "bucket_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Bucket Start",
+            "description": "Calendar start of the bucket (a Monday for weeks, the 1st for months)."
+          },
+          "bucket_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Bucket End",
+            "description": "Calendar end of the bucket (inclusive)."
+          },
+          "share_paise": {
+            "type": "integer",
+            "title": "Share Paise"
+          },
+          "cash_paid_paise": {
+            "type": "integer",
+            "title": "Cash Paid Paise"
+          },
+          "cumulative_share_paise": {
+            "type": "integer",
+            "title": "Cumulative Share Paise",
+            "description": "Running total of share_paise from the start of the range."
+          },
+          "cumulative_cash_paid_paise": {
+            "type": "integer",
+            "title": "Cumulative Cash Paid Paise",
+            "description": "Running total of cash_paid_paise from the start of the range."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bucket_start",
+          "bucket_end",
+          "share_paise",
+          "cash_paid_paise",
+          "cumulative_share_paise",
+          "cumulative_cash_paid_paise"
+        ],
+        "title": "TrendBucket"
+      },
+      "UnreadCountResponse": {
+        "properties": {
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unread_count"
+        ],
+        "title": "UnreadCountResponse"
       },
       "UserLoginRequest": {
         "properties": {
