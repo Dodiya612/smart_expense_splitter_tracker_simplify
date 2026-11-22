@@ -61,3 +61,16 @@ class ReceiptScanResponse(BaseSchema):
 
     data: ReceiptScanResponseData
     message: str = "Receipt processed successfully."
+
+
+class ReceiptDraftResponse(BaseSchema):
+    """Response model for the OCR draft endpoint (T-53, app/api/v1/endpoints/ocr.py)."""
+
+    data: ReceiptScanResponseData
+    message: str = "Draft receipt created successfully."
+
+
+class ReceiptConfirmResponse(BaseSchema):
+    """Response model for the OCR confirm endpoint (T-53, app/api/v1/endpoints/ocr.py)."""
+
+    message: str = "Receipt confirmed and saved."
