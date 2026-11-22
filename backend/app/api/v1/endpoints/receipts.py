@@ -20,11 +20,18 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.bill_review import build_review
+from app.ai.line_items import structure_line_items
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.errors import image_too_large_error
 from app.models.user import User
-from app.schemas.receipt import ReceiptScanResponse, ReceiptScanResponseData
+from app.schemas.receipt import (
+    ReceiptLineItem,
+    ReceiptReviewWarning,
+    ReceiptScanResponse,
+    ReceiptScanResponseData,
+)
 from app.services.receipt_service import get_receipt_image, scan_and_store_receipt
 
 router = APIRouter()
@@ -38,7 +45,10 @@ MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
     status_code=status.HTTP_201_CREATED,
     summary="Scan and process a receipt bill image",
     description="Uploads a receipt image (JPEG or PNG), validates magic bytes, strips EXIF/GPS, "
-    "compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction.",
+    "compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction. "
+    "The result is a draft for the review screen (T-54): line items whose numbers are all printed on the "
+    "bill, warnings, and the fields to highlight. Nothing is saved as an expense until the user confirms "
+    "(POST /expenses with receiptId); an unconfirmed scan is deleted after 24 hours.",
 )
 async def scan_receipt_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -56,18 +66,34 @@ async def scan_receipt_endpoint(
         raw_bytes=raw_bytes,
     )
 
+    # T-54: line items (LLM structures, code checks every number) and the review warnings.
+    line_items = await structure_line_items(extracted.raw_text, list(extracted.items or []))
+    review = build_review(extracted, line_items)
+
     return ReceiptScanResponse(
         data=ReceiptScanResponseData(
             receipt_id=receipt.id,
-            merchant=extracted.merchant,
-            amount_minor=extracted.amount_minor,
-            expense_date=extracted.expense_date,
+            merchant=review.merchant,
+            amount_minor=review.amount_paise,
+            amount_paise=review.amount_paise,
+            expense_date=review.expense_date,
             category=extracted.category,
             notes=extracted.notes,
             file_size=receipt.file_size,
-            items=extracted.items if hasattr(extracted, "items") else None,
+            items=[
+                ReceiptLineItem(
+                    name=i.name,
+                    amount_paise=i.amount_paise,
+                    quantity=i.quantity,
+                    unit_price_paise=i.unit_price_paise,
+                )
+                for i in review.items
+            ],
+            items_source=review.items_source,
+            warnings=[ReceiptReviewWarning(code=w.code, message=w.message, field=w.field) for w in review.warnings],
+            low_confidence_fields=review.low_confidence_fields,
             confidence=extracted.confidence if hasattr(extracted, "confidence") else None,
-            is_draft=getattr(extracted, "is_draft", True),
+            is_draft=True,
             ocr_engine=getattr(extracted, "ocr_engine_used", None),
         ),
         message="Receipt processed successfully.",

@@ -75,6 +75,7 @@ export interface BackendExpenseItemCamel {
   notes?: string | null;
   merchant?: string | null;
   paymentMode?: string | null;
+  receiptId?: string | null;
   version?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -141,6 +142,7 @@ export function mapBackendExpenseToDomain(
     updatedAt: item.updated_at || item.updatedAt || new Date().toISOString(),
     description,
     merchant: item.merchant ?? undefined,
+    receiptId: item.receipt_id ?? item.receiptId ?? undefined,
   };
 }
 

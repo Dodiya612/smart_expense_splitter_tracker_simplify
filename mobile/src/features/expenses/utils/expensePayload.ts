@@ -1,6 +1,6 @@
 /**
  * Request bodies for saving a personal expense (T-45, finishing T-19).
- * Pure functions so they are unit tested (scripts/test-recurring.mjs).
+ * Pure functions so they are unit tested (scripts/test-recurring.mjs, test-bills.mjs).
  */
 
 import { CATEGORIES, type CreateExpensePayload } from '../types';
@@ -19,9 +19,16 @@ export function expenseDescription(notes: string, categoryId: string): string {
   return CATEGORIES.find((c) => c.id === categoryId)?.label ?? 'Expense';
 }
 
-/** Body for POST /api/v1/expenses (camelCase, money in integer paise). */
+/** The server's merchant limit (ExpenseCreate.merchant, max 255). */
+export const MERCHANT_MAX = 255;
+
+/**
+ * Body for POST /api/v1/expenses (camelCase, money in integer paise).
+ * A scanned bill adds `receiptId` (linked in the same transaction) and `merchant` (T-54).
+ */
 export function buildCreateExpenseBody(payload: CreateExpensePayload): Record<string, unknown> {
   const notes = payload.notes.trim();
+  const merchant = payload.merchant?.trim().slice(0, MERCHANT_MAX).trim();
   return {
     amountPaise: payload.amountPaise,
     description: expenseDescription(notes, payload.categoryId),
@@ -29,5 +36,7 @@ export function buildCreateExpenseBody(payload: CreateExpensePayload): Record<st
     expenseDate: payload.date,
     paymentMode: payload.paymentMode,
     ...(notes ? { notes } : {}),
+    ...(merchant ? { merchant } : {}),
+    ...(payload.receiptId ? { receiptId: payload.receiptId } : {}),
   };
 }

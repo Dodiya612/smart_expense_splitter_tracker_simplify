@@ -135,6 +135,16 @@ class Settings(BaseSettings):
     TESSERACT_TIMEOUT_SECONDS: float = 5.0
     TESSERACT_CMD: str | None = None
 
+    # Bill review (US-16 / T-54). The LLM only structures line items from the OCR text; every
+    # number it returns must be printed on the bill. Off, no key or a timeout -> rule-parser items.
+    BILL_LINE_ITEMS_LLM_ENABLED: bool = True
+    BILL_LINE_ITEMS_TIMEOUT_SECONDS: float = Field(default=4.0, gt=0, le=15)
+    # Bill images of deleted expenses, and scans never confirmed, are removed after this many
+    # hours by an in-process task that runs at startup and then every interval.
+    RECEIPT_CLEANUP_ENABLED: bool = True
+    RECEIPT_CLEANUP_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
+    RECEIPT_RETENTION_HOURS: int = Field(default=24, ge=1)
+
     # Recurring expenses (US-14 / T-44). There is no external cron: while the server is up an
     # in-process task runs the generator at startup and then every RECURRING_RUN_INTERVAL_SECONDS,
     # and each successful login catches up that user's rules (bounded by a time limit so login

@@ -61,6 +61,16 @@ def recurring_background_off(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def bill_background_off(monkeypatch):
+    """Never start the bill-image clean-up task or call the line-item LLM in tests (T-54).
+
+    tests/test_bill_review.py passes a fake LLM call and switches the clean-up on explicitly.
+    """
+    monkeypatch.setattr(settings, "RECEIPT_CLEANUP_ENABLED", False)
+    monkeypatch.setattr(settings, "BILL_LINE_ITEMS_LLM_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def fake_rate_limit_store(monkeypatch):
     """Keep fake-session tests off the database: counters live in memory, clock is frozen.
 
