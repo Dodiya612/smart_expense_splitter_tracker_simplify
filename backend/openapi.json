@@ -4345,6 +4345,102 @@
         }
       }
     },
+    "/api/v1/ocr/ocr-draft": {
+      "post": {
+        "tags": [
+          "OCR"
+        ],
+        "summary": "Create a draft receipt from a bill photo",
+        "description": "Runs OCR on the uploaded image and returns a draft receipt. Nothing is persisted until the draft is confirmed.",
+        "operationId": "ocr_draft_api_v1_ocr_ocr_draft_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ocr_draft_api_v1_ocr_ocr_draft_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptDraftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ocr/ocr-confirm": {
+      "post": {
+        "tags": [
+          "OCR"
+        ],
+        "summary": "Confirm and persist a draft receipt",
+        "description": "Takes the draft data (merchant, date, total) and creates a persisted receipt record.",
+        "operationId": "ocr_confirm_api_v1_ocr_ocr_confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptConfirmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notification-preferences": {
       "get": {
         "tags": [
@@ -4706,6 +4802,20 @@
           "tokens"
         ],
         "title": "AuthResponse"
+      },
+      "Body_ocr_draft_api_v1_ocr_ocr_draft_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_ocr_draft_api_v1_ocr_ocr_draft_post"
       },
       "Body_scan_receipt_endpoint_api_v1_receipts_scan_post": {
         "properties": {
@@ -6850,6 +6960,36 @@
           "created_at"
         ],
         "title": "NotificationResponse"
+      },
+      "ReceiptConfirmResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Receipt confirmed and saved."
+          }
+        },
+        "type": "object",
+        "title": "ReceiptConfirmResponse",
+        "description": "Response model for the OCR confirm endpoint (T-53, app/api/v1/endpoints/ocr.py)."
+      },
+      "ReceiptDraftResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReceiptScanResponseData"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Draft receipt created successfully."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ReceiptDraftResponse",
+        "description": "Response model for the OCR draft endpoint (T-53, app/api/v1/endpoints/ocr.py)."
       },
       "ReceiptLineItem": {
         "properties": {
