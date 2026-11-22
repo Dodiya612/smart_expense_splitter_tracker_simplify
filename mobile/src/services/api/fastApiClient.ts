@@ -23,6 +23,8 @@ interface RequestOptions extends RequestInit {
   isRetry?: boolean;
   /** Return a 401 as an ApiError instead of refreshing (used inside runWithRefreshLock). */
   skipAuthRefresh?: boolean;
+  /** Overrides API_TIMEOUT_MS for slow calls such as a bill scan (T-54). */
+  timeoutMs?: number;
 }
 
 /** 401 codes after which a token refresh and one retry can succeed. */
@@ -50,9 +52,11 @@ export class FastApiClient implements ApiClient {
     options: RequestOptions = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
+      // A multipart upload sets its own Content-Type (with the boundary).
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers as Record<string, string> | undefined),
     };
 
@@ -64,7 +68,7 @@ export class FastApiClient implements ApiClient {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? API_TIMEOUT_MS);
 
 
     let response: Response;
@@ -325,6 +329,16 @@ export class FastApiClient implements ApiClient {
       body: body !== undefined ? JSON.stringify(body) : undefined,
       headers,
       requiresAuth: true,
+    });
+  }
+
+  /** Multipart upload (T-54 bill scan). `timeoutMs` allows for the OCR and line-item steps. */
+  async postForm<T>(endpoint: string, form: FormData, timeoutMs?: number): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'POST',
+      body: form,
+      requiresAuth: true,
+      timeoutMs,
     });
   }
 

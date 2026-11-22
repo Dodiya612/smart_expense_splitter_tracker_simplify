@@ -10,18 +10,22 @@
  * Usage – Edit mode:
  *   router.push({ pathname: '/add-expense', params: { expense: JSON.stringify(expense) } });
  *
+ * Usage – Review a scanned bill (T-54 / US-16; opened by /scan-bill):
+ *   router.replace({ pathname: '/add-expense', params: { draft: encodeDraft(draft) } });
+ *
  * On success the saved expense is stringified and passed back via
  * `router.replace` so the calling screen can update its list immediately
  * (instant-appearance requirement, US-07).
  */
 
 import React from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
+import { decodeDraft } from '@/features/bills/utils/billDraft';
 import { ExpenseFormScreen } from '@/features/expenses/screens/ExpenseFormScreen';
 import type { Expense } from '@/features/expenses/types';
 
 export default function AddExpenseRoute() {
-  const params = useLocalSearchParams<{ expense?: string }>();
+  const params = useLocalSearchParams<{ expense?: string; draft?: string }>();
 
   let existingExpense: Expense | undefined;
   if (params.expense) {
@@ -31,6 +35,8 @@ export default function AddExpenseRoute() {
       // Malformed param – open in add mode as a safe fallback.
     }
   }
+  // A malformed draft opens the normal empty form.
+  const billDraft = existingExpense ? undefined : decodeDraft(params.draft);
 
   function handleSuccess(saved: Expense) {
     // Return the saved expense to the previous screen via a shared param so the
@@ -49,11 +55,17 @@ export default function AddExpenseRoute() {
     }
   }
 
+  function handleScanBill() {
+    router.push('/scan-bill' as Href);
+  }
+
   return (
     <ExpenseFormScreen
       existingExpense={existingExpense}
+      billDraft={billDraft}
       onSuccess={handleSuccess}
       onCancel={handleCancel}
+      onScanBill={handleScanBill}
     />
   );
 }

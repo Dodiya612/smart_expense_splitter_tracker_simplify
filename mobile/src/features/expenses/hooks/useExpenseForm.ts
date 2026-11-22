@@ -11,10 +11,14 @@
  *  - T-45 / US-14: with "Repeat this expense" on, the expense is saved and then a
  *    recurring rule is created from the next date. A retry replays both with the
  *    same keys, so neither is ever stored twice.
+ *  - T-54 / US-16: a scanned bill (`billDraft`) fills the form. Nothing is saved
+ *    until the user confirms; the save then links the bill (receiptId) and merchant.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '@/services/api/types';
+import type { BillDraft } from '@/features/bills/types';
+import { draftToFormValues } from '@/features/bills/utils/billDraft';
 import { createRecurringRule } from '@/features/recurring/services/recurringApi';
 import {
   REPEAT_NOT_SET_UP,
@@ -30,6 +34,8 @@ import { amountToPaise, validateExpenseForm } from '../utils/validation';
 export interface UseExpenseFormOptions {
   /** When provided the form operates in edit mode (US-09). */
   existingExpense?: Expense;
+  /** A scanned bill to review (add mode only, T-54). */
+  billDraft?: BillDraft;
   onSuccess: (saved: Expense) => void;
   onCancel: () => void;
 }
@@ -75,6 +81,8 @@ export interface UseExpenseFormReturn {
   /** True when the server returned VERSION_CONFLICT */
   hasConflict: boolean;
   isEditMode: boolean;
+  /** The bill being reviewed, when the form was opened from a scan (T-54). */
+  billDraft?: BillDraft;
 
   handleFieldChange: <K extends keyof ExpenseFormValues>(
     field: K,
@@ -88,14 +96,18 @@ export interface UseExpenseFormReturn {
 
 export function useExpenseForm({
   existingExpense,
+  billDraft: draftOption,
   onSuccess,
   onCancel,
 }: UseExpenseFormOptions): UseExpenseFormReturn {
   const isEditMode = Boolean(existingExpense);
+  const billDraft = isEditMode ? undefined : draftOption;
 
-  const [values, setValues] = useState<ExpenseFormValues>(
-    existingExpense ? expenseToFormValues(existingExpense) : EMPTY_FORM
-  );
+  const [values, setValues] = useState<ExpenseFormValues>(() => {
+    if (existingExpense) return expenseToFormValues(existingExpense);
+    if (billDraft) return draftToFormValues(billDraft, kolkataToday());
+    return EMPTY_FORM;
+  });
   const [fieldErrors, setFieldErrors] = useState<ExpenseFormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<ApiError | null>(null);
@@ -143,7 +155,11 @@ export function useExpenseForm({
               version: existingExpense.version,
             });
           }
-          const saved = await createExpense(base);
+          const saved = await createExpense(
+            billDraft
+              ? { ...base, receiptId: billDraft.receiptId, merchant: billDraft.merchant ?? undefined }
+              : base
+          );
           if (!submitted.isRecurring) return saved;
           try {
             await createRecurringRule(
@@ -168,7 +184,7 @@ export function useExpenseForm({
         setSubmitError(outcome.error);
       }
     },
-    [existingExpense, isEditMode, onSuccess]
+    [billDraft, existingExpense, isEditMode, onSuccess]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -201,6 +217,7 @@ export function useExpenseForm({
     submitError,
     hasConflict,
     isEditMode,
+    billDraft,
     handleFieldChange,
     handleSubmit,
     handleRetry,

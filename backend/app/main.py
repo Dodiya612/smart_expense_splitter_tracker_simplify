@@ -13,7 +13,7 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
-from app.services import recurring_service
+from app.services import receipt_cleanup, recurring_service
 from app.services.category_suggestion_service import restore_user_history
 
 # Configure logging
@@ -36,10 +36,13 @@ async def lifespan(app: FastAPI):
     # T-44: recurring expenses. Only STARTS the background task (startup catch-up, then hourly);
     # startup never waits for it, and a failing run is logged inside the task.
     scheduler = recurring_service.start_scheduler() if settings.RECURRING_SCHEDULER_ENABLED else None
+    # T-54: bill images of deleted expenses and unconfirmed scans are removed after 24 hours.
+    cleanup = receipt_cleanup.start_cleanup() if settings.RECEIPT_CLEANUP_ENABLED else None
     try:
         yield
     finally:
         await recurring_service.stop_scheduler(scheduler)
+        await receipt_cleanup.stop_cleanup(cleanup)
 
 
 # T-25: Conditionally mount interactive documentation endpoints based on environment/config

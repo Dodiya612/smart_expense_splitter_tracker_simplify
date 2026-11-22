@@ -100,6 +100,8 @@ export interface Expense {
   updatedAt: string;
   description?: string;
   merchant?: string;
+  /** The scanned bill linked to this expense (T-54 / US-16). */
+  receiptId?: string;
 }
 
 // ── Submit payload ────────────────────────────────────────────────────────────
@@ -111,6 +113,10 @@ export interface CreateExpensePayload {
   notes: string;
   isRecurring: boolean;
   idempotencyKey: string;
+  /** T-54 / US-16: the scanned bill to link, saved in the same transaction. */
+  receiptId?: string;
+  /** T-54: shop name read from the bill. */
+  merchant?: string;
 }
 
 export interface UpdateExpensePayload extends CreateExpensePayload {

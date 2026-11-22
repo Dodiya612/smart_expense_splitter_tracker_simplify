@@ -9,6 +9,7 @@
  *   - Notes and description
  *   - Merchant name (if present)
  *   - Recurring status
+ *   - The scanned bill photo, when the expense came from a bill (T-54 / US-16)
  *
  * Actions:
  *   - Back action (accessible button & header back)
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UndoToast } from '@/components/ui/UndoToast';
 import { useTheme } from '@/theme';
+import { ReceiptImage } from '@/features/bills/components/ReceiptImage';
 import {
   CATEGORIES,
   PAYMENT_MODE_LABELS,
@@ -391,6 +393,16 @@ export function ExpenseDetailScreen({
             </AppText>
           </View>
         </AppCard>
+
+        {/* ── Scanned bill (T-54 / US-16) ───────────────────────── */}
+        {expense.receiptId ? (
+          <AppCard style={{ gap: theme.spacing.md }}>
+            <AppText variant="bodyStrong" color="textPrimary" accessibilityRole="header">
+              Bill
+            </AppText>
+            <ReceiptImage receiptId={expense.receiptId} height={320} />
+          </AppCard>
+        ) : null}
 
         {/* ── Visible Actions Section ───────────────────────────── */}
         <View style={[styles.actionsSection, { gap: theme.spacing.sm }]}>

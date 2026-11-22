@@ -1096,7 +1096,7 @@
           "Receipts"
         ],
         "summary": "Scan and process a receipt bill image",
-        "description": "Uploads a receipt image (JPEG or PNG), validates magic bytes, strips EXIF/GPS, compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction.",
+        "description": "Uploads a receipt image (JPEG or PNG), validates magic bytes, strips EXIF/GPS, compresses below 1 MB, stores privately under a random key, checks daily AI quota, and runs extraction. The result is a draft for the review screen (T-54): line items whose numbers are all printed on the bill, warnings, and the fields to highlight. Nothing is saved as an expense until the user confirms (POST /expenses with receiptId); an unconfirmed scan is deleted after 24 hours.",
         "operationId": "scan_receipt_endpoint_api_v1_receipts_scan_post",
         "requestBody": {
           "content": {
@@ -3976,6 +3976,53 @@
         }
       }
     },
+    "/api/v1/budgets/recommend": {
+      "post": {
+        "tags": [
+          "Budgets"
+        ],
+        "summary": "Get an AI budget goal recommendation",
+        "description": "Calculates a recommended budget based on the last 3 completed calendar months of spending (user's allocated share only, excluding settlements and deleted expenses). Trims one-off transaction spikes, applies the requested savings target (0%, 5%, or 10%), and rounds to the nearest \u20b9100. Returns the full calculation figures and an explanation. Advisory-only: never creates or modifies a budget.",
+        "operationId": "recommend_budget_api_v1_budgets_recommend_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetRecommendationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRecommendationDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/budgets/{budget_id}": {
       "get": {
         "tags": [
@@ -4823,6 +4870,139 @@
         ],
         "title": "BudgetProgress",
         "description": "Spending against the limit in the current period (Asia/Kolkata).\n\n``spent_paise`` is the user's share of every live expense dated in the period (a\npersonal expense counts in full, a shared expense counts the user's share). Cash paid\nand settlements never count."
+      },
+      "BudgetRecommendationDataResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BudgetRecommendationResponse"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BudgetRecommendationDataResponse",
+        "description": "Standard envelope for recommendation response."
+      },
+      "BudgetRecommendationRequest": {
+        "properties": {
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid",
+            "description": "Category to recommend budget for; omit for overall budget."
+          },
+          "savingsLevelPercent": {
+            "type": "integer",
+            "title": "Savingslevelpercent",
+            "description": "Target savings deduction percentage: 0, 5, or 10.",
+            "default": 10
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "BudgetRecommendationRequest",
+        "description": "Request payload for budget goal recommendation.\n\nOmit ``category_id`` for an overall budget recommendation.\n``savings_level_percent`` must be 0, 5, or 10."
+      },
+      "BudgetRecommendationResponse": {
+        "properties": {
+          "categoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryid",
+            "description": "Category UUID if category-specific; null for overall."
+          },
+          "categoryName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categoryname",
+            "description": "Category name if category-specific; null or 'Overall' for overall."
+          },
+          "savingsLevelPercent": {
+            "type": "integer",
+            "title": "Savingslevelpercent",
+            "description": "User-selected savings level (0, 5, or 10)."
+          },
+          "hasSufficientHistory": {
+            "type": "boolean",
+            "title": "Hassufficienthistory",
+            "description": "True if at least 3 completed months of history exist with spending."
+          },
+          "historicalMonths": {
+            "items": {
+              "$ref": "#/components/schemas/HistoricalMonthSpend"
+            },
+            "type": "array",
+            "title": "Historicalmonths",
+            "description": "Figures for each of the last 3 completed calendar months."
+          },
+          "baselinePaise": {
+            "type": "integer",
+            "title": "Baselinepaise",
+            "description": "Typical monthly baseline (median of raw monthly totals) in paise."
+          },
+          "rawMedianPaise": {
+            "type": "integer",
+            "title": "Rawmedianpaise",
+            "description": "Median of trimmed monthly totals in paise."
+          },
+          "savingsPaise": {
+            "type": "integer",
+            "title": "Savingspaise",
+            "description": "Deducted savings amount in paise."
+          },
+          "recommendedLimitPaise": {
+            "type": "integer",
+            "title": "Recommendedlimitpaise",
+            "description": "Recommended monthly limit in paise, rounded to nearest \u20b9100."
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "One-sentence explanation from Groq or deterministic template."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "'ai' if explanation was generated by Groq, 'template_fallback' otherwise."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "savingsLevelPercent",
+          "hasSufficientHistory",
+          "historicalMonths",
+          "baselinePaise",
+          "rawMedianPaise",
+          "savingsPaise",
+          "recommendedLimitPaise",
+          "explanation",
+          "source"
+        ],
+        "title": "BudgetRecommendationResponse",
+        "description": "Transparent calculation figures and explanation for a recommended budget."
       },
       "BudgetResponse": {
         "properties": {
@@ -6230,6 +6410,40 @@
         "title": "HealthResponse",
         "description": "Health check response schema."
       },
+      "HistoricalMonthSpend": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "Calendar month in YYYY-MM format."
+          },
+          "spentPaise": {
+            "type": "integer",
+            "title": "Spentpaise",
+            "description": "Total user share spent in paise before trimming."
+          },
+          "spikePaise": {
+            "type": "integer",
+            "title": "Spikepaise",
+            "description": "Amount of trimmed one-off spikes in paise."
+          },
+          "netPaise": {
+            "type": "integer",
+            "title": "Netpaise",
+            "description": "Trimmed spending in paise (spent - spike)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "spentPaise",
+          "spikePaise",
+          "netPaise"
+        ],
+        "title": "HistoricalMonthSpend",
+        "description": "Spending figures for a single completed historical calendar month."
+      },
       "InvitationResponse": {
         "properties": {
           "id": {
@@ -6637,6 +6851,88 @@
         ],
         "title": "NotificationResponse"
       },
+      "ReceiptLineItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise",
+            "description": "Line amount in integer paise, as printed on the bill."
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity",
+            "description": "Quantity as printed (e.g. '2'), if it is on the bill."
+          },
+          "unitPricePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unitpricepaise",
+            "description": "Unit price in integer paise, if it is on the bill."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "amountPaise"
+        ],
+        "title": "ReceiptLineItem",
+        "description": "One line item read from the bill (T-54). Every number was checked against the OCR text."
+      },
+      "ReceiptReviewWarning": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "e.g. TOTAL_NOT_FOUND, LOW_CONFIDENCE, DATE_IN_FUTURE, ITEMS_DONT_ADD_UP."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "amount",
+                  "date",
+                  "merchant",
+                  "items"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field",
+            "description": "The form field this warning is about, if any."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ReceiptReviewWarning",
+        "description": "Something the user should check before confirming (T-54)."
+      },
       "ReceiptScanResponse": {
         "properties": {
           "data": {
@@ -6684,6 +6980,18 @@
             ],
             "title": "Amountminor"
           },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise",
+            "description": "Same as amountMinor (integer paise)."
+          },
           "expenseDate": {
             "anyOf": [
               {
@@ -6723,19 +7031,44 @@
             "title": "Filesize"
           },
           "items": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
+            "items": {
+              "$ref": "#/components/schemas/ReceiptLineItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Line items (T-54). Amounts are integer paise and every number is printed on the bill."
+          },
+          "itemsSource": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "rules",
+              "none"
             ],
-            "title": "Items"
+            "title": "Itemssource",
+            "description": "llm = structured by the LLM and number-checked; rules = rule parser; none = no items.",
+            "default": "none"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptReviewWarning"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "lowConfidenceFields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "amount",
+                "date",
+                "merchant",
+                "items"
+              ]
+            },
+            "type": "array",
+            "title": "Lowconfidencefields",
+            "description": "Fields the review screen highlights."
           },
           "confidence": {
             "anyOf": [
@@ -6774,7 +7107,7 @@
           "fileSize"
         ],
         "title": "ReceiptScanResponseData",
-        "description": "Extracted receipt information returned to client."
+        "description": "Extracted receipt information returned to client. It is a draft: nothing is saved\nuntil the user confirms the expense (POST /expenses with receiptId)."
       },
       "RecurringListMeta": {
         "properties": {
