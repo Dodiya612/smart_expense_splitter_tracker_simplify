@@ -9,20 +9,31 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import {
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
 import { AppCard } from '@/components/ui/AppCard';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
+import { WakingUpBanner } from '@/components/ui/WakingUpBanner';
+
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { useTheme } from '@/theme';
 import { formatPaise } from '@/utils/money';
+
 import { MemberBalanceCard } from '../components/MemberBalanceCard';
 import { NetPositionCard } from '../components/NetPositionCard';
 import { SettlementHistoryRow } from '../components/SettlementHistoryRow';
 import { SettleUpModal } from '../components/SettleUpModal';
+import { GroupBalancesSkeleton } from '../components/GroupBalancesSkeleton';
+
 import { useGroupBalances } from '../hooks/useGroupBalances';
 import type { PeerStanding, SettlementRecord } from '../types';
 
@@ -37,14 +48,24 @@ type Row =
   | { type: 'settlement'; record: SettlementRecord }
   | { type: 'empty'; message: string };
 
-export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroupName }: GroupBalancesScreenProps) {
+export function GroupBalancesScreen({
+  groupId: propGroupId,
+  groupName: propGroupName,
+}: GroupBalancesScreenProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ groupId?: string; groupName?: string }>();
 
-  const activeGroupId = propGroupId || params.groupId || undefined;
-  const displayGroupName = propGroupName || params.groupName || 'Group balances';
+  const params = useLocalSearchParams<{
+    groupId?: string;
+    groupName?: string;
+  }>();
+
+  const activeGroupId =
+    propGroupId || params.groupId || undefined;
+
+  const displayGroupName =
+    propGroupName || params.groupName || 'Group balances';
 
   const {
     group,
@@ -66,99 +87,262 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
     balances,
   } = useGroupBalances({ groupId: activeGroupId });
 
-  const [selectedCounterparty, setSelectedCounterparty] = useState<PeerStanding | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  // T-62 / US-32: Waking-up detection
+  const [isWakingUp, setIsWakingUp] = useState<boolean>(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (isLoading && !balances) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3500);
+    } else {
+      setIsWakingUp(false);
+    }
+
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [isLoading, balances]);
+
+  // Settlement modal state
+  const [selectedCounterparty, setSelectedCounterparty] =
+    useState<PeerStanding | null>(null);
+
+  const [successToast, setSuccessToast] =
+    useState<string | null>(null);
 
   useEffect(() => {
     if (!successToast) return;
-    const timer = setTimeout(() => setSuccessToast(null), 4000);
+
+    const timer = setTimeout(() => {
+      setSuccessToast(null);
+    }, 4000);
+
     return () => clearTimeout(timer);
   }, [successToast]);
 
+  // Prepare list rows
   const rows = useMemo(() => {
     const list: Row[] = [];
-    list.push({ type: 'header', title: 'People who owe you', count: peopleWhoOweYou.length });
+
+    list.push({
+      type: 'header',
+      title: 'People who owe you',
+      count: peopleWhoOweYou.length,
+    });
+
     if (peopleWhoOweYou.length > 0) {
-      for (const standing of peopleWhoOweYou) list.push({ type: 'item', standing });
+      for (const standing of peopleWhoOweYou) {
+        list.push({
+          type: 'item',
+          standing,
+        });
+      }
     } else {
-      list.push({ type: 'empty', message: 'Nobody owes you money in this group.' });
+      list.push({
+        type: 'empty',
+        message: 'Nobody owes you money in this group.',
+      });
     }
 
-    list.push({ type: 'header', title: 'People you owe', count: peopleYouOwe.length });
+    list.push({
+      type: 'header',
+      title: 'People you owe',
+      count: peopleYouOwe.length,
+    });
+
     if (peopleYouOwe.length > 0) {
-      for (const standing of peopleYouOwe) list.push({ type: 'item', standing });
+      for (const standing of peopleYouOwe) {
+        list.push({
+          type: 'item',
+          standing,
+        });
+      }
     } else {
-      list.push({ type: 'empty', message: 'You do not owe anyone in this group.' });
+      list.push({
+        type: 'empty',
+        message: 'You do not owe anyone in this group.',
+      });
     }
 
     if (settledMembers.length > 0) {
-      list.push({ type: 'header', title: 'Settled up', count: settledMembers.length });
-      for (const standing of settledMembers) list.push({ type: 'item', standing });
+      list.push({
+        type: 'header',
+        title: 'Settled up',
+        count: settledMembers.length,
+      });
+
+      for (const standing of settledMembers) {
+        list.push({
+          type: 'item',
+          standing,
+        });
+      }
     }
 
     if (settlements.length > 0) {
-      list.push({ type: 'header', title: 'Recorded settlements', count: settlements.length });
-      for (const record of settlements) list.push({ type: 'settlement', record });
+      list.push({
+        type: 'header',
+        title: 'Recorded settlements',
+        count: settlements.length,
+      });
+
+      for (const record of settlements) {
+        list.push({
+          type: 'settlement',
+          record,
+        });
+      }
     }
+
     return list;
-  }, [peopleWhoOweYou, peopleYouOwe, settledMembers, settlements]);
+  }, [
+    peopleWhoOweYou,
+    peopleYouOwe,
+    settledMembers,
+    settlements,
+  ]);
 
   const handleSaved = (saved: SettlementRecord) => {
-    setSuccessToast(`Settlement of ${formatPaise(saved.amountPaise)} recorded.`);
+    setSuccessToast(
+      `Settlement of ${formatPaise(saved.amountPaise)} recorded.`
+    );
   };
 
+  // Loading state with skeleton and waking-up banner
   if (isLoading && !balances) {
     return (
       <View
-        style={[styles.center, { backgroundColor: theme.colors.background }]}
+        style={[
+          styles.root,
+          {
+            backgroundColor: theme.colors.background,
+          },
+        ]}
+        accessibilityRole="alert"
         accessibilityLabel="Loading group balances"
       >
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <AppText variant="body" color="textSecondary" style={{ marginTop: theme.spacing.md }}>
-          Loading balances…
-        </AppText>
+        {isWakingUp && (
+          <View
+            style={{
+              paddingHorizontal: theme.spacing.lg,
+              paddingTop: insets.top + theme.spacing.md,
+            }}
+          >
+            <WakingUpBanner visible={isWakingUp} />
+          </View>
+        )}
+
+        <GroupBalancesSkeleton />
       </View>
     );
   }
 
+  // Error state
   if (error && !balances) {
     return (
       <View
-        style={[styles.center, { backgroundColor: theme.colors.background, padding: theme.spacing.xl }]}
+        style={[
+          styles.center,
+          {
+            backgroundColor: theme.colors.background,
+            padding: theme.spacing.xl,
+          },
+        ]}
         accessibilityRole="alert"
       >
-        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.negative.text} />
-        <AppText variant="heading" color="textPrimary" style={[styles.centerText, { marginTop: theme.spacing.md }]}>
+        <Ionicons
+          name="alert-circle-outline"
+          size={48}
+          color={theme.colors.negative.text}
+        />
+
+        <AppText
+          variant="heading"
+          color="textPrimary"
+          style={[
+            styles.centerText,
+            {
+              marginTop: theme.spacing.md,
+            },
+          ]}
+        >
           Could not load balances
         </AppText>
-        <AppText variant="body" color="textSecondary" style={[styles.centerText, { marginTop: theme.spacing.xs }]}>
+
+        <AppText
+          variant="body"
+          color="textSecondary"
+          style={[
+            styles.centerText,
+            {
+              marginTop: theme.spacing.xs,
+            },
+          ]}
+        >
           {error.message}
         </AppText>
+
         {activeGroupId ? (
-          <View style={[styles.fullWidth, { marginTop: theme.spacing.lg }]}>
-            <Button label="Try again" variant="primary" fullWidth onPress={() => void retry()} />
+          <View
+            style={[
+              styles.fullWidth,
+              {
+                marginTop: theme.spacing.lg,
+              },
+            ]}
+          >
+            <Button
+              label="Try again"
+              variant="primary"
+              fullWidth
+              onPress={() => void retry()}
+            />
           </View>
         ) : null}
       </View>
     );
   }
 
+  // Screen header
   const header = (
-    <View style={[styles.fullWidth, { gap: theme.spacing.md, paddingBottom: theme.spacing.sm }]}>
+    <View
+      style={[
+        styles.fullWidth,
+        {
+          gap: theme.spacing.md,
+          paddingBottom: theme.spacing.sm,
+        },
+      ]}
+    >
       <View>
         <AppText variant="heading" color="textPrimary">
           {group?.name || displayGroupName}
         </AppText>
+
         <AppText variant="caption" color="textSecondary">
           Balances and settlements
         </AppText>
       </View>
 
       {isEmpty ? (
-        <AppCard style={[styles.bordered, { borderColor: theme.colors.border, gap: theme.spacing.xs }]}>
+        <AppCard
+          style={[
+            styles.bordered,
+            {
+              borderColor: theme.colors.border,
+              gap: theme.spacing.xs,
+            },
+          ]}
+        >
           <AppText variant="bodyStrong" color="textPrimary">
             No balances yet
           </AppText>
+
           <AppText variant="caption" color="textSecondary">
             Add a group expense to see who owes whom.
           </AppText>
@@ -186,8 +370,19 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
           ]}
           accessibilityRole="alert"
         >
-          <Ionicons name="checkmark-circle" size={16} color={theme.colors.positive.text} />
-          <AppText variant="small" style={{ color: theme.colors.positive.text, flex: 1 }}>
+          <Ionicons
+            name="checkmark-circle"
+            size={16}
+            color={theme.colors.positive.text}
+          />
+
+          <AppText
+            variant="small"
+            style={{
+              color: theme.colors.positive.text,
+              flex: 1,
+            }}
+          >
             {successToast}
           </AppText>
         </View>
@@ -195,16 +390,23 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
     </View>
   );
 
+  // Render individual list rows
   const renderRow = ({ item }: { item: Row }) => {
     if (item.type === 'header') {
       return (
-        <View style={{ marginTop: theme.spacing.md, marginBottom: theme.spacing.xs }}>
+        <View
+          style={{
+            marginTop: theme.spacing.md,
+            marginBottom: theme.spacing.xs,
+          }}
+        >
           <AppText variant="bodyStrong" color="textPrimary">
             {`${item.title} (${item.count})`}
           </AppText>
         </View>
       );
     }
+
     if (item.type === 'empty') {
       return (
         <View
@@ -225,15 +427,29 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
         </View>
       );
     }
+
     if (item.type === 'settlement') {
       return (
-        <View style={{ marginBottom: theme.spacing.xs }}>
-          <SettlementHistoryRow record={item.record} currentUserId={user?.id} nameOf={nameOf} />
+        <View
+          style={{
+            marginBottom: theme.spacing.xs,
+          }}
+        >
+          <SettlementHistoryRow
+            record={item.record}
+            currentUserId={user?.id}
+            nameOf={nameOf}
+          />
         </View>
       );
     }
+
     return (
-      <View style={{ marginBottom: theme.spacing.xs }}>
+      <View
+        style={{
+          marginBottom: theme.spacing.xs,
+        }}
+      >
         <MemberBalanceCard
           standing={item.standing}
           onSettlePress={setSelectedCounterparty}
@@ -243,19 +459,37 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
     );
   };
 
+  // Main screen
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: theme.colors.background,
+        },
+      ]}
+    >
       <FlatList
         data={isEmpty ? [] : rows}
         keyExtractor={(item, index) => {
-          if (item.type === 'item') return `member-${item.standing.userId}`;
-          if (item.type === 'settlement') return `settlement-${item.record.id}`;
+          if (item.type === 'item') {
+            return `member-${item.standing.userId}`;
+          }
+
+          if (item.type === 'settlement') {
+            return `settlement-${item.record.id}`;
+          }
+
           return `${item.type}-${index}`;
         }}
         ListHeaderComponent={header}
         renderItem={renderRow}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={theme.colors.primary} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refresh}
+            tintColor={theme.colors.primary}
+          />
         }
         contentContainerStyle={[
           styles.listContent,
@@ -270,11 +504,17 @@ export function GroupBalancesScreen({ groupId: propGroupId, groupName: propGroup
       />
 
       <SettleUpModal
-        key={selectedCounterparty ? `${selectedCounterparty.userId}:${selectedCounterparty.netAmountPaise}` : 'closed'}
+        key={
+          selectedCounterparty
+            ? `${selectedCounterparty.userId}:${selectedCounterparty.netAmountPaise}`
+            : 'closed'
+        }
         visible={selectedCounterparty !== null}
         counterparty={selectedCounterparty}
         currentUserId={user?.id}
-        isCurrentUserPayer={selectedCounterparty?.status === 'you_owe'}
+        isCurrentUserPayer={
+          selectedCounterparty?.status === 'you_owe'
+        }
         onClose={() => setSelectedCounterparty(null)}
         onSubmit={submitSettlement}
         onSaved={handleSaved}

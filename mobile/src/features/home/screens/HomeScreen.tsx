@@ -18,15 +18,41 @@ import { BalancePreviewCard } from '../components/BalancePreviewCard';
 import { BudgetPreviewCard } from '../components/BudgetPreviewCard';
 import { RecentExpensesCard } from '../components/RecentExpensesCard';
 import { DashboardEmptyState } from '../components/DashboardEmptyState';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { WakingUpBanner } from '@/components/ui/WakingUpBanner';
 
 export interface HomeScreenProps {
   initialData?: DashboardSummary;
+  isLoading?: boolean;
+  isWakingUp?: boolean;
 }
 
-export function HomeScreen({ initialData }: HomeScreenProps = {}) {
+export function HomeScreen({ initialData, isLoading = false, isWakingUp = false }: HomeScreenProps = {}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ previewMode?: 'empty' | 'populated' }>();
+  const params = useLocalSearchParams<{ previewMode?: 'empty' | 'populated' | 'loading'; wakingUp?: string }>();
+
+  if (isLoading || params.previewMode === 'loading') {
+    return (
+      <ScreenContainer
+        scrollable
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom: Math.max(insets.bottom, theme.spacing.md) + 88,
+            gap: theme.spacing.lg,
+          },
+        ]}
+      >
+        <View style={[styles.container, { gap: theme.spacing.lg }]}>
+          {(isWakingUp || params.wakingUp === 'true') && (
+            <WakingUpBanner visible={true} />
+          )}
+          <DashboardSkeleton />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   // Determine active dataset: prop overrides param, param overrides default populated mock
   const data = useMemo<DashboardSummary>(() => {
