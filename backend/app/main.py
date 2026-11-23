@@ -13,6 +13,7 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
+from app.services import receipt_cleanup, recurring_service
 from app.services.category_suggestion_service import restore_user_history
 
 # Configure logging
@@ -32,7 +33,16 @@ async def lifespan(app: FastAPI):
         logger.info("Restored %d historical category preferences from database", restored)
     except (SQLAlchemyError, OSError, RuntimeError) as exc:
         logger.warning("Startup user history restoration encountered an issue: %s", exc)
-    yield
+    # T-44: recurring expenses. Only STARTS the background task (startup catch-up, then hourly);
+    # startup never waits for it, and a failing run is logged inside the task.
+    scheduler = recurring_service.start_scheduler() if settings.RECURRING_SCHEDULER_ENABLED else None
+    # T-54: bill images of deleted expenses and unconfirmed scans are removed after 24 hours.
+    cleanup = receipt_cleanup.start_cleanup() if settings.RECEIPT_CLEANUP_ENABLED else None
+    try:
+        yield
+    finally:
+        await recurring_service.stop_scheduler(scheduler)
+        await receipt_cleanup.stop_cleanup(cleanup)
 
 
 # T-25: Conditionally mount interactive documentation endpoints based on environment/config
@@ -69,6 +79,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    # Lets browser clients read the wait time on HTTP 429 responses (T-39).
+    expose_headers=["Retry-After"],
 )
 
 
@@ -122,7 +134,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         code=code,
         message=message,
         detail=detail,
-        is_retryable=exc.status_code >= 500,
+        # 5xx are retryable, and so is a 429 from the rate limiter (it carries Retry-After).
+        # Other 429s, such as the daily AI quota, are not: retrying cannot help until it resets.
+        is_retryable=exc.status_code >= 500
+        or (exc.status_code == 429 and code == "RATE_LIMIT_EXCEEDED"),
     )
     return JSONResponse(
         status_code=exc.status_code,

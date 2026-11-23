@@ -5,7 +5,9 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import settings
 from app.core.database import get_db
+from tests import rate_limit_fakes
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.main import app
 from app.models.rate_limit import LoginRateLimit
@@ -191,9 +193,20 @@ async def auth_client(fake_db):
 
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+    # T-39: address-scoped limits need a trusted client-address header. These tests play a
+    # single client at one address, as a proxy that sets the header would present it.
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers={"X-Test-Client-IP": "203.0.113.10"},
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def trusted_client_ip_header(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_CLIENT_IP_HEADER", "X-Test-Client-IP")
 
 
 @pytest.mark.anyio
@@ -1433,7 +1446,7 @@ async def test_login_rate_limiting_triggered_after_max_failed_attempts(
     data = resp_rate_limited.json()
     assert data["code"] == "RATE_LIMIT_EXCEEDED"
     assert "Too many failed login attempts" in data["message"]
-    assert data["isRetryable"] is False
+    assert data["isRetryable"] is True  # T-39: a rate-limit 429 carries Retry-After and is retryable
     assert "retry-after" in resp_rate_limited.headers
     retry_after = int(resp_rate_limited.headers["retry-after"])
     assert retry_after > 0
@@ -1556,8 +1569,11 @@ async def test_login_rate_limiting_resets_on_successful_login(
     )
     assert res_success.status_code == 200
 
-    # Rate limit record should be cleared or reset
-    assert "clumsy_user@example.com" not in fake_db.rate_limits
+    # The account-and-address and account-only counters were cleared; the address-wide bucket
+    # is shared, so it keeps the 3 failures (the successful attempt is given back).
+    assert rate_limit_fakes.count_for("login_pair") == 0
+    assert rate_limit_fakes.count_for("login_account") == 0
+    assert rate_limit_fakes.count_for("login_ip") == 3
 
     # Another 3 failed attempts must not trigger 429 because count was reset
     for _ in range(3):
@@ -1599,10 +1615,8 @@ async def test_login_rate_limiting_lockout_expires_after_window(
     )
     assert res_locked.status_code == 429
 
-    # Simulate lockout window expiration (e.g. 901 seconds ago)
-    record = fake_db.rate_limits.get("lockout_expiry@example.com")
-    assert record is not None
-    record.last_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=901)
+    # Move the (frozen) clock past the 900-second window
+    rate_limit_fakes.advance(901)
 
     # Next attempt after window expiry should be allowed through (not 429)
     res_after_window = await auth_client.post(

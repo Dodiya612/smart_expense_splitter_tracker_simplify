@@ -62,7 +62,7 @@ All sensitive values must use secure placeholders in version control and be popu
 | `DEBUG` | No | `false` | Server | Enables debug mode and hot reloading (must be `false` in production). |
 | `PORT` | Yes | `8000` | Server | HTTP port. In Render, `$PORT` is injected dynamically (e.g., `10000`). |
 | `HOST` | Yes | `0.0.0.0` | Server | Network interface binding. Must be `0.0.0.0` for containerized hosting. |
-| `CORS_ORIGINS` | Yes | `["*"]` | Server | JSON array or comma-separated list of allowed client origins. |
+| `CORS_ORIGINS` | Yes | local dev origins (`http://localhost:8081`, `http://127.0.0.1:8081`, `http://10.0.2.2:8081`, `http://localhost:3000`, `http://localhost:19006`) | Server | JSON array or comma-separated list of allowed client origins. Never use `*` together with credentials. The default is the localhost list in `backend/app/core/config.py`, not a wildcard. |
 | `DATABASE_URL` | Yes | None | Server | PostgreSQL connection string using Supabase connection pooler (port 6543). |
 | `DIRECT_URL` | No | None | Server | Direct PostgreSQL connection string (port 5432) for Alembic migrations. |
 | `SUPABASE_URL` | Yes | None | Server | Base URL for Supabase API project (`https://<ref>.supabase.co`). |
@@ -71,9 +71,14 @@ All sensitive values must use secure placeholders in version control and be popu
 | `JWT_SECRET` | Yes | None | **Server ONLY** | Cryptographic secret for signing and validating session JWTs (PyJWT). |
 | `JWT_ALGORITHM` | No | `HS256` | Server | Signing algorithm for JWT tokens. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `15` | Server | Lifespan of short-lived session access tokens. |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `30` | Server | Lifespan of rotating refresh tokens stored in HTTP-only cookies. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `30` | Server | Lifespan of rotating refresh tokens. They are returned and sent in JSON request/response bodies (the API sets no cookies). |
+| `TRUSTED_CLIENT_IP_HEADER` | No | unset | Server | Name of a header that a proxy you control sets to the real client IP and always overwrites (for example `CF-Connecting-IP`). Unset: address-scoped rate limits are skipped. **Verify before setting**; see [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md). |
+| `RATE_LIMIT_*`, `LOGIN_RATE_LIMIT_*` | No | see doc | Server | Rate-limit maxima and windows. Defaults and routes are listed in [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md). Apply migration `012` before deploying. `RATE_LIMIT_ENABLED=false` is rejected at startup unless `ENVIRONMENT=development`. Never set `FORWARDED_ALLOW_IPS=*`. |
 | `OCR_SPACE_API_KEY` | No | None | Server | API key for OCR.space receipt text extraction service. |
 | `GROQ_API_KEY` | No | None | Server | API key for Groq LLM assistance and fallback category tagging. |
+| `RECEIPT_STORAGE` | No | `db` | Server | Receipt image storage backend: `db` (deferred BYTEA) or `supabase` (Supabase Storage). |
+| `SUPABASE_SERVICE_KEY` | No | None | **Server ONLY** | Supabase service role key for private bucket uploads/downloads. Never expose to client. |
+| `RECEIPTS_BUCKET` | No | `receipts` | Server | Private Supabase Storage bucket name for bill receipt images. |
 
 ### 2.2 Security Rules
 
@@ -110,6 +115,32 @@ Supabase utilizes **Supavisor** for connection pooling:
 ### 3.3 SSL Enforcement
 
 All connections to Supabase PostgreSQL require SSL (`sslmode=require`). Unencrypted plaintext connections are rejected at the edge.
+
+### 3.4 Private Supabase Storage Bucket Configuration (US-16 Bill Uploads)
+
+Bill images scanned via `POST /api/v1/receipts/scan` are stored either in PostgreSQL (`RECEIPT_STORAGE=db`) or in a private Supabase Storage bucket (`RECEIPT_STORAGE=supabase`).
+
+#### Bucket Setup & Security
+- **Bucket Name**: `receipts` (configurable via `RECEIPTS_BUCKET`).
+- **Public Access**: **Disabled** (Private Bucket). Zero public URLs are ever created or returned.
+- **Access Authentication**: The backend acts as a strict reverse proxy. All client image requests go through `GET /api/v1/receipts/{receipt_id}/image`, which enforces user authorization (owner or active group member for linked group expenses; returns HTTP 404 for all unauthorized callers).
+- **Service Role Key**: Interacts with Supabase Storage REST API using `SUPABASE_SERVICE_KEY`.
+
+#### Storage Object Key Format
+- Every object key uses a cryptographically random, unguessable UUID4 format:
+  ```text
+  receipts/{uuid4().hex}.jpg
+  ```
+- **Zero PII**: Keys never embed user IDs, expense IDs, dates, original filenames, or merchant names.
+
+#### Processing & Size Guarantees
+- **Upload Limit**: 5 MB hard cap on raw uploads (HTTP 422 if exceeded).
+- **File Type Validation**: Strictly determined from magic bytes (`FF D8 FF` for JPEG, `89 50 4E 47 0D 0A 1A 0A` for PNG). Client filenames and `Content-Type` headers are ignored. Unsupported types return HTTP 415 `UNSUPPORTED_MEDIA_TYPE`.
+- **Image Resizing**: Longest side scaled down to $\le 1600\text{ px}$.
+- **Size Guarantee**: Progressively compressed to strictly $< 1\text{ MB}$ (1,048,576 bytes).
+- **Metadata Stripping**: All EXIF, GPS location coordinates, and camera tags are completely removed before storage.
+- **Decompression Bomb Protection**: Pillow `MAX_IMAGE_PIXELS` capped at 40 MP.
+- **24-Hour Purge**: Unlinked receipts older than 24 hours are automatically purged from both the database and the storage backend.
 
 ---
 
@@ -321,7 +352,7 @@ node packages/api-client/verify-health.mjs
 - **Security Guarantees**:
   - Does not leak database connection strings, passwords, or hostnames.
   - Does not reveal internal infrastructure paths or stack traces.
-  - Excluded from CSRF checks and session middleware to prevent false liveness failures.
+  - Not rate limited. The API has no CSRF or session middleware: it authenticates with bearer tokens only (see [RATE_LIMITING_AND_CSRF.md](RATE_LIMITING_AND_CSRF.md)).
 
 ---
 

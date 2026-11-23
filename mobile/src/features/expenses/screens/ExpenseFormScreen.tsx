@@ -10,7 +10,11 @@
  *   • Category chip picker  ← SuggestionChip appears here (T-23b)
  *   • Payment mode chip picker
  *   • Notes / description (optional, 500 char max)  ← drives suggestion
- *   • Recurring toggle
+ *   • Recurring toggle ("Repeat this expense") with daily / weekly / monthly /
+ *     yearly choice, add mode only (T-45 / US-14)
+ *   • "Scan a bill" (add mode). A scanned bill opens this form pre-filled, with
+ *     the photo, warnings, line items and highlighted fields to check; the
+ *     button reads "Confirm and save" (T-54 / US-16)
  *
  * Error states handled:
  *   • Field validation (inline)
@@ -35,7 +39,10 @@ import { AppInput } from '@/components/ui/AppInput';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/theme';
-import type { Expense, PaymentMode } from '../types';
+import { BillDraftPanel } from '@/features/bills/components/BillDraftPanel';
+import type { BillDraft } from '@/features/bills/types';
+import { fieldWarning } from '@/features/bills/utils/billDraft';
+import type { Expense, PaymentMode, RepeatFrequency } from '../types';
 import {
   CATEGORIES,
   PAYMENT_MODE_LABELS,
@@ -44,22 +51,42 @@ import {
 import { useExpenseForm } from '../hooks/useExpenseForm';
 import { useCategorySuggestion } from '../hooks/useCategorySuggestion';
 import { SuggestionChip } from '../components/SuggestionChip';
+import { ChoiceChips } from '@/features/groups/components/ChoiceChips';
+import {
+  FREQUENCY_OPTIONS,
+  firstRepeatDate,
+  formatShortDate,
+  kolkataToday,
+} from '@/features/recurring/utils/recurring';
+
+/** "Next one on 21 Dec 2026. You'll get a reminder the day before." */
+function repeatHint(date: string, frequency: RepeatFrequency): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Pick a valid date to see when it repeats.';
+  const next = firstRepeatDate(date, frequency, kolkataToday());
+  return `Next one on ${formatShortDate(next)}. You'll get a reminder the day before. Manage it under Expenses → Recurring.`;
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface ExpenseFormScreenProps {
   /** Present when the screen is opened in edit mode. */
   existingExpense?: Expense;
+  /** A scanned bill to review before saving (add mode, T-54). */
+  billDraft?: BillDraft;
   onSuccess: (saved: Expense) => void;
   onCancel: () => void;
+  /** Opens the bill scanner (add mode, T-54). */
+  onScanBill?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ExpenseFormScreen({
   existingExpense,
+  billDraft: draftProp,
   onSuccess,
   onCancel,
+  onScanBill,
 }: ExpenseFormScreenProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -72,12 +99,18 @@ export function ExpenseFormScreen({
     submitError,
     hasConflict,
     isEditMode,
+    billDraft,
     handleFieldChange,
     handleSubmit,
     handleRetry,
     handleCancel,
     clearConflict,
-  } = useExpenseForm({ existingExpense, onSuccess, onCancel });
+  } = useExpenseForm({ existingExpense, billDraft: draftProp, onSuccess, onCancel });
+
+  // T-54: fields the bill reader was unsure about stay highlighted until confirmed.
+  const amountCheck = fieldWarning(billDraft, 'amount');
+  const dateCheck = fieldWarning(billDraft, 'date');
+  const merchantCheck = fieldWarning(billDraft, 'merchant');
 
   // T-23b: debounced category suggestion driven by the Notes field (US-26).
   const {
@@ -105,7 +138,8 @@ export function ExpenseFormScreen({
     handleFieldChange('categoryId', categoryId);
   };
 
-  const title = isEditMode ? 'Edit Expense' : 'Add Expense';
+  const title = isEditMode ? 'Edit Expense' : billDraft ? 'Check your bill' : 'Add Expense';
+  const submitLabel = isEditMode ? 'Save Changes' : billDraft ? 'Confirm and save' : 'Add Expense';
 
   return (
     <View
@@ -181,6 +215,19 @@ export function ExpenseFormScreen({
           />
         )}
 
+        {/* ── Scanned bill (T-54 / US-16) ─────────────────────────── */}
+        {billDraft ? <BillDraftPanel draft={billDraft} /> : null}
+        {!isEditMode && !billDraft && onScanBill ? (
+          <Button
+            label="Scan a bill"
+            variant="outline"
+            fullWidth
+            disabled={isLoading}
+            onPress={onScanBill}
+            accessibilityHint="Take or choose a photo of a bill to fill this form"
+          />
+        ) : null}
+
         {/* ── Amount ──────────────────────────────────────────────── */}
         <AppInput
           label="Amount (₹)"
@@ -195,6 +242,7 @@ export function ExpenseFormScreen({
           accessibilityLabel="Amount in rupees"
           accessibilityHint="Enter the expense amount in rupees, for example 250 or 1234.50"
         />
+        {amountCheck && !fieldErrors.amountRaw ? <CheckHint message={amountCheck} /> : null}
 
         {/* ── Date ────────────────────────────────────────────────── */}
         <AppInput
@@ -210,6 +258,7 @@ export function ExpenseFormScreen({
           accessibilityLabel="Expense date"
           accessibilityHint="Enter the date in year-month-day format"
         />
+        {dateCheck && !fieldErrors.date ? <CheckHint message={dateCheck} /> : null}
 
         {/* ── Category chips ───────────────────────────────────────── */}
         <View style={{ gap: theme.spacing.sm }}>
@@ -360,6 +409,7 @@ export function ExpenseFormScreen({
           <AppText variant="caption" color="textSecondary" style={styles.charCount}>
             {values.notes.length}/500
           </AppText>
+          {merchantCheck ? <CheckHint message={merchantCheck} /> : null}
 
           {/* T-23b: suggestion chip driven by the notes/description field */}
           <SuggestionChip
@@ -372,49 +422,67 @@ export function ExpenseFormScreen({
           />
         </View>
 
-        {/* ── Recurring toggle ─────────────────────────────────────── */}
-        <View
-          style={[
-            styles.toggleRow,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: theme.radii.md,
-              padding: theme.spacing.md,
-            },
-          ]}
-        >
-          <View style={styles.toggleLabel}>
-            <AppText variant="body" color="textPrimary">
-              Recurring
-            </AppText>
-            <AppText variant="caption" color="textSecondary">
-              Repeat this expense monthly
-            </AppText>
+        {/* ── Recurring toggle (T-45 / US-14; add mode only) ──────────── */}
+        {!isEditMode && (
+          <View
+            style={[
+              styles.repeatBox,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radii.md,
+                padding: theme.spacing.md,
+                gap: theme.spacing.md,
+              },
+            ]}
+          >
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLabel}>
+                <AppText variant="body" color="textPrimary">
+                  Repeat this expense
+                </AppText>
+                <AppText variant="caption" color="textSecondary">
+                  Added automatically on its next dates
+                </AppText>
+              </View>
+              <Switch
+                value={values.isRecurring}
+                onValueChange={(val) => handleFieldChange('isRecurring', val)}
+                disabled={isLoading}
+                accessibilityLabel="Repeat this expense"
+                accessibilityHint="Turn on to add this expense again daily, weekly, monthly or yearly"
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.info.fill,
+                }}
+                thumbColor={
+                  Platform.OS === 'android'
+                    ? values.isRecurring
+                      ? theme.colors.info.text
+                      : theme.colors.textSecondary
+                    : undefined
+                }
+              />
+            </View>
+            {values.isRecurring && (
+              <>
+                <ChoiceChips
+                  label="How often"
+                  options={FREQUENCY_OPTIONS}
+                  selectedId={values.frequency}
+                  onSelect={(id) => handleFieldChange('frequency', id as RepeatFrequency)}
+                />
+                <AppText variant="caption" color="info" accessibilityLiveRegion="polite">
+                  {repeatHint(values.date, values.frequency)}
+                </AppText>
+              </>
+            )}
           </View>
-          <Switch
-            value={values.isRecurring}
-            onValueChange={(val) => handleFieldChange('isRecurring', val)}
-            disabled={isLoading}
-            accessibilityLabel="Recurring expense toggle"
-            accessibilityHint="Toggle to mark this as a recurring monthly expense"
-            trackColor={{
-              false: theme.colors.border,
-              true: theme.colors.info.fill,
-            }}
-            thumbColor={
-              Platform.OS === 'android'
-                ? values.isRecurring
-                  ? theme.colors.info.text
-                  : theme.colors.textSecondary
-                : undefined
-            }
-          />
-        </View>
+        )}
 
         {/* ── Submit button ────────────────────────────────────────── */}
         <Button
-          label={isEditMode ? 'Save Changes' : 'Add Expense'}
+          label={submitLabel}
           variant="primary"
           fullWidth
           loading={isLoading}
@@ -423,7 +491,9 @@ export function ExpenseFormScreen({
           accessibilityLabel={
             isEditMode
               ? 'Save changes to this expense'
-              : 'Add this expense to your records'
+              : billDraft
+                ? 'Confirm the details read from the bill and save this expense'
+                : 'Add this expense to your records'
           }
         />
       </ScrollView>
@@ -432,6 +502,26 @@ export function ExpenseFormScreen({
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+/** "Please check" note under a field the bill reader was unsure about (T-54). */
+function CheckHint({ message }: { message: string }) {
+  const theme = useTheme();
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{
+        backgroundColor: theme.colors.warning.soft,
+        borderRadius: theme.radii.sm,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.sm,
+        marginTop: -theme.spacing.sm,
+      }}>
+      <AppText variant="caption" color="warning">
+        {`[!] Please check: ${message}`}
+      </AppText>
+    </View>
+  );
+}
 
 function ConflictBanner({ onDismiss }: { onDismiss: () => void }) {
   const theme = useTheme();
@@ -548,11 +638,13 @@ const styles = StyleSheet.create({
   charCount: {
     alignSelf: 'flex-end',
   },
+  repeatBox: {
+    borderWidth: 1,
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
   },
   toggleLabel: {
     flex: 1,

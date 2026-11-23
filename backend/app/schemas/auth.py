@@ -112,3 +112,22 @@ class SessionResponse(BaseSchema):
 
 class SessionListResponse(BaseSchema):
     sessions: List[SessionResponse]
+
+
+class ChangePasswordRequest(BaseSchema):
+    """T-50. Length and strength rules for ``new_password`` are checked in the endpoint so
+    each failure gets its own error code; these bounds only stop oversized input early.
+    Password values are never echoed back in responses or validation errors."""
+
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=1, max_length=128)
+    confirm_new_password: str = Field(..., min_length=1, max_length=128)
+
+
+class ChangePasswordResponse(BaseSchema):
+    message: str
+    # Fresh tokens for THIS device: the old access token stops working once the password
+    # changes, and this device's refresh token is rotated as part of the change.
+    tokens: TokenBundle
+    # Number of other device sessions that were signed out.
+    revoked_sessions: int = 0

@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.rate_limit_deps import limit_by_user
+from app.core.rate_limiter import RATE_LIMIT_RESPONSES
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.group import InvitationResponse, JoinGroupResponse
@@ -29,6 +31,8 @@ async def list_my_invitations(
 
 @router.post(
     "/{invitation_id}/accept",
+    dependencies=[Depends(limit_by_user("invite_respond_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=JoinGroupResponse,
     status_code=status.HTTP_200_OK,
     summary="Accept an invitation",
@@ -51,6 +55,8 @@ async def accept_invitation(
 
 @router.post(
     "/{invitation_id}/decline",
+    dependencies=[Depends(limit_by_user("invite_respond_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Decline an invitation",
 )

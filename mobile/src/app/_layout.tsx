@@ -57,6 +57,9 @@ export default function RootLayout() {
               presentation: 'modal',
             }}
           />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="notification-settings" />
+          <Stack.Screen name="change-password" />
           <Stack.Screen name="analytics" />
           <Stack.Screen name="budgets" />
         </Stack>

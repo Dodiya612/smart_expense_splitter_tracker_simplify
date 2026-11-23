@@ -64,3 +64,10 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Database backups (T-51): never commit dumps, encrypted backups or their manifests
+coinscious-backups/
+*.dump
+*.dump.enc
+*.dump.enc.part
+*.manifest.json

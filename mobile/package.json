@@ -11,6 +11,7 @@
     "expo-device": "~57.0.2",
     "expo-font": "~57.0.4",
     "expo-image": "~57.0.5",
+    "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.12",
     "expo-router": "~57.0.26",
     "expo-secure-store": "~57.0.4",
@@ -42,7 +43,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "check:design": "node ./scripts/check-design.mjs",
-    "test": "node --loader ./scripts/test-loader.mjs --test ./scripts/test-validation.mjs ./scripts/test-dashboard-summary.mjs ./scripts/test-balances.mjs"
+    "test": "node --loader ./scripts/test-loader.mjs --test ./scripts/test-validation.mjs ./scripts/test-dashboard-summary.mjs ./scripts/test-balances.mjs ./scripts/test-expense-history.mjs ./scripts/test-expense-detail.mjs ./scripts/test-expenses-api.mjs ./scripts/test-virtualization.mjs ./scripts/test-code-splitting.mjs ./scripts/test-dashboard-performance.mjs ./scripts/test-groups.mjs ./scripts/test-splits.mjs ./scripts/test-leave-group.mjs ./scripts/test-expense-submission.mjs ./scripts/test-notifications.mjs ./scripts/test-change-password.mjs ./scripts/test-analytics.mjs ./scripts/test-recurring.mjs ./scripts/test-bills.mjs"
   },
   "private": true
 }

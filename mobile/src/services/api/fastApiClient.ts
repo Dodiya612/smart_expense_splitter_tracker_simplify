@@ -1,11 +1,13 @@
 import { API_TIMEOUT_MS, resolveApiBaseUrl } from '../../constants/apiConfig';
-import { requestTokenRefresh } from './authInterceptor';
+import { requestTokenRefresh, runWithRefreshLock } from './authInterceptor';
 import {
   ApiError,
   type ApiClient,
   type ApiErrorDetail,
   type AuthResponse,
   type AuthUser,
+  type ChangePasswordPayload,
+  type ChangePasswordResponse,
   type LoginCredentials,
   type LogoutPayload,
   type RefreshTokenPayload,
@@ -19,7 +21,20 @@ import { tokenStorage } from '../auth/tokenStorage';
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean;
   isRetry?: boolean;
+  /** Return a 401 as an ApiError instead of refreshing (used inside runWithRefreshLock). */
+  skipAuthRefresh?: boolean;
+  /** Overrides API_TIMEOUT_MS for slow calls such as a bill scan (T-54). */
+  timeoutMs?: number;
 }
+
+/** 401 codes after which a token refresh and one retry can succeed. */
+const REFRESHABLE_AUTH_CODES = new Set([
+  'TOKEN_EXPIRED',
+  'SESSION_NOT_IDENTIFIED',
+  'INVALID_TOKEN',
+  'UNAUTHORIZED',
+  'TOKEN_REVOKED',
+]);
 
 export class FastApiClient implements ApiClient {
   private baseUrl: string;
@@ -37,9 +52,11 @@ export class FastApiClient implements ApiClient {
     options: RequestOptions = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
+      // A multipart upload sets its own Content-Type (with the boundary).
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers as Record<string, string> | undefined),
     };
 
@@ -51,7 +68,7 @@ export class FastApiClient implements ApiClient {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? API_TIMEOUT_MS);
 
 
     let response: Response;
@@ -84,6 +101,7 @@ export class FastApiClient implements ApiClient {
       response.status === 401 &&
       options.requiresAuth &&
       !options.isRetry &&
+      !options.skipAuthRefresh &&
       !endpoint.includes('/auth/login') &&
       !endpoint.includes('/auth/signup') &&
       !endpoint.includes('/auth/refresh')
@@ -253,6 +271,47 @@ export class FastApiClient implements ApiClient {
     });
   }
 
+  async changePassword(payload: ChangePasswordPayload): Promise<ChangePasswordResponse> {
+    const body = JSON.stringify({
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+      confirmNewPassword: payload.confirmNewPassword,
+    });
+
+    // On success the server invalidates the current access token and rotates the refresh
+    // token. The request runs under the refresh lock and the new pair is stored before the
+    // lock is released, so no concurrent request can refresh with the replaced token.
+    const attempt = () =>
+      runWithRefreshLock(async () => {
+        const data = await this.executeRequest<ChangePasswordResponse>(
+          '/api/v1/auth/change-password',
+          { method: 'POST', body, requiresAuth: true, skipAuthRefresh: true }
+        );
+        if (!data?.tokens?.accessToken || !data.tokens.refreshToken) {
+          throw new ApiError(
+            'INVALID_RESPONSE',
+            'Your password may have changed, but the app could not confirm it. Please log in again.',
+            false
+          );
+        }
+        await tokenStorage.saveTokens(data.tokens);
+        return data;
+      });
+
+    try {
+      return await attempt();
+    } catch (err) {
+      // An expired access token, or one issued before T-50 without a session id: refresh
+      // outside the lock, then try exactly once more. If refreshing fails the interceptor
+      // signs the user out as usual.
+      if (err instanceof ApiError && REFRESHABLE_AUTH_CODES.has(err.code)) {
+        await requestTokenRefresh();
+        return await attempt();
+      }
+      throw err;
+    }
+  }
+
   async get<T>(endpoint: string): Promise<T> {
     return await this.executeRequest<T>(endpoint, {
       method: 'GET',
@@ -270,6 +329,16 @@ export class FastApiClient implements ApiClient {
       body: body !== undefined ? JSON.stringify(body) : undefined,
       headers,
       requiresAuth: true,
+    });
+  }
+
+  /** Multipart upload (T-54 bill scan). `timeoutMs` allows for the OCR and line-item steps. */
+  async postForm<T>(endpoint: string, form: FormData, timeoutMs?: number): Promise<T> {
+    return await this.executeRequest<T>(endpoint, {
+      method: 'POST',
+      body: form,
+      requiresAuth: true,
+      timeoutMs,
     });
   }
 

@@ -8,17 +8,34 @@
  *  - Optimistic-locking conflict detection (US-09).
  *  - `onSuccess` callback receives the saved Expense so the list can update
  *    immediately (instant appearance requirement, US-07).
+ *  - T-45 / US-14: with "Repeat this expense" on, the expense is saved and then a
+ *    recurring rule is created from the next date. A retry replays both with the
+ *    same keys, so neither is ever stored twice.
+ *  - T-54 / US-16: a scanned bill (`billDraft`) fills the form. Nothing is saved
+ *    until the user confirms; the save then links the bill (receiptId) and merchant.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '@/services/api/types';
+import type { BillDraft } from '@/features/bills/types';
+import { draftToFormValues } from '@/features/bills/utils/billDraft';
+import { createRecurringRule } from '@/features/recurring/services/recurringApi';
+import {
+  REPEAT_NOT_SET_UP,
+  kolkataToday,
+  ruleFromExpenseForm,
+  ruleIdempotencyKey,
+} from '@/features/recurring/utils/recurring';
 import { createExpense, newIdempotencyKey, updateExpense } from '../services/expenseApi';
 import type { Expense, ExpenseFormErrors, ExpenseFormValues, PaymentMode } from '../types';
+import { createSubmissionKeyTracker, runSubmission } from '../utils/submission';
 import { amountToPaise, validateExpenseForm } from '../utils/validation';
 
 export interface UseExpenseFormOptions {
   /** When provided the form operates in edit mode (US-09). */
   existingExpense?: Expense;
+  /** A scanned bill to review (add mode only, T-54). */
+  billDraft?: BillDraft;
   onSuccess: (saved: Expense) => void;
   onCancel: () => void;
 }
@@ -35,6 +52,7 @@ function expenseToFormValues(e: Expense): ExpenseFormValues {
     paymentMode: e.paymentMode as PaymentMode,
     notes: e.notes,
     isRecurring: e.isRecurring,
+    frequency: 'monthly',
   };
 }
 
@@ -45,7 +63,14 @@ const EMPTY_FORM: ExpenseFormValues = {
   paymentMode: 'upi',
   notes: '',
   isRecurring: false,
+  frequency: 'monthly',
 };
+
+/** A failed rule create after the expense saved: keep the form and offer Try again. */
+function repeatSetupError(err: unknown): ApiError {
+  const detail = err instanceof ApiError && err.code !== 'NETWORK_ERROR' ? ` (${err.message})` : '';
+  return new ApiError('RECURRING_SETUP_FAILED', `${REPEAT_NOT_SET_UP}${detail}`, true);
+}
 
 export interface UseExpenseFormReturn {
   values: ExpenseFormValues;
@@ -56,6 +81,8 @@ export interface UseExpenseFormReturn {
   /** True when the server returned VERSION_CONFLICT */
   hasConflict: boolean;
   isEditMode: boolean;
+  /** The bill being reviewed, when the form was opened from a scan (T-54). */
+  billDraft?: BillDraft;
 
   handleFieldChange: <K extends keyof ExpenseFormValues>(
     field: K,
@@ -69,21 +96,25 @@ export interface UseExpenseFormReturn {
 
 export function useExpenseForm({
   existingExpense,
+  billDraft: draftOption,
   onSuccess,
   onCancel,
 }: UseExpenseFormOptions): UseExpenseFormReturn {
   const isEditMode = Boolean(existingExpense);
+  const billDraft = isEditMode ? undefined : draftOption;
 
-  const [values, setValues] = useState<ExpenseFormValues>(
-    existingExpense ? expenseToFormValues(existingExpense) : EMPTY_FORM
-  );
+  const [values, setValues] = useState<ExpenseFormValues>(() => {
+    if (existingExpense) return expenseToFormValues(existingExpense);
+    if (billDraft) return draftToFormValues(billDraft, kolkataToday());
+    return EMPTY_FORM;
+  });
   const [fieldErrors, setFieldErrors] = useState<ExpenseFormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<ApiError | null>(null);
   const [hasConflict, setHasConflict] = useState(false);
 
-  // Keep the idempotency key stable across retries (US-07).
-  const idempotencyKeyRef = useRef<string>(newIdempotencyKey());
+  // Same submission (retry) → same idempotency key; changed values → new key (US-07, US-34).
+  const keyTrackerRef = useRef(createSubmissionKeyTracker(newIdempotencyKey));
 
   const handleFieldChange = useCallback(
     <K extends keyof ExpenseFormValues>(field: K, value: ExpenseFormValues[K]) => {
@@ -104,52 +135,56 @@ export function useExpenseForm({
       setIsLoading(true);
       setSubmitError(null);
 
-      try {
-        const paise = amountToPaise(formValues.amountRaw);
-        const base = {
-          amountPaise: paise,
-          categoryId: formValues.categoryId,
-          date: formValues.date,
-          paymentMode: formValues.paymentMode,
-          notes: formValues.notes.trim(),
-          isRecurring: formValues.isRecurring,
-          idempotencyKey: idempotencyKeyRef.current,
-        };
-
-        let saved: Expense;
-        if (isEditMode && existingExpense) {
-          saved = await updateExpense(existingExpense.id, {
-            ...base,
-            version: existingExpense.version,
-          });
-        } else {
-          saved = await createExpense(base);
-          // Rotate the key so a second "add" gets a fresh key.
-          idempotencyKeyRef.current = newIdempotencyKey();
-        }
-
-        onSuccess(saved);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (err.code === 'VERSION_CONFLICT') {
-            setHasConflict(true);
-          } else {
-            setSubmitError(err);
+      // Values are only read here: a failed save keeps the form exactly as typed.
+      const outcome = await runSubmission(
+        formValues,
+        keyTrackerRef.current,
+        async (submitted, idempotencyKey): Promise<Expense> => {
+          const base = {
+            amountPaise: amountToPaise(submitted.amountRaw),
+            categoryId: submitted.categoryId,
+            date: submitted.date,
+            paymentMode: submitted.paymentMode,
+            notes: submitted.notes.trim(),
+            isRecurring: submitted.isRecurring,
+            idempotencyKey,
+          };
+          if (isEditMode && existingExpense) {
+            return updateExpense(existingExpense.id, {
+              ...base,
+              version: existingExpense.version,
+            });
           }
-        } else {
-          setSubmitError(
-            new ApiError(
-              'UNKNOWN_ERROR',
-              'Something went wrong. Your form has been kept – please try again.',
-              true
-            )
+          const saved = await createExpense(
+            billDraft
+              ? { ...base, receiptId: billDraft.receiptId, merchant: billDraft.merchant ?? undefined }
+              : base
           );
+          if (!submitted.isRecurring) return saved;
+          try {
+            await createRecurringRule(
+              ruleFromExpenseForm(submitted, kolkataToday()),
+              ruleIdempotencyKey(idempotencyKey)
+            );
+          } catch (err) {
+            throw repeatSetupError(err);
+          }
+          return { ...saved, isRecurring: true };
         }
-      } finally {
-        setIsLoading(false);
+      );
+      setIsLoading(false);
+
+      if (outcome.ok) {
+        // The next "add" is a new submission with a fresh key.
+        if (!isEditMode) keyTrackerRef.current.reset();
+        onSuccess(outcome.saved);
+      } else if (outcome.error.code === 'VERSION_CONFLICT') {
+        setHasConflict(true);
+      } else {
+        setSubmitError(outcome.error);
       }
     },
-    [existingExpense, isEditMode, onSuccess]
+    [billDraft, existingExpense, isEditMode, onSuccess]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -182,6 +217,7 @@ export function useExpenseForm({
     submitError,
     hasConflict,
     isEditMode,
+    billDraft,
     handleFieldChange,
     handleSubmit,
     handleRetry,

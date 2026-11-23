@@ -226,3 +226,26 @@ Sprint 2 task **S2-AI-01** introduces centralized quota enforcement and usage au
 >    `down_revision = "006_create_ai_usage_log"`.
 > 3. Do **not** recreate or duplicate the `ai_usage_log` table or migration.
 > 4. S2-DB-04 is **not** fully complete yet; please mark it complete once your 3 remaining tables are merged.
+
+---
+
+## 10. Bill Images and Receipt Processing (US-16 / T-46)
+
+### 10.1 Overview & Architecture
+Under story **US-16** ("Scan Bill to Create Expense"), the backend exposes an automated bill image processing, private storage, and expense linking pipeline:
+1. `POST /api/v1/receipts/scan`: Uploads image bytes, validates magic bytes, strips metadata, shrinks image below 1 MB, stores privately, reserves quota, and extracts structured receipt data.
+2. `GET /api/v1/receipts/{receipt_id}/image`: Streams stored JPEG bytes with private cache headers. Restricted to the receipt owner or active group members (if linked to a group expense); returns HTTP 404 for all unauthorized callers.
+
+### 10.2 Storage Backends & Environment Variables
+- `RECEIPT_STORAGE`: Storage backend selector (`db` or `supabase`). Default: `db`.
+- `SUPABASE_URL`: Supabase project URL (`https://<ref>.supabase.co`).
+- `SUPABASE_SERVICE_KEY`: Server-side service key for private storage REST operations.
+- `RECEIPTS_BUCKET`: Supabase storage bucket name (default: `receipts`).
+
+### 10.3 Security & Acceptance Criteria Guarantees
+1. **Size Limit (AC 1)**: Stored images are guaranteed strictly smaller than 1 MB (1,048,576 bytes) with longest dimension $\le 1600\text{ px}$.
+2. **Metadata Stripping (AC 2)**: All EXIF, GPS coordinates, and camera tags are stripped prior to storage.
+3. **Magic Byte Typing (AC 3)**: File type is detected exclusively via byte signatures (`FF D8 FF` for JPEG, `89 50 4E 47 0D 0A 1A 0A` for PNG). Client filenames and `Content-Type` headers are ignored. Unsupported types return 415 `UNSUPPORTED_MEDIA_TYPE`.
+4. **Private Storage & Access (AC 4)**: Image keys follow the unguessable format `receipts/{uuid4().hex}.jpg` with zero user IDs or PII. Image retrieval returns 404 for unauthorized callers (never 403).
+5. **Expense Cascade Deletion (AC 5)**: When an expense is deleted, its linked receipt DB record and storage blob are permanently deleted.
+6. **24-Hour Purge**: Unlinked receipts older than 24 hours are automatically purged from both the database and the storage backend.

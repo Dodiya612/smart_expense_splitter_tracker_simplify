@@ -69,8 +69,43 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str = "smart-expense-splitter-app"
 
     # Login Rate Limiting Configuration
+    # Rate limiting (T-39). Counters live in PostgreSQL (rate_limit_buckets), so limits hold
+    # across workers and instances. Every limit is "<max> requests per <window> seconds".
+    # Defaults to ON. Switching it off is only accepted when ENVIRONMENT=development.
+    RATE_LIMIT_ENABLED: bool = True
+    # Login: attempts per (account, address) window; plus an address-wide and an account-wide
+    # ceiling. Successful logins are refunded from the ceilings and clear the pair counter.
     LOGIN_RATE_LIMIT_MAX_ATTEMPTS: int = 5
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 900
+    RATE_LIMIT_LOGIN_IP_MAX: int = 20
+    RATE_LIMIT_LOGIN_ACCOUNT_MAX: int = 30
+    RATE_LIMIT_SIGNUP_IP_MAX: int = 5
+    RATE_LIMIT_SIGNUP_WINDOW_SECONDS: int = 3600
+    RATE_LIMIT_REFRESH_IP_MAX: int = 120
+    RATE_LIMIT_REFRESH_WINDOW_SECONDS: int = 900
+    # T-50 change password: attempts per authenticated user (each one verifies the current
+    # password, so this caps guessing with a stolen access token). Not refunded on success.
+    RATE_LIMIT_PASSWORD_CHANGE_USER_MAX: int = 5
+    RATE_LIMIT_PASSWORD_CHANGE_WINDOW_SECONDS: int = 900
+    RATE_LIMIT_INVITE_USER_MAX: int = 20
+    RATE_LIMIT_INVITE_WINDOW_SECONDS: int = 3600
+    RATE_LIMIT_JOIN_USER_MAX: int = 10
+    RATE_LIMIT_JOIN_WINDOW_SECONDS: int = 900
+    RATE_LIMIT_JOIN_CODE_USER_MAX: int = 10
+    RATE_LIMIT_JOIN_CODE_WINDOW_SECONDS: int = 3600
+    RATE_LIMIT_INVITE_RESPOND_USER_MAX: int = 30
+    RATE_LIMIT_INVITE_RESPOND_WINDOW_SECONDS: int = 900
+    RATE_LIMIT_AI_BURST_USER_MAX: int = 20
+    RATE_LIMIT_AI_FEEDBACK_USER_MAX: int = 60
+    RATE_LIMIT_AI_WINDOW_SECONDS: int = 60
+    # Probability that a counter write also deletes a small batch of expired rows.
+    RATE_LIMIT_PURGE_PROBABILITY: float = 0.01
+    RATE_LIMIT_PURGE_BATCH: int = 500
+    # Name of a request header that a PROXY YOU CONTROL sets to the real client address and
+    # overwrites on every request (for example "CF-Connecting-IP" behind Cloudflare). Unset by
+    # default: the app never trusts X-Forwarded-For or the socket peer for rate limiting, and
+    # address-scoped limits are skipped (with a warning) until this is configured and verified.
+    TRUSTED_CLIENT_IP_HEADER: str | None = None
 
     # Groq LLM Configuration (US-26 / T-23)
     GROQ_API_KEY: str | None = None
@@ -83,6 +118,43 @@ class Settings(BaseSettings):
     AI_QUOTA_BUDGET_GOALS_DAILY: int = 5
     AI_QUOTA_ASK_DAILY: int = 20
 
+    # Receipt Storage Configuration (US-16)
+    RECEIPT_STORAGE: str = "db"
+    SUPABASE_URL: str | None = None
+    SUPABASE_SERVICE_KEY: str | None = None
+    RECEIPTS_BUCKET: str = "receipts"
+
+    # OCR Pipeline Configuration (US-16 / T-47)
+    OCR_SPACE_API_KEY: str | None = Field(
+        default="helloworld",
+        validation_alias=AliasChoices("OCR_SPACE_API_KEY"),
+    )
+    OCR_SPACE_ENABLED: bool = True
+    OCR_SPACE_TIMEOUT_SECONDS: float = 8.0
+    TESSERACT_ENABLED: bool = True
+    TESSERACT_TIMEOUT_SECONDS: float = 5.0
+    TESSERACT_CMD: str | None = None
+
+    # Bill review (US-16 / T-54). The LLM only structures line items from the OCR text; every
+    # number it returns must be printed on the bill. Off, no key or a timeout -> rule-parser items.
+    BILL_LINE_ITEMS_LLM_ENABLED: bool = True
+    BILL_LINE_ITEMS_TIMEOUT_SECONDS: float = Field(default=4.0, gt=0, le=15)
+    # Bill images of deleted expenses, and scans never confirmed, are removed after this many
+    # hours by an in-process task that runs at startup and then every interval.
+    RECEIPT_CLEANUP_ENABLED: bool = True
+    RECEIPT_CLEANUP_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
+    RECEIPT_RETENTION_HOURS: int = Field(default=24, ge=1)
+
+    # Recurring expenses (US-14 / T-44). There is no external cron: while the server is up an
+    # in-process task runs the generator at startup and then every RECURRING_RUN_INTERVAL_SECONDS,
+    # and each successful login catches up that user's rules (bounded by a time limit so login
+    # never waits long; the next run finishes anything left). Every run creates at most
+    # RECURRING_MAX_OCCURRENCES_PER_RULE_PER_RUN occurrences per rule.
+    RECURRING_SCHEDULER_ENABLED: bool = True
+    RECURRING_RUN_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
+    RECURRING_LOGIN_CATCHUP_ENABLED: bool = True
+    RECURRING_LOGIN_CATCHUP_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0, le=30)
+    RECURRING_MAX_OCCURRENCES_PER_RULE_PER_RUN: int = Field(default=100, ge=1, le=1000)
 
     @model_validator(mode="after")
     def validate_jwt_secret_key(self) -> "Settings":
@@ -95,6 +167,16 @@ class Settings(BaseSettings):
                     "In non-development environments, JWT_SECRET_KEY must not be the default value "
                     "and must be at least 32 characters long."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def validate_rate_limiting_enabled(self) -> "Settings":
+        # A mistyped or leftover RATE_LIMIT_ENABLED=false must not silently disable abuse
+        # protection in a deployed environment; it is only allowed in development.
+        if self.ENVIRONMENT != "development" and not self.RATE_LIMIT_ENABLED:
+            raise ValueError(
+                "RATE_LIMIT_ENABLED must be true when ENVIRONMENT is not 'development'."
+            )
         return self
 
     @field_validator("DATABASE_URL", mode="before")

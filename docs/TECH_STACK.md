@@ -17,7 +17,7 @@
 | Database | PostgreSQL 16 on Supabase | Use existing database configuration and schema. |
 | ORM and migrations | SQLAlchemy 2.0, Alembic | Make schema changes through the established migration workflow. |
 | Password security | argon2-cffi (Argon2id) | Follow existing password hashing implementation. |
-| Tokens/session | PyJWT and HTTP-only refresh cookies | Preserve existing session, CSRF, and authorization protections. |
+| Tokens/session | PyJWT access tokens (`Authorization: Bearer`); rotating refresh tokens in JSON bodies (no cookies) | Preserve existing session and authorization protections. CSRF threat model and rate limits: `docs/RATE_LIMITING_AND_CSRF.md`. |
 | Charts | react-native-gifted-charts | Use the existing chart components and accessible table alternatives where present. |
 | CI | GitHub Actions | Run and preserve existing checks; do not replace workflows casually. |
 | Receipt OCR | OCR.space, after image shrinking and location metadata removal | Follow the product's privacy and receipt-processing flow. |

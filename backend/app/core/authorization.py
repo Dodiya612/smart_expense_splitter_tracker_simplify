@@ -17,8 +17,10 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import Select, select
 
+from app.models.budget import Budget
 from app.models.category import Category
 from app.models.expense import Expense
+from app.models.recurring import RecurringRule
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
@@ -287,6 +289,61 @@ class SessionPolicy:
         return stmt.where(RefreshToken.user_id == user_id)
 
 
+class RecurringRulePolicy:
+    """Record-level access policy for recurring expense rules (US-14 / T-44).
+
+    A rule is visible to and changeable by its owner only. Group rules are still owned by
+    the member who created them; other group members see only the expenses they produce.
+    Any other user gets the same 404 as a rule that does not exist.
+    """
+
+    @staticmethod
+    def not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECURRING_RULE_NOT_FOUND", "message": "Recurring rule not found."},
+        )
+
+    @staticmethod
+    def authorize(current_user: User, rule: RecurringRule | None, action: Action = Action.READ) -> RecurringRule:
+        """Return the rule if the user owns it, otherwise raise 404 (never 403)."""
+        if rule is None or rule.owner_id != current_user.id:
+            raise RecurringRulePolicy.not_found()
+        return rule
+
+    @staticmethod
+    def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
+        """Scope a rule query to the authenticated owner."""
+        return stmt.where(RecurringRule.owner_id == user_id)
+
+
+class BudgetPolicy:
+    """Record-level access policy for budgets (US-25 / T-48).
+
+    A budget is visible to and changeable by its owner only. A deleted budget, another
+    user's budget and an id that does not exist all get the same 404.
+    """
+
+    @staticmethod
+    def not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "BUDGET_NOT_FOUND", "message": "Budget not found."},
+        )
+
+    @staticmethod
+    def authorize(current_user: User, budget: Budget | None, action: Action = Action.READ) -> Budget:
+        """Return the budget if the user owns it and it is not deleted, otherwise raise 404."""
+        if budget is None or budget.user_id != current_user.id or budget.deleted_at is not None:
+            raise BudgetPolicy.not_found()
+        return budget
+
+    @staticmethod
+    def scope_query(stmt: Select, user_id: uuid.UUID) -> Select:
+        """Scope a budget query to the authenticated owner's active budgets."""
+        return stmt.where(Budget.user_id == user_id, Budget.deleted_at.is_(None))
+
+
 class GroupPolicy:
     """
     Authorization policy for shared groups.
@@ -324,5 +381,26 @@ class GroupPolicy:
                 detail={
                     "code": "INSUFFICIENT_PERMISSIONS",
                     "message": "Administrator privileges required for this action.",
+                },
+            )
+
+    @staticmethod
+    def authorize_member_or_404(
+        current_user: User,
+        group_id: uuid.UUID,
+        member_user_ids: Sequence[uuid.UUID] | Set[uuid.UUID],
+    ) -> None:
+        """
+        Ensures the authenticated user is an active member of the group, hiding the
+        group's existence from strangers: a non-member gets the same HTTP 404
+        GROUP_NOT_FOUND as a group that does not exist (used by balances and
+        settlements, US-20).
+        """
+        if current_user.id not in member_user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "GROUP_NOT_FOUND",
+                    "message": "Group not found.",
                 },
             )
