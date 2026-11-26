@@ -19,7 +19,7 @@ async def client():
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_between_tests():
-    """Ensure SQLAlchemy connection pool does not leak connections across pytest-asyncio event loops."""
+    """Ensure SQLAlchemy connection pool does not leak connections across test runs."""
     yield
     await engine.dispose()
 
@@ -29,9 +29,15 @@ def fake_notification_store(monkeypatch):
     """Keep fake-session tests off the database: notifications go to an in-memory store."""
     notification_fakes.clear_emitted_notifications()
     monkeypatch.setattr(notifications, "_persist", notification_fakes.fake_persist)
+
     # The fake sessions cannot answer the SQL membership query: None means "use the loaded
     # group.members snapshot". The real query is exercised in tests/test_notifications_pg.py.
-    monkeypatch.setattr(notifications, "active_member_roles", notification_fakes.no_database_membership)
+    monkeypatch.setattr(
+        notifications,
+        "active_member_roles",
+        notification_fakes.no_database_membership
+    )
+
     yield
     notification_fakes.clear_emitted_notifications()
 
@@ -78,12 +84,25 @@ def fake_rate_limit_store(monkeypatch):
     off (no trusted header) unless a test sets TRUSTED_CLIENT_IP_HEADER, as in production.
     """
     rate_limit_fakes.reset()
-    monkeypatch.setattr(rate_limiter, "_store_increment", rate_limit_fakes.store_increment)
-    monkeypatch.setattr(rate_limiter, "_store_decrement", rate_limit_fakes.store_decrement)
-    monkeypatch.setattr(rate_limiter, "_store_clear", rate_limit_fakes.store_clear)
-    monkeypatch.setattr(rate_limiter, "_store_purge", rate_limit_fakes.store_purge)
+    monkeypatch.setattr(
+        rate_limiter, "_store_increment", rate_limit_fakes.store_increment
+    )
+    monkeypatch.setattr(
+        rate_limiter, "_store_decrement", rate_limit_fakes.store_decrement
+    )
+    monkeypatch.setattr(
+        rate_limiter, "_store_clear", rate_limit_fakes.store_clear
+    )
+    monkeypatch.setattr(
+        rate_limiter, "_store_purge", rate_limit_fakes.store_purge
+    )
     monkeypatch.setattr(rate_limiter, "_now", rate_limit_fakes.now)
-    monkeypatch.setattr(rate_limiter.settings, "RATE_LIMIT_PURGE_PROBABILITY", 0.0)
+    monkeypatch.setattr(
+        rate_limiter.settings, "RATE_LIMIT_PURGE_PROBABILITY", 0.0
+    )
+
     rate_limiter._warned_no_trusted_header = False
+
     yield
     rate_limit_fakes.reset()
+    
