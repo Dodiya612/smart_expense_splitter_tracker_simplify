@@ -18,18 +18,36 @@ for the default range. ``date_trunc('week', …)`` starts weeks on Monday (ISO).
 "Owed to you" / "you owe" come from the ledger engine via
 ``settlement_service.compute_net_positions`` (never recomputed here).
 There is no server-side cache: every request reads the current rows.
+
+The per-merchant totals and the per-expense share rows used by the expense
+assistant (US-24 / T-57) are read from the same ``ledger_rows``, so they always
+agree with the summary and the categories.
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Unpack
+from typing import Any, Literal, Unpack
 
 from fastapi import HTTPException, status
-from sqlalchemy import BigInteger, Date, DateTime, Select, cast, func, literal, literal_column, select, union_all
+from sqlalchemy import (
+    BigInteger,
+    ColumnElement,
+    Date,
+    DateTime,
+    Select,
+    cast,
+    func,
+    literal,
+    literal_column,
+    or_,
+    select,
+    union_all,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.authorization import ExpensePolicy, GroupPolicy
@@ -245,6 +263,68 @@ def categories_statement(f: AnalyticsFilter) -> AnySelect:
     return _tag(stmt, "categories", f)
 
 
+def _share_per_expense(f: AnalyticsFilter) -> Any:
+    """The user's share of each expense in range, one row per expense with a share."""
+    rows = ledger_rows(f)
+    share = func.coalesce(func.sum(rows.c.share_paise), 0)
+    return (
+        select(rows.c.expense_id, share.label("share_paise"))
+        .group_by(rows.c.expense_id)
+        .having(share > 0)
+        .subquery("expense_share")
+    )
+
+
+def merchants_statement(f: AnalyticsFilter) -> AnySelect:
+    """The user's share per merchant (merchant name compared trimmed, ignoring case)."""
+    per = _share_per_expense(f)
+    name = func.trim(Expense.merchant)
+    key = func.lower(name)
+    share = func.sum(per.c.share_paise)
+    stmt = (
+        select(func.min(name).label("merchant"), share.label("share_paise"), func.count().label("expense_count"))
+        .select_from(per)
+        .join(Expense, Expense.id == per.c.expense_id)
+        .where(name != "")  # no merchant (NULL) or a blank one: not a merchant
+        .group_by(key)
+        .order_by(share.desc(), key)
+    )
+    return _tag(stmt, "merchants", f)
+
+
+def merchant_condition(merchant: str) -> ColumnElement[bool]:
+    """Whole-word, case-insensitive match on the merchant or the description."""
+    pattern = r"\m" + re.escape(merchant.strip()) + r"\M"
+    return or_(
+        Expense.merchant.regexp_match(pattern, flags="i"),
+        Expense.description.regexp_match(pattern, flags="i"),
+    )
+
+
+def expense_rows_statement(f: AnalyticsFilter, category: str | None, merchant: str | None) -> AnySelect:
+    """One row per expense in range with the user's share, optionally filtered."""
+    per = _share_per_expense(f)
+    stmt = (
+        select(
+            Expense.id.label("expense_id"),
+            Expense.expense_date,
+            Expense.created_at,
+            Expense.description,
+            Expense.merchant,
+            Category.name.label("category_name"),
+            per.c.share_paise,
+        )
+        .select_from(per)
+        .join(Expense, Expense.id == per.c.expense_id)
+        .join(Category, Category.id == Expense.category_id)
+    )
+    if category:
+        stmt = stmt.where(func.lower(Category.name) == category.lower())
+    if merchant:
+        stmt = stmt.where(merchant_condition(merchant))
+    return _tag(stmt, "expense_rows", f, category=category, merchant=merchant)
+
+
 # ---------------------------------------------------------------------------
 # Authorization and balances
 # ---------------------------------------------------------------------------
@@ -375,3 +455,82 @@ async def get_categories(
         total_share_paise=sum(i.share_paise for i in items),
         total_cash_paid_paise=sum(i.cash_paid_paise for i in items),
     )
+
+
+@dataclass(frozen=True)
+class MerchantTotal:
+    merchant: str
+    share_paise: int
+    expense_count: int
+
+
+@dataclass(frozen=True)
+class ExpenseShareRow:
+    expense_date: date
+    description: str
+    merchant: str | None
+    category_name: str
+    share_paise: int
+
+
+@dataclass(frozen=True)
+class ExpenseShareRows:
+    """One page of expenses with the user's share, and the count and total of all that match."""
+
+    from_date: date
+    to_date: date
+    rows: list[ExpenseShareRow]
+    expense_count: int
+    total_share_paise: int
+
+
+async def get_merchants(
+    db: AsyncSession,
+    user: User,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> list[MerchantTotal]:
+    """The user's share per merchant, largest first (expenses without a merchant are left out)."""
+    f = await _prepare(db, user, from_date, to_date, None)
+    result = await db.execute(merchants_statement(f))
+    return [MerchantTotal(str(r.merchant), int(r.share_paise), int(r.expense_count)) for r in result.all()]
+
+
+async def get_expense_rows(
+    db: AsyncSession,
+    user: User,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    *,
+    category: str | None = None,
+    merchant: str | None = None,
+    sort: Literal["recent", "largest"] = "recent",
+    limit: int = 10,
+) -> ExpenseShareRows:
+    """Expenses in range with the user's share: the newest (or largest) ``limit`` rows.
+
+    ``category`` is a category name (any case); ``merchant`` matches a whole word or
+    phrase in the merchant or the description. Expenses where the user has no share
+    (only paid for others) are not listed.
+    """
+    f = await _prepare(db, user, from_date, to_date, None)
+    matching = expense_rows_statement(f, category, merchant).subquery("matching")
+    totals = (
+        await db.execute(
+            _tag(
+                select(func.count().label("n"), func.coalesce(func.sum(matching.c.share_paise), 0).label("share")),
+                "expense_rows_total",
+                f,
+            )
+        )
+    ).one()
+    if sort == "largest":
+        order = (matching.c.share_paise.desc(), matching.c.expense_date.desc(), matching.c.created_at.desc())
+    else:
+        order = (matching.c.expense_date.desc(), matching.c.created_at.desc(), matching.c.share_paise.desc())
+    page = await db.execute(select(matching).order_by(*order, matching.c.expense_id).limit(limit))
+    rows = [
+        ExpenseShareRow(r.expense_date, r.description, r.merchant, r.category_name, int(r.share_paise))
+        for r in page.all()
+    ]
+    return ExpenseShareRows(f.start, f.end, rows, int(totals.n), int(totals.share))

@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.assistant_service import ask_assistant
 from app.api.deps import get_current_user
 from app.api.rate_limit_deps import limit_by_user
 from app.core.rate_limiter import RATE_LIMIT_RESPONSES
@@ -17,7 +18,6 @@ from app.schemas.category_suggestion import (
     CategorySuggestionRequest,
     CategorySuggestionResponse,
 )
-from app.ai.assistant_service import ask_assistant
 from app.services.category_suggestion_service import (
     record_feedback,
     suggest_category,
@@ -113,13 +113,18 @@ async def feedback_alias(
 
 @router.post(
     "/ask",
+    dependencies=[Depends(limit_by_user("ai_burst_user"))],
+    responses=RATE_LIMIT_RESPONSES,
     response_model=AskResponse,
     status_code=status.HTTP_200_OK,
-    summary="Ask AI Assistant about expenses",
+    summary="Ask the expense assistant",
     description=(
-        "Natural language query assistant for personal expenses with LLM tool selection, "
-        "deterministic date resolution in Asia/Kolkata, user-level data isolation, "
-        "strict grounding guard, and fallback suggestions."
+        "Answers a question about the signed-in user's own spending. A language model (or, "
+        "without one, an offline parser) picks one of eight fixed query tools; every figure "
+        "comes from the analytics service, dates are resolved in Asia/Kolkata, and a grounding "
+        "guard keeps any number the tools did not return out of the answer. Questions it cannot "
+        "answer, AI switched off, or the daily quota used up return a fallback with suggested "
+        "questions (still HTTP 200)."
     ),
 )
 async def ask_assistant_endpoint(
@@ -128,11 +133,4 @@ async def ask_assistant_endpoint(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AskResponse:
     """Endpoint POST /api/v1/ai/ask."""
-    result = await ask_assistant(
-        db=db,
-        user_id=current_user.id,
-        question=request.question,
-    )
-    return AskResponse(data=result)
-
-
+    return AskResponse(data=await ask_assistant(db=db, user=current_user, question=request.question))

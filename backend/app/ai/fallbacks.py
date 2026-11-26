@@ -1,108 +1,60 @@
-"""Fallback suggestions and safe error responses (T-57 / US-24).
+"""Fallback answers and suggested questions for the expense assistant (T-57 / US-24).
 
-Implements deterministic fallback recommendations for:
-- AI functionality disabled.
-- LLM service unavailable or failing.
-- Questions that cannot be mapped to an allowed tool.
-- Insufficient tool information.
-- Query security or grounding guard violations.
+A fallback is returned when the assistant cannot answer: AI switched off, the
+daily quota used up, a question no tool can answer, a period it cannot work out,
+or a tool choice from the model that fails validation. Fallbacks contain no
+figures. Every suggestion is a question the assistant answers without a language
+model (tests/test_assistant_fallbacks.py runs each one end to end).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 from app.schemas.assistant import AskResponseData
 
-# Core predefined suggestions per requirements
-DEFAULT_FALLBACK_SUGGESTIONS: list[str] = [
+SUGGESTIONS: tuple[str, ...] = (
     "How much did I spend this week?",
-    "Show my food expenses.",
-    "What were my expenses yesterday?",
-    "Show my monthly spending.",
-]
-
-CONTEXTUAL_FALLBACK_SUGGESTIONS: dict[str, list[str]] = {
-    "food": [
-        "How much did I spend on food this month?",
-        "Show my food expenses from last week.",
-        "What were my expenses yesterday?",
-    ],
-    "shopping": [
-        "How much did I spend on shopping this month?",
-        "What was my largest shopping expense?",
-        "Show my recent expenses.",
-    ],
-    "travel": [
-        "How much did I spend on transportation this month?",
-        "Show my travel expenses for last week.",
-        "What was my total spending this month?",
-    ],
-}
+    "Show my spending by category this month.",
+    "Compare my spending this month with last month.",
+    "Who are my top merchants this month?",
+    "How am I doing on my budgets?",
+    "How much do I owe across my groups?",
+    "What recurring expenses are due in the next 7 days?",
+    "Show my 5 most recent expenses.",
+)
 
 
-def get_fallback_suggestions(hint: str | None = None) -> list[str]:
-    """Retrieve fallback suggestions, optionally contextualized by query hint."""
-    if hint:
-        norm = hint.lower()
-        for key, suggestions in CONTEXTUAL_FALLBACK_SUGGESTIONS.items():
-            if key in norm:
-                return suggestions
-    return list(DEFAULT_FALLBACK_SUGGESTIONS)
+def fallback(answer: str) -> AskResponseData:
+    return AskResponseData(answer=answer, source="fallback", suggestions=list(SUGGESTIONS))
 
 
-def create_ai_disabled_response() -> AskResponseData:
-    """Return fallback response when AI is globally disabled."""
-    return AskResponseData(
-        answer=(
-            "The AI assistant is currently disabled. You can track and view your expenses "
-            "directly or use one of the standard queries below."
-        ),
-        tool_used=None,
-        tool_parameters=None,
-        tool_result=None,
-        grounded=True,
-        fallback_suggestions=get_fallback_suggestions(),
+def ai_disabled() -> AskResponseData:
+    return fallback(
+        "The assistant is switched off right now. You can still see your spending on the dashboard."
     )
 
 
-def create_llm_unavailable_response(reason: str = "service temporarily unavailable") -> AskResponseData:
-    """Return fallback response when the LLM service is unconfigured or unreachable."""
-    return AskResponseData(
-        answer=(
-            "I'm unable to process your request right now because the AI service is "
-            "temporarily unavailable. Please try one of these standard queries:"
-        ),
-        tool_used=None,
-        tool_parameters=None,
-        tool_result=None,
-        grounded=True,
-        fallback_suggestions=get_fallback_suggestions(),
+def quota_used_up() -> AskResponseData:
+    return fallback(
+        "You have used today's assistant questions. They reset tomorrow; until then the dashboard "
+        "shows your spending."
     )
 
 
-def create_unsupported_question_response(question: str) -> AskResponseData:
-    """Return fallback response when a question cannot be mapped to any of the eight query tools."""
-    return AskResponseData(
-        answer=(
-            "I can only help with questions about your recorded expenses, spending by category, "
-            "recent transactions, merchants, and date ranges. Here are some questions you can ask:"
-        ),
-        tool_used=None,
-        tool_parameters=None,
-        tool_result=None,
-        grounded=True,
-        fallback_suggestions=get_fallback_suggestions(question),
+def unsupported() -> AskResponseData:
+    return fallback(
+        "I can answer questions about your own spending: totals, categories, comparisons, "
+        "merchants, budgets, group balances, upcoming recurring expenses and your recent "
+        "expenses. Try one of these:"
     )
 
 
-def create_execution_error_response(error_message: str | None = None) -> AskResponseData:
-    """Return fallback response when tool execution encounters an error."""
-    return AskResponseData(
-        answer="I encountered an issue retrieving your expense records. Please try asking again or select one of these queries:",
-        tool_used=None,
-        tool_parameters=None,
-        tool_result=None,
-        grounded=True,
-        fallback_suggestions=get_fallback_suggestions(),
-    )
+def unsupported_scope() -> AskResponseData:
+    return fallback("I can only answer questions about your own expenses. Try one of these:")
+
+
+def with_reason(reason: str) -> AskResponseData:
+    return fallback(f"{reason} Try one of these:")
+
+
+def not_understood() -> AskResponseData:
+    return fallback("I couldn't work out how to answer that. Try one of these:")

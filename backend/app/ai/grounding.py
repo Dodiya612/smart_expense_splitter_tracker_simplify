@@ -1,245 +1,241 @@
-"""Deterministic Grounding Guard for AI Assistant (T-57 / US-24).
+"""Grounding guard for assistant answers (T-57 / US-24).
 
-Strict Invariants:
-1. Every numerical value in the generated response must be strictly supported by tool results.
-2. If any numerical value is not supported, the response is rejected and replaced by a safe,
-   predefined template sentence.
-3. Zero invented numerical values are permitted in user-facing output.
+Every figure in an answer comes from the backend. The language model never writes
+a number itself:
+
+1. The model writes its sentence with placeholders such as ``{total}`` or
+   ``{period}``; ``fill_placeholders`` rejects number words, non-Latin digits and
+   unknown placeholders in the model's own text, then fills the placeholders with
+   values formatted in code.
+2. ``find_violations`` is the backstop on the final text, including any digits
+   the model wrote itself instead of a placeholder. It is type-aware:
+   rupee amounts are compared with the rupee figures the tool returned (exact
+   paise), percentages with the percentages the tool computed, dates as whole
+   dates with the period and bucket dates, and any other number with the counts.
+   Indian (₹1,23,456.00) and western (₹123,456.00) digit grouping are both read;
+   anything else, a sign, or a shorthand such as "2.4k" is a violation.
+
+When either step fails the caller uses the tool's template sentence instead.
 """
 
 from __future__ import annotations
 
-import logging
+import calendar
 import re
 from dataclasses import dataclass
-from typing import Any
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-logger = logging.getLogger(__name__)
+MAX_ANSWER_LENGTH = 500
+
+
+# ---------------------------------------------------------------------------
+# Formatting (the only place answer numbers are written)
+# ---------------------------------------------------------------------------
+
+
+def format_rupees(paise: int) -> str:
+    """₹1,23,456.78 - Indian digit grouping, always two decimals."""
+    sign = "-" if paise < 0 else ""
+    rupees, rest = divmod(abs(paise), 100)
+    digits = str(rupees)
+    if len(digits) > 3:
+        head, tail = digits[:-3], digits[-3:]
+        pairs = []
+        while len(head) > 2:
+            pairs.insert(0, head[-2:])
+            head = head[:-2]
+        digits = ",".join([head, *pairs, tail])
+    return f"{sign}₹{digits}.{rest:02d}"
+
+
+def format_count(n: int, singular: str, plural: str) -> str:
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def percentage(part: int, whole: int) -> Decimal:
+    """part / whole as a percentage with one decimal place (half up)."""
+    if whole <= 0:
+        return Decimal("0.0")
+    return (Decimal(part) * 100 / Decimal(whole)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def format_percent(value: Decimal) -> str:
+    return f"{value}%"
+
+
+# ---------------------------------------------------------------------------
+# What a tool result allows
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class GroundingCheckResult:
-    """Result of deterministic grounding validation."""
+class AllowedFigures:
+    amounts_paise: frozenset[int]
+    counts: frozenset[int]
+    percentages: frozenset[Decimal]
+    dates: frozenset[date]
+    #: Phrases written by code that may contain digits, e.g. the period label
+    #: "in the last 7 days". They are accepted only as whole phrases, so the 7 in
+    #: them never makes "7 expenses" acceptable.
+    phrases: frozenset[str] = frozenset()
 
-    is_grounded: bool
-    violations: list[float]
-    final_answer: str
-    rejection_reason: str | None = None
+    @property
+    def months(self) -> frozenset[tuple[int, int]]:
+        return frozenset((d.year, d.month) for d in self.dates)
 
 
-class GroundingGuard:
-    """Deterministic validation guard preventing LLM numerical hallucination."""
+# ---------------------------------------------------------------------------
+# Step 1: placeholders in the model's text
+# ---------------------------------------------------------------------------
 
-    # Regex capturing potential numbers in text (amounts, integers, floats, percentages)
-    NUMBER_PATTERN = re.compile(
-        r"(?:₹|Rs\.?|INR\s*)?([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)(?:st|nd|rd|th)?%?",
-        re.IGNORECASE,
-    )
+_NUMBER_WORDS = re.compile(
+    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
+    r"fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|"
+    r"ninety|hundreds?|thousands?|lakhs?|lacs?|crores?|millions?|billions?|dozens?|half|twice|"
+    r"thrice|double|triple|quarter)\b",
+    re.IGNORECASE,
+)
+_PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
 
-    @classmethod
-    def collect_allowed_numbers(cls, tool_result: dict[str, Any]) -> set[float]:
-        """Extract all valid, supported numerical values from tool result data."""
-        allowed: set[float] = set()
 
-        # Add 0 by default (zero transactions or zero amount is always valid)
-        allowed.add(0.0)
+def _has_non_latin_digit(text: str) -> bool:
+    """Devanagari and other non-Latin digits, and numeric symbols such as '½'."""
+    return any((ch.isdigit() and not ch.isascii()) or (ch.isnumeric() and not ch.isdigit()) for ch in text)
 
-        def add_num(val: Any) -> None:
-            if val is None:
-                return
-            if isinstance(val, (int, float)):
-                allowed.add(float(val))
-                # If amount is in paise (>= 100), also allow its rupee representation
-                if val >= 100:
-                    allowed.add(round(float(val) / 100.0, 2))
-                    allowed.add(float(val) / 100.0)
-            elif isinstance(val, str):
-                # Check if it's an ISO date or contains digits
-                date_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", val.strip())
-                if date_match:
-                    allowed.add(float(date_match.group(1)))  # Year
-                    allowed.add(float(date_match.group(2)))  # Month
-                    allowed.add(float(date_match.group(3)))  # Day
-                else:
-                    try:
-                        f = float(val.replace(",", "").strip())
-                        allowed.add(f)
-                    except ValueError:
-                        pass
 
-        def scan_dict(d: dict[str, Any]) -> None:
-            for k, v in d.items():
-                if isinstance(v, (int, float)):
-                    add_num(v)
-                    if "paise" in k:
-                        allowed.add(round(v / 100.0, 2))
-                        allowed.add(v / 100.0)
-                elif isinstance(v, str):
-                    add_num(v)
-                elif isinstance(v, list):
-                    for item in v:
-                        if isinstance(item, dict):
-                            scan_dict(item)
-                        else:
-                            add_num(item)
-                elif isinstance(v, dict):
-                    scan_dict(v)
+def fill_placeholders(text: str | None, values: dict[str, str]) -> str | None:
+    """Fill the model's placeholders, or None if its own text cannot be checked.
 
-        scan_dict(tool_result)
+    Number words and non-Latin digits cannot be verified, so they are rejected here;
+    digits are left for ``find_violations``.
+    """
+    if not text:
+        return None
+    text = text.strip()
+    if not text or len(text) > MAX_ANSWER_LENGTH:
+        return None
+    if _has_non_latin_digit(text) or _NUMBER_WORDS.search(text):
+        return None
+    names = _PLACEHOLDER.findall(text)
+    if not names or any(name not in values for name in names):
+        return None
+    if "{" in _PLACEHOLDER.sub("", text) or "}" in _PLACEHOLDER.sub("", text):
+        return None
+    return _PLACEHOLDER.sub(lambda m: values[m.group(1)], text)
 
-        # Allow indices 1..count if a list of items is returned
-        if "count" in tool_result and isinstance(tool_result["count"], int):
-            for i in range(1, tool_result["count"] + 1):
-                allowed.add(float(i))
-        if "transaction_count" in tool_result and isinstance(tool_result["transaction_count"], int):
-            for i in range(1, min(tool_result["transaction_count"] + 1, 100)):
-                allowed.add(float(i))
 
-        return allowed
+# ---------------------------------------------------------------------------
+# Step 2: type-aware check of the final text
+# ---------------------------------------------------------------------------
 
-    @classmethod
-    def extract_numbers_from_text(cls, text: str) -> list[float]:
-        """Extract all standalone numbers from response text."""
-        numbers: list[float] = []
-        for match in cls.NUMBER_PATTERN.finditer(text):
-            raw = match.group(1).replace(",", "")
-            try:
-                val = float(raw)
-                numbers.append(val)
-            except ValueError:
-                continue
-        return numbers
+_NUM = r"\d+(?:,\d+)*(?:\.\d+)?"
+_WESTERN = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")
+_INDIAN = re.compile(r"\d{1,2}(?:,\d{2})*,\d{3}(?:\.\d+)?")
+_MONTH_ALT = "|".join(
+    sorted({*(calendar.month_name[i] for i in range(1, 13)), *(calendar.month_abbr[i] for i in range(1, 13)), "Sept"},
+           key=len, reverse=True)
+)
+_MONTH_INDEX = {calendar.month_name[i].lower(): i for i in range(1, 13)} | {
+    calendar.month_abbr[i].lower(): i for i in range(1, 13)
+} | {"sept": 9}
 
-    @classmethod
-    def build_safe_template(cls, tool_result: dict[str, Any]) -> str:
-        """Construct a safe, predefined template sentence containing only verified facts."""
-        tool_name = tool_result.get("tool", "")
-        period = tool_result.get("period_label", "the specified period")
-        period_str = f"for {period}" if period and period != "all time" else "overall"
+_DATE_DMY = re.compile(rf"\b(\d{{1,2}})\s+({_MONTH_ALT})\.?,?\s+(\d{{4}})\b", re.IGNORECASE)
+_DATE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+_MONTH_YEAR = re.compile(rf"\b({_MONTH_ALT})\.?,?\s+(\d{{4}})\b", re.IGNORECASE)
+_MONEY_BEFORE = re.compile(
+    rf"(?P<sign>-\s*)?(?:₹|\brs\.?|\binr)\s*(?P<inner>-?)\s*(?P<raw>{_NUM})"
+    r"\s*(?P<suffix>k|l|cr|lakhs?|lacs?|crores?|mn|million|thousand)?\b",
+    re.IGNORECASE,
+)
+_MONEY_AFTER = re.compile(
+    rf"(?P<sign>-?)(?P<raw>{_NUM})\s*(?P<suffix>k|l|cr|lakhs?|crores?)?\s*(?:rupees|rs\b|inr\b)", re.IGNORECASE
+)
+_PERCENT = re.compile(rf"(-?)({_NUM})\s*(?:%|percent\b|per\s+cent\b)", re.IGNORECASE)
+_BARE = re.compile(rf"(-?)({_NUM})([a-z]*)", re.IGNORECASE)
+_ORDINAL_SUFFIXES = {"", "st", "nd", "rd", "th"}
 
-        if tool_name == "get_spending_by_category":
-            category = tool_result.get("category", "this category")
-            amt = tool_result.get("total_rupees", 0.0)
-            cnt = tool_result.get("transaction_count", 0)
-            if cnt == 0:
-                return f"Based on your verified records, you have no expenses for {category} {period_str}."
-            return (
-                f"Based on your verified records, you spent ₹{amt:.2f} across "
-                f"{cnt} transactions on {category} {period_str}."
-            )
 
-        if tool_name == "get_total_spending":
-            amt = tool_result.get("total_rupees", 0.0)
-            cnt = tool_result.get("transaction_count", 0)
-            if cnt == 0:
-                return f"Based on your verified records, you have no recorded expenses {period_str}."
-            return (
-                f"Based on your verified records, your total spending {period_str} "
-                f"is ₹{amt:.2f} across {cnt} transactions."
-            )
+def _parse_number(raw: str) -> Decimal | None:
+    """The value of a written number, or None when its digit grouping is not valid."""
+    if "," in raw and not (_WESTERN.fullmatch(raw) or _INDIAN.fullmatch(raw)):
+        return None
+    try:
+        return Decimal(raw.replace(",", ""))
+    except InvalidOperation:
+        return None
 
-        if tool_name == "get_category_breakdown":
-            breakdown = tool_result.get("breakdown", [])
-            amt = tool_result.get("total_rupees", 0.0)
-            cnt = tool_result.get("transaction_count", 0)
-            if not breakdown or cnt == 0:
-                return f"Based on your verified records, no expenses were found {period_str}."
-            lines = [f"{item['category']}: ₹{item['total_rupees']:.2f}" for item in breakdown[:5]]
-            summary = ", ".join(lines)
-            return (
-                f"Based on your verified records, your top category spending {period_str} "
-                f"totals ₹{amt:.2f} ({summary})."
-            )
 
-        if tool_name == "get_recent_expenses":
-            expenses = tool_result.get("expenses", [])
-            if not expenses:
-                return f"Based on your verified records, no expenses were found {period_str}."
-            lines = [f"{e['description']} (₹{e['amount_rupees']:.2f})" for e in expenses[:5]]
-            summary = ", ".join(lines)
-            return f"Based on your verified records, your recent expenses {period_str} are: {summary}."
+def _blank(text: str, span: tuple[int, int]) -> str:
+    start, end = span
+    return text[:start] + " " * (end - start) + text[end:]
 
-        if tool_name == "get_highest_expense":
-            exp = tool_result.get("expense")
-            if not exp:
-                return f"Based on your verified records, no expenses were found {period_str}."
-            return (
-                f"Based on your verified records, your highest single expense {period_str} was "
-                f"'{exp['description']}' for ₹{exp['amount_rupees']:.2f} in {exp['category']}."
-            )
 
-        if tool_name == "get_spending_by_merchant":
-            merchant = tool_result.get("merchant", "this merchant")
-            amt = tool_result.get("total_rupees", 0.0)
-            cnt = tool_result.get("transaction_count", 0)
-            if cnt == 0:
-                return f"Based on your verified records, you have no recorded spending at {merchant} {period_str}."
-            return (
-                f"Based on your verified records, you spent ₹{amt:.2f} across "
-                f"{cnt} transactions at {merchant} {period_str}."
-            )
+def find_violations(text: str, allowed: AllowedFigures) -> list[str]:
+    """Every number in ``text`` that the tool result does not support (empty when grounded)."""
+    violations: list[str] = []
+    if _has_non_latin_digit(text):
+        violations.append("non-Latin digits")
+    if _NUMBER_WORDS.search(text):
+        violations.append("number written in words")
+    work = text
+    for phrase in sorted(allowed.phrases, key=len, reverse=True):
+        for match in re.finditer(re.escape(phrase), work, re.IGNORECASE):
+            work = _blank(work, match.span())
 
-        if tool_name == "get_daily_average_spending":
-            avg = tool_result.get("average_daily_rupees", 0.0)
-            tot = tool_result.get("total_rupees", 0.0)
-            days = tool_result.get("days", 1)
-            return (
-                f"Based on your verified records, your average daily spending {period_str} "
-                f"was ₹{avg:.2f} per day over {days} days (total ₹{tot:.2f})."
-            )
+    for match in _DATE_DMY.finditer(work):
+        try:
+            d = date(int(match.group(3)), _MONTH_INDEX[match.group(2).lower()], int(match.group(1)))
+        except ValueError:
+            d = None
+        if d is None or d not in allowed.dates:
+            violations.append(match.group(0))
+        work = _blank(work, match.span())
+    for match in _DATE_ISO.finditer(work):
+        try:
+            d = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        except ValueError:
+            d = None
+        if d is None or d not in allowed.dates:
+            violations.append(match.group(0))
+        work = _blank(work, match.span())
+    for match in _MONTH_YEAR.finditer(work):
+        if (int(match.group(2)), _MONTH_INDEX[match.group(1).lower()]) not in allowed.months:
+            violations.append(match.group(0))
+        work = _blank(work, match.span())
 
-        if tool_name == "get_expenses_count":
-            cnt = tool_result.get("transaction_count", 0)
-            cat = tool_result.get("category")
-            if cat:
-                return f"Based on your verified records, you recorded {cnt} transactions for {cat} {period_str}."
-            return f"Based on your verified records, you recorded {cnt} transactions {period_str}."
+    for pattern in (_MONEY_BEFORE, _MONEY_AFTER):
+        for match in pattern.finditer(work):
+            groups = match.groupdict()
+            sign = (groups["sign"] or "") + (groups.get("inner") or "")
+            raw, suffix = groups["raw"], groups["suffix"]
+            value = _parse_number(raw)
+            paise = value * 100 if value is not None else None
+            if (
+                sign
+                or suffix
+                or paise is None
+                or paise != paise.to_integral_value()
+                or int(paise) not in allowed.amounts_paise
+            ):
+                violations.append(match.group(0).strip())
+            work = _blank(work, match.span())
 
-        # Generic safe summary
-        tot = tool_result.get("total_rupees", 0.0)
-        cnt = tool_result.get("transaction_count", 0)
-        return (
-            f"Based on your verified records, you have {cnt} transactions totaling "
-            f"₹{tot:.2f} {period_str}."
-        )
+    for match in _PERCENT.finditer(work):
+        value = _parse_number(match.group(2))
+        if match.group(1) or value is None or value not in allowed.percentages:
+            violations.append(match.group(0).strip())
+        work = _blank(work, match.span())
 
-    @classmethod
-    def validate_and_guard(
-        cls,
-        candidate_answer: str,
-        tool_result: dict[str, Any],
-    ) -> GroundingCheckResult:
-        """Validate that all numbers in candidate_answer are strictly present in tool_result.
-
-        If ungrounded numbers are detected, reject candidate_answer and replace with
-        predefined safe template sentence.
-        """
-        allowed_numbers = cls.collect_allowed_numbers(tool_result)
-        extracted_numbers = cls.extract_numbers_from_text(candidate_answer)
-
-        violations: list[float] = []
-        for num in extracted_numbers:
-            # Check with small float tolerance
-            matched = any(abs(num - allowed) < 0.01 for allowed in allowed_numbers)
-            if not matched:
-                violations.append(num)
-
-        if violations:
-            logger.warning(
-                "Grounding violation detected! Unverified numbers in LLM answer: %s. Allowed: %s",
-                violations,
-                sorted(allowed_numbers),
-            )
-            safe_template = cls.build_safe_template(tool_result)
-            return GroundingCheckResult(
-                is_grounded=False,
-                violations=violations,
-                final_answer=safe_template,
-                rejection_reason=f"Detected unverified numerical value(s): {violations}",
-            )
-
-        return GroundingCheckResult(
-            is_grounded=True,
-            violations=[],
-            final_answer=candidate_answer,
-        )
+    for match in _BARE.finditer(work):
+        sign, raw, suffix = match.group(1), match.group(2), match.group(3).lower()
+        value = _parse_number(raw)
+        if (
+            sign
+            or suffix not in _ORDINAL_SUFFIXES
+            or value is None
+            or value != value.to_integral_value()
+            or int(value) not in allowed.counts
+        ):
+            violations.append(match.group(0).strip())
+    return violations

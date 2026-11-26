@@ -1,163 +1,127 @@
-"""Unit tests for Grounding Guard and safe template generation (T-57 / US-24)."""
+"""Grounding guard (app/ai/grounding.py): placeholders, then a type-aware number check."""
+
+from datetime import date
+from decimal import Decimal
 
 import pytest
 
-from app.ai.grounding import GroundingGuard
+from app.ai.grounding import (
+    AllowedFigures,
+    fill_placeholders,
+    find_violations,
+    format_count,
+    format_rupees,
+    percentage,
+)
+
+ALLOWED = AllowedFigures(
+    amounts_paise=frozenset({245000, 12345600, 0}),
+    counts=frozenset({40, 7}),
+    percentages=frozenset({Decimal("42.9")}),
+    dates=frozenset({date(2026, 11, 1), date(2026, 11, 30)}),
+)
+VALUES = {"total": "₹2,450.00", "expenses": "40 expenses", "period": "this month (1 Nov 2026 – 30 Nov 2026)"}
 
 
-def test_collect_allowed_numbers():
-    """Verify numbers in tool results (paise, rupees, counts, dates) are recognized."""
-    tool_result = {
-        "tool": "get_total_spending",
-        "total_paise": 245000,
-        "total_rupees": 2450.0,
-        "transaction_count": 4,
-        "start_date": "2026-11-16",
-        "end_date": "2026-11-22",
-    }
-    allowed = GroundingGuard.collect_allowed_numbers(tool_result)
-
-    assert 245000.0 in allowed
-    assert 2450.0 in allowed
-    assert 4.0 in allowed
-    assert 2026.0 in allowed
-    assert 11.0 in allowed
-    assert 16.0 in allowed
-    assert 22.0 in allowed
-    assert 0.0 in allowed
+# ---- formatting ---------------------------------------------------------------------------
 
 
-def test_grounded_answer_passes():
-    """Candidate answer containing only supported figures passes validation."""
-    tool_result = {
-        "tool": "get_spending_by_category",
-        "category": "Food & Dining",
-        "total_paise": 245000,
-        "total_rupees": 2450.0,
-        "transaction_count": 4,
-        "period_label": "last week",
-    }
-    candidate = "You spent ₹2,450.00 on Food & Dining across 4 transactions for last week."
-
-    res = GroundingGuard.validate_and_guard(candidate, tool_result)
-    assert res.is_grounded is True
-    assert res.violations == []
-    assert res.final_answer == candidate
+@pytest.mark.parametrize(
+    ("paise", "text"),
+    [(0, "₹0.00"), (5, "₹0.05"), (99900, "₹999.00"), (100000, "₹1,000.00"), (245050, "₹2,450.50"),
+     (12345600, "₹1,23,456.00"), (1234567890, "₹1,23,45,678.90")],
+)
+def test_rupees_use_indian_grouping_and_two_decimals(paise, text):
+    assert format_rupees(paise) == text
 
 
-def test_hallucinated_amount_rejected():
-    """Candidate answer with invented expense amount is rejected and replaced."""
-    tool_result = {
-        "tool": "get_spending_by_category",
-        "category": "Food & Dining",
-        "total_paise": 245000,
-        "total_rupees": 2450.0,
-        "transaction_count": 4,
-        "period_label": "last week",
-    }
-    # LLM hallucinates ₹5,000.00
-    candidate = "You spent ₹5,000.00 on Food & Dining across 4 transactions."
-
-    res = GroundingGuard.validate_and_guard(candidate, tool_result)
-    assert res.is_grounded is False
-    assert 5000.0 in res.violations
-    assert "₹5,000.00" not in res.final_answer
-    assert "₹2450.00" in res.final_answer or "₹2,450.00" in res.final_answer
-    assert "Food & Dining" in res.final_answer
+def test_counts_and_percentages():
+    assert format_count(1, "expense", "expenses") == "1 expense"
+    assert format_count(3, "expense", "expenses") == "3 expenses"
+    assert percentage(30000, 70000) == Decimal("42.9")
+    assert percentage(1, 0) == Decimal("0.0")
 
 
-def test_hallucinated_count_rejected():
-    """Candidate answer with invented transaction count is rejected."""
-    tool_result = {
-        "tool": "get_total_spending",
-        "total_paise": 150000,
-        "total_rupees": 1500.0,
-        "transaction_count": 2,
-        "period_label": "this month",
-    }
-    # LLM hallucinates 10 transactions
-    candidate = "Your total spending this month is ₹1,500.00 across 10 transactions."
-
-    res = GroundingGuard.validate_and_guard(candidate, tool_result)
-    assert res.is_grounded is False
-    assert 10.0 in res.violations
-    assert "10" not in res.final_answer
-    assert "2 transactions" in res.final_answer
+# ---- step 1: placeholders -----------------------------------------------------------------
 
 
-def test_hallucinated_percentage_rejected():
-    """Candidate answer with invented percentage or comparison statistic is rejected."""
-    tool_result = {
-        "tool": "get_total_spending",
-        "total_paise": 150000,
-        "total_rupees": 1500.0,
-        "transaction_count": 2,
-        "period_label": "this month",
-    }
-    candidate = "You spent ₹1,500.00 across 2 transactions, which is 25% lower than normal."
-
-    res = GroundingGuard.validate_and_guard(candidate, tool_result)
-    assert res.is_grounded is False
-    assert 25.0 in res.violations
-    assert "25%" not in res.final_answer
+def test_placeholders_are_filled_from_backend_values():
+    assert fill_placeholders("You spent {total} {period}.", VALUES) == (
+        "You spent ₹2,450.00 this month (1 Nov 2026 – 30 Nov 2026)."
+    )
 
 
-def test_safe_template_contains_zero_invented_numbers():
-    """Verify that template replacement contains only numbers from the tool result."""
-    tool_result = {
-        "tool": "get_spending_by_category",
-        "category": "Travel & Transport",
-        "total_paise": 78000,
-        "total_rupees": 780.0,
-        "transaction_count": 3,
-        "period_label": "this week",
-    }
-    template = GroundingGuard.build_safe_template(tool_result)
-
-    # Re-extract numbers from the template and ensure all are allowed
-    allowed = GroundingGuard.collect_allowed_numbers(tool_result)
-    template_numbers = GroundingGuard.extract_numbers_from_text(template)
-
-    for num in template_numbers:
-        assert any(abs(num - a) < 0.01 for a in allowed)
+@pytest.mark.parametrize(
+    "text",
+    [
+        None, "", "   ",
+        "You spent fifteen hundred rupees {period}.",  # number words
+        "You spent two lakh {period}.",
+        "You spent ₹२,४५० {period}.",  # Devanagari digits
+        "You spent {total} and saved {savings}.",  # unknown placeholder
+        "You spent {total {period}.",  # broken braces
+        "Nothing to report.",  # no placeholder at all
+        "x" * 600 + "{total}",  # too long
+    ],
+)
+def test_model_text_that_cannot_be_checked_is_rejected(text):
+    assert fill_placeholders(text, VALUES) is None
 
 
-def test_empty_results_template():
-    """Verify safe template when transaction count and total spending are zero."""
-    tool_result = {
-        "tool": "get_spending_by_category",
-        "category": "Entertainment",
-        "total_paise": 0,
-        "total_rupees": 0.0,
-        "transaction_count": 0,
-        "period_label": "last month",
-    }
-    template = GroundingGuard.build_safe_template(tool_result)
-    assert "no expenses" in template.lower()
-    assert "Entertainment" in template
+# ---- step 2: type-aware backstop ----------------------------------------------------------
 
 
-def test_highest_expense_grounding():
-    """Verify grounding on get_highest_expense tool."""
-    tool_result = {
-        "tool": "get_highest_expense",
-        "expense": {
-            "id": "11111111-1111-4111-8111-111111111111",
-            "description": "Flight Ticket",
-            "amount_paise": 850000,
-            "amount_rupees": 8500.0,
-            "date": "2026-11-10",
-            "category": "Travel & Transport",
-            "merchant": "IndiGo",
-        },
-        "period_label": "this month",
-    }
-    candidate_good = "Your highest expense this month was Flight Ticket for ₹8,500.00."
-    res1 = GroundingGuard.validate_and_guard(candidate_good, tool_result)
-    assert res1.is_grounded is True
+@pytest.mark.parametrize(
+    "text",
+    [
+        "You spent ₹2,450.00 across 40 expenses this month (1 Nov 2026 – 30 Nov 2026).",
+        "You spent ₹2450 in total.",
+        "You spent Rs. 2,450.00 in November 2026.",
+        "You spent 2,450 rupees.",
+        "You spent ₹1,23,456.00 overall.",  # Indian grouping of a real figure
+        "You spent ₹123,456.00 overall.",  # western grouping of the same figure
+        "Food was 42.9% of it.",
+        "You recorded 7 expenses, your 7th was the largest.",
+        "From 2026-11-01 to 2026-11-30 you spent ₹0.00.",
+    ],
+)
+def test_supported_figures_pass(text):
+    assert find_violations(text, ALLOWED) == []
 
-    candidate_bad = "Your highest expense this month was Flight Ticket for ₹9,200.00."
-    res2 = GroundingGuard.validate_and_guard(candidate_bad, tool_result)
-    assert res2.is_grounded is False
-    assert 9200.0 in res2.violations
-    assert "₹8500.00" in res2.final_answer or "₹8,500.00" in res2.final_answer
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "You spent ₹24.50 this month.",  # the total divided by 100
+        "You spent ₹2,45,000.00 this month.",  # paise shown as rupees
+        "You spent 30% more than last month.",  # made-up percentage
+        "You spent ₹25 on coffee.",  # small made-up amount
+        "You recorded 41 expenses.",  # extra count
+        "You recorded 3 expenses.",  # a count the tool did not return
+        "You spent ₹2.45 lakh.",  # shorthand
+        "You spent ₹2.4k.",
+        "You spent ₹-2,450.00.",  # sign
+        "Your balance is -₹2,450.00.",  # sign before the rupee symbol
+        "Your balance is - Rs 2,450.00.",
+        "You spent ₹2,450.00 on 25 Dec 2026.",  # wrong date
+        "You spent ₹2,450.00 on 2026-12-25.",
+        "You spent ₹2,450.00 in December 2026.",  # wrong month
+        "You spent ₹12,34,56.00 overall.",  # invalid grouping
+        "You spent fifteen hundred rupees.",  # number words
+        "You spent ₹२,४५०.",  # Devanagari digits
+        "You will spend about ₹5,000.00 next month.",
+        "You spent ₹2,450.004.",  # fraction of a paisa
+    ],
+)
+def test_unsupported_figures_are_violations(text):
+    assert find_violations(text, ALLOWED), text
+
+
+def test_numbers_inside_code_written_phrases_are_not_counts():
+    allowed = AllowedFigures(
+        amounts_paise=frozenset({70000}), counts=frozenset({6}), percentages=frozenset(),
+        dates=frozenset({date(2026, 11, 18), date(2026, 11, 24)}), phrases=frozenset({"in the last 7 days"}),
+    )
+    assert find_violations("You spent ₹700.00 across 6 expenses in the last 7 days (18 Nov 2026 – 24 Nov 2026).",
+                           allowed) == []
+    assert find_violations("You recorded 7 expenses in the last 7 days.", allowed) == ["7"]

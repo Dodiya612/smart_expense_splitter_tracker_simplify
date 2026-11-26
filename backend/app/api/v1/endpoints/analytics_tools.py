@@ -13,7 +13,7 @@ Endpoints
   *today*.
 * ``/monthly-spending`` – summary for the calendar month containing *today*.
 * ``/group-spending`` – summary for a specific group (optional date range).
-* ``/total-spending`` – summary for all time (no date restrictions).
+* ``/total-spending`` – summary for all time, capped at the two years ending today.
 * ``/daily-trends`` – trend buckets for ``day`` granularity over the last 30
   days.
 * ``/weekly-trends`` – trend buckets for ``week`` granularity over the last 12
@@ -27,8 +27,7 @@ retrieved via the existing service layer.
 """
 
 import uuid
-from datetime import date, timedelta
-from calendar import monthrange
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,40 +38,22 @@ from app.models.user import User
 from app.schemas.analytics import (
     AnalyticsSummaryResponse,
     AnalyticsTrendsResponse,
-    Granularity,
 )
 from app.services import analytics_service
+from app.services.date_ranges import (
+    all_time_range,
+    daily_trend_window,
+    month_range,
+    monthly_trend_window,
+    today_in_kolkata,
+    week_range,
+    weekly_trend_window,
+)
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Helper to compute common date ranges based on Asia/Kolkata today.
-# ---------------------------------------------------------------------------
-
-def _today() -> date:
-    """Return *today* in the Asia/Kolkata timezone.
-
-    The service layer already operates on Asia/Kolkata dates, so using the
-    plain ``date.today()`` (which runs in the host timezone) is acceptable for
-    the development environment. In production the server’s clock is set to
-    Asia/Kolkata.
-    """
-    return date.today()
-
-def _week_range(reference: date) -> tuple[date, date]:
-    """Return Monday‑to‑Sunday range containing ``reference``.
-    """
-    start = reference - timedelta(days=reference.weekday())  # Monday
-    end = start + timedelta(days=6)  # Sunday
-    return start, end
-
-def _month_range(reference: date) -> tuple[date, date]:
-    """Return first‑and‑last day of the month containing ``reference``.
-    """
-    start = reference.replace(day=1)
-    last_day = monthrange(reference.year, reference.month)[1]
-    end = reference.replace(day=last_day)
-    return start, end
+# Date ranges come from app/services/date_ranges.py, the resolver shared with the
+# assistant (T-57); "today" is the calendar day in Asia/Kolkata.
 
 # ---------------------------------------------------------------------------
 # Summary shortcuts
@@ -88,7 +69,7 @@ async def daily_spending(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsSummaryResponse:
-    today = _today()
+    today = today_in_kolkata()
     return await analytics_service.get_summary(db, current_user, today, today, None)
 
 
@@ -102,7 +83,7 @@ async def weekly_spending(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsSummaryResponse:
-    start, end = _week_range(_today())
+    start, end = week_range(today_in_kolkata())
     return await analytics_service.get_summary(db, current_user, start, end, None)
 
 
@@ -116,7 +97,7 @@ async def monthly_spending(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsSummaryResponse:
-    start, end = _month_range(_today())
+    start, end = month_range(today_in_kolkata())
     return await analytics_service.get_summary(db, current_user, start, end, None)
 
 
@@ -140,17 +121,16 @@ async def group_spending(
     "/total-spending",
     response_model=AnalyticsSummaryResponse,
     status_code=status.HTTP_200_OK,
-    summary="Overall spending summary (no date limits)",
+    summary="Overall spending summary (the last two years)",
+    description="All time, capped at the longest range the analytics service accepts: the "
+    "731 days ending today (Asia/Kolkata).",
 )
 async def total_spending(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsSummaryResponse:
-    # ``None`` for both dates lets the service use its defaults (month‑to‑today).
-    # To truly get *all* data we pass the earliest possible date.
-    earliest = date(1970, 1, 1)
-    today = _today()
-    return await analytics_service.get_summary(db, current_user, earliest, today, None)
+    start, end = all_time_range(today_in_kolkata())
+    return await analytics_service.get_summary(db, current_user, start, end, None)
 
 # ---------------------------------------------------------------------------
 # Trend shortcuts – fixed granularity and sensible default ranges.
@@ -166,8 +146,7 @@ async def daily_trends(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsTrendsResponse:
-    end = _today()
-    start = end - timedelta(days=29)  # inclusive 30‑day window
+    start, end = daily_trend_window(today_in_kolkata())
     return await analytics_service.get_trends(
         db, current_user, "day", start, end, None
     )
@@ -183,8 +162,7 @@ async def weekly_trends(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsTrendsResponse:
-    end = _today()
-    start = end - timedelta(weeks=11)  # 12 weeks total
+    start, end = weekly_trend_window(today_in_kolkata())
     return await analytics_service.get_trends(
         db, current_user, "week", start, end, None
     )
@@ -200,12 +178,7 @@ async def monthly_trends(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsTrendsResponse:
-    end = _today()
-    start = end.replace(day=1) - timedelta(days=1)  # previous month end
-    # Go back 11 more months to have a 12‑month window.
-    start = (start.replace(day=1) - timedelta(days=1)).replace(day=1)
-    for _ in range(10):
-        start = (start.replace(day=1) - timedelta(days=1)).replace(day=1)
+    start, end = monthly_trend_window(today_in_kolkata())
     return await analytics_service.get_trends(
         db, current_user, "month", start, end, None
     )

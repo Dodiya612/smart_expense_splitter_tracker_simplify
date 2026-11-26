@@ -37,28 +37,15 @@ CANONICAL_CATEGORIES: list[str] = [
 CATEGORY_LOOKUP: dict[str, str] = {c.lower(): c for c in CANONICAL_CATEGORIES}
 CATEGORY_LOOKUP.update(
     {
-        "food": "Food & Dining",
         "food & drink": "Food & Dining",
         "food and drink": "Food & Dining",
         "food and dining": "Food & Dining",
         "dining": "Food & Dining",
-        "grocery": "Groceries",
         "transport": "Travel & Transport",
         "transportation": "Travel & Transport",
         "travel": "Travel & Transport",
         "travel & transport": "Travel & Transport",
         "travel and transport": "Travel & Transport",
-        "fuel": "Travel & Transport",
-        "petrol": "Travel & Transport",
-        "cab": "Travel & Transport",
-        "cabs": "Travel & Transport",
-        "flight": "Travel & Transport",
-        "flights": "Travel & Transport",
-        "movie": "Entertainment",
-        "movies": "Entertainment",
-        "medicine": "Health",
-        "medicines": "Health",
-        "pharmacy": "Health",
         "utilities": "Bills & Utilities",
         "bills": "Bills & Utilities",
         "bills and utilities": "Bills & Utilities",
@@ -193,164 +180,121 @@ class GroqClient:
             logger.warning("Failed to parse Groq response: %s", exc)
             return None
 
+    # ------------------------------------------------------------------
+    # Expense assistant (US-24 / T-57)
+    # ------------------------------------------------------------------
+
+    async def _chat(self, messages: list[dict[str, str]], max_tokens: int, json_mode: bool) -> str | None:
+        """One bounded chat completion; None on any failure (the caller falls back)."""
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": max_tokens,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            if self._custom_client is not None:
+                response = await self._custom_client.post(
+                    f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
+                )
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+            if response.status_code != 200:
+                logger.warning("Groq assistant call returned HTTP status %s", response.status_code)
+                return None
+            choices = response.json().get("choices")
+            if not choices:
+                return None
+            content = choices[0].get("message", {}).get("content")
+            return content if isinstance(content, str) and content.strip() else None
+        except httpx.TimeoutException:
+            logger.warning("Groq assistant call timed out after %s seconds", self.timeout)
+            return None
+        except httpx.RequestError as exc:
+            logger.warning("Groq assistant call network error: %s", type(exc).__name__)
+            return None
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError) as exc:
+            logger.warning("Failed to parse Groq assistant response: %s", type(exc).__name__)
+            return None
+
     async def select_tool_call(
         self,
         question: str,
         tool_definitions: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        """Query Groq LLM to select exactly one of the eight predefined query tools.
+        """Ask the model to pick ONE query tool and fill its slots.
 
-        Returns:
-            Dict containing {"tool_name": str | None, "parameters": dict} or None on error.
+        The model sees only the question and the tool definitions (names, purposes,
+        slot schemas): no data, no SQL, no database access. Returns the parsed JSON
+        object ``{"tool": ..., "slots": {...}}`` without validating it (the caller
+        validates), or None if the call or the JSON fails.
         """
         if not self.is_configured():
             return None
-
-        prompt_system = (
-            "You are a tool selection model for a personal expense tracking application.\n"
-            "You must select EXACTLY ONE tool from the following predefined list to answer "
-            "the user's question, and extract the appropriate parameters.\n"
-            "CRITICAL CONSTRAINTS:\n"
-            "1. You must select ONLY from the available tools.\n"
-            "2. You must NEVER generate SQL, write database queries, or ask for credentials.\n"
-            "3. If the question cannot be answered by any available tool or is out of scope, "
-            'return {"tool_name": null, "parameters": {}}.\n'
-            "4. Respond ONLY with a valid JSON object in the exact format:\n"
-            '{"tool_name": "<name or null>", "parameters": {<key>: <value>}}\n\n'
-            "AVAILABLE TOOLS:\n"
-            + json.dumps(tool_definitions, indent=2)
+        system = (
+            "You choose a query tool for a personal expense tracker in India.\n"
+            "Pick EXACTLY ONE tool from the list and fill its slots from the question. Use only "
+            "slots defined in the tool's schema and leave out slots the question does not give.\n"
+            "A period is an object with ONE of: date_range; month (with an optional year); year; "
+            "last_days; or start_date and end_date (YYYY-MM-DD) only when the question writes both "
+            "dates. Never work out a date yourself; leave the period out if none is named.\n"
+            "Never write SQL or code. If no tool fits, or the question is about someone else's "
+            'data, moving money or anything else, answer {"tool": null, "slots": {}}.\n'
+            'Reply with JSON only, in the form {"tool": "<name or null>", "slots": {...}}.\n\n'
+            "TOOLS:\n" + json.dumps(tool_definitions)
         )
-
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": prompt_system},
-                {"role": "user", "content": question.strip()},
-            ],
-            "temperature": 0.0,
-            "max_tokens": 150,
-            "response_format": {"type": "json_object"},
-        }
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        try:
-            if self._custom_client is not None:
-                response = await self._custom_client.post(
-                    f"{self.base_url}/chat/completions",
-                    json=payload,
-                    headers=headers,
-                    timeout=self.timeout,
-                )
-            else:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        json=payload,
-                        headers=headers,
-                    )
-
-            if response.status_code != 200:
-                logger.warning("Groq tool selection returned HTTP %s", response.status_code)
-                return None
-
-            data = response.json()
-            choices = data.get("choices")
-            if not choices:
-                return None
-
-            content = choices[0].get("message", {}).get("content", "")
-            parsed = json.loads(content)
-            if not isinstance(parsed, dict):
-                return None
-
-            tool_name = parsed.get("tool_name")
-            parameters = parsed.get("parameters", {})
-            if not isinstance(parameters, dict):
-                parameters = {}
-
-            return {"tool_name": tool_name, "parameters": parameters}
-
-        except Exception as exc:
-            logger.warning("Failed during Groq tool selection: %s", exc)
+        content = await self._chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": question.strip()}],
+            max_tokens=200,
+            json_mode=True,
+        )
+        if content is None:
             return None
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            logger.warning("Groq tool selection was not valid JSON")
+            return None
+        return parsed if isinstance(parsed, dict) else None
 
-    async def generate_grounded_answer(
+    async def write_answer(
         self,
         question: str,
         tool_name: str,
-        tool_result: dict[str, Any],
+        facts: dict[str, str],
     ) -> str | None:
-        """Query Groq LLM to generate a natural conversational answer grounded strictly in tool_result.
+        """Ask the model to word the answer using placeholders only.
 
-        Returns:
-            Candidate text answer or None on failure.
+        ``facts`` maps placeholder names to values the backend formatted (totals,
+        counts, the period and labels taken from the question); a list built from
+        stored data is only named, never sent. The model must write the placeholders,
+        never the numbers; the backend fills them in and checks the result
+        (app/ai/grounding.py).
         """
         if not self.is_configured():
             return None
-
-        prompt_system = (
-            "You are a friendly personal expense assistant. Answer the user's question based "
-            "STRICTLY on the verified data retrieved from their records.\n"
-            "CRITICAL GROUNDING RULES:\n"
-            "1. You must ONLY mention numerical figures (rupee amounts, transaction counts, dates) "
-            "that are present in the provided query result data.\n"
-            "2. NEVER invent, extrapolate, calculate new percentages, or hallucinate any numbers.\n"
-            "3. Format currency clearly in Indian Rupees (e.g. ₹2,450.00).\n"
-            "4. Keep the answer concise (1-2 sentences).\n"
+        system = (
+            "You word answers for a personal expense tracker. Write one or two short, friendly "
+            "sentences that answer the question using the facts given.\n"
+            "RULES: refer to every fact by its placeholder in curly braces, e.g. {total} or "
+            "{period}. Some facts are lists the app fills in; use their placeholder where the list "
+            "should go. Never write any digit, amount, date, percentage or number word yourself, "
+            "and never add facts that are not listed. Reply with the sentence only."
         )
-
-        user_content = (
-            f"User Question: {question}\n"
-            f"Tool Executed: {tool_name}\n"
-            f"Query Result Data: {json.dumps(tool_result, default=str)}"
-        )
-
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": prompt_system},
-                {"role": "user", "content": user_content},
+        listed = "\n".join(f"{{{name}}} = {value}" for name, value in facts.items())
+        content = await self._chat(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"Question: {question.strip()}\nTool: {tool_name}\nFacts:\n{listed}"},
             ],
-            "temperature": 0.0,
-            "max_tokens": 150,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        try:
-            if self._custom_client is not None:
-                response = await self._custom_client.post(
-                    f"{self.base_url}/chat/completions",
-                    json=payload,
-                    headers=headers,
-                    timeout=self.timeout,
-                )
-            else:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        json=payload,
-                        headers=headers,
-                    )
-
-            if response.status_code != 200:
-                return None
-
-            data = response.json()
-            choices = data.get("choices")
-            if not choices:
-                return None
-
-            answer = choices[0].get("message", {}).get("content", "").strip()
-            return answer if answer else None
-
-        except Exception as exc:
-            logger.warning("Failed during Groq grounded answer generation: %s", exc)
-            return None
+            max_tokens=150,
+            json_mode=False,
+        )
+        return content.strip() if content else None

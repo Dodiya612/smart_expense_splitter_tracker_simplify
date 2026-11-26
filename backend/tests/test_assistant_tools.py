@@ -1,452 +1,317 @@
-"""Automated tests for the eight query tools and user-level data isolation (T-57 / US-24)."""
+"""The eight assistant query tools (app/ai/tools.py) on fixed service figures (no database).
 
+Real PostgreSQL figures, the user's share and other users' data are covered in
+tests/test_assistant_eval_pg.py.
+"""
+
+import json
 import uuid
-from datetime import UTC, date, datetime
-from typing import Any
+from datetime import date
+from decimal import Decimal
+from typing import get_args
 
 import pytest
+from pydantic import ValidationError
 
-from app.ai.tools import (
-    ALLOWED_TOOL_NAMES,
-    execute_tool,
-    tool_get_category_breakdown,
-    tool_get_daily_average_spending,
-    tool_get_expenses_count,
-    tool_get_highest_expense,
-    tool_get_recent_expenses,
-    tool_get_spending_by_category,
-    tool_get_spending_by_merchant,
-    tool_get_total_spending,
-)
-from app.models.category import Category
-from app.models.expense import Expense
+from app.ai import tools
+from app.ai.grounding import find_violations
+from app.models.user import User
+from app.schemas.assistant import ToolName
+from tests.assistant_fakes import FOOD_ID, GROUP_ID, FakeServices, budget, rule
 
-
-class MockResult:
-    def __init__(self, rows: list[Any] | None = None, tuple_res: tuple[Any, ...] | None = None):
-        self._rows = rows or []
-        self._tuple_res = tuple_res
-
-    def one(self) -> tuple[Any, ...]:
-        if self._tuple_res is not None:
-            return self._tuple_res
-        if self._rows:
-            return self._rows[0]
-        return (0, 0)
-
-    def all(self) -> list[Any]:
-        return list(self._rows)
-
-    def first(self) -> Any | None:
-        return self._rows[0] if self._rows else None
-
-    def scalar_one_or_none(self) -> Any | None:
-        return self._rows[0] if self._rows else None
-
-    def scalar_one(self) -> Any:
-        if self._tuple_res is not None:
-            return self._tuple_res[0]
-        if self._rows:
-            return self._rows[0]
-        return 0
+TODAY = date(2026, 11, 24)  # a Tuesday
+USER = User(id=uuid.uuid4(), email="alex@example.com", name="Alex", hashed_password="x", is_active=True)
+DOCUMENTED = {
+    "spend_total", "spend_by_category", "compare_periods", "top_merchants",
+    "budget_status", "owed_summary", "recurring_upcoming", "list_expenses",
+}
 
 
-class MockSession:
-    """In-memory mock session evaluating the eight tools' SQLAlchemy queries."""
-
-    def __init__(
-        self,
-        expenses: list[Expense],
-        categories: list[Category],
-        users: list[Any] | None = None,
-    ):
-        self.expenses = expenses
-        self.categories = {c.id: c for c in categories}
-        self.categories_by_name = {c.name.lower(): c for c in categories}
-        self.users = {u.id: u for u in users} if users else {}
-
-    def add(self, obj: Any) -> None:
-        pass
-
-    async def commit(self) -> None:
-        pass
-
-    async def rollback(self) -> None:
-        pass
-
-    async def refresh(self, obj: Any) -> None:
-        pass
-
-    async def execute(self, stmt: Any) -> MockResult:
-        sql = str(stmt).lower()
-        params = stmt.compile().params
-
-        # 0. User lookup
-        if "from users" in sql:
-            uid = params.get("id_1") or params.get("id")
-            if uid and uid in self.users:
-                return MockResult(rows=[self.users[uid]])
-            return MockResult(rows=list(self.users.values()))
-
-        # Quota usage queries
-        if "ai_usage_log" in sql or "pg_advisory" in sql:
-            return MockResult(tuple_res=(0,))
-
-        # Filter expenses by user_id and not deleted
-        user_id = params.get("user_id_1") or params.get("user_id")
-        active_expenses = [
-            e for e in self.expenses
-            if (user_id is None or e.user_id == user_id) and e.deleted_at is None
-        ]
-
-        # Apply date filters
-        from_date = params.get("expense_date_1") or params.get("expense_date_2")
-        to_date = params.get("expense_date_3") or params.get("expense_date_2") or params.get("expense_date_1")
-
-        # In SQLAlchemy compile params:
-        # Check all params for date values
-        date_vals = [v for k, v in params.items() if "expense_date" in k and isinstance(v, (date, str))]
-        if len(date_vals) == 2:
-            s_d, e_d = sorted(date_vals)
-            active_expenses = [e for e in active_expenses if s_d <= e.expense_date <= e_d]
-        elif len(date_vals) == 1:
-            d_val = date_vals[0]
-            if ">= :expense_date" in sql:
-                active_expenses = [e for e in active_expenses if e.expense_date >= d_val]
-            elif "<= :expense_date" in sql:
-                active_expenses = [e for e in active_expenses if e.expense_date <= d_val]
-
-        # Check Category join filter
-        cat_name_param = None
-        for v in params.values():
-            if isinstance(v, str) and v.lower() in self.categories_by_name:
-                cat_name_param = v
-                break
-
-        if cat_name_param:
-            active_expenses = [
-                e for e in active_expenses
-                if e.category_id in self.categories
-                and self.categories[e.category_id].name.lower() == cat_name_param.lower()
-            ]
-
-        # Check Merchant filter
-        merchant_param = next(
-            (v for v in params.values() if isinstance(v, str) and v.startswith("%") and v.endswith("%")),
-            None,
-        )
-        if merchant_param:
-            clean_m = merchant_param.strip("%").lower()
-            active_expenses = [
-                e for e in active_expenses
-                if clean_m in (e.merchant or "").lower() or clean_m in (e.description or "").lower()
-            ]
-
-        # 1. Category breakdown query (group by category)
-        if "group by categories.name" in sql:
-            cat_totals: dict[str, list[int]] = {}
-            for e in active_expenses:
-                c_name = self.categories[e.category_id].name if e.category_id in self.categories else "Other"
-                if c_name not in cat_totals:
-                    cat_totals[c_name] = [0, 0]
-                cat_totals[c_name][0] += e.amount_minor
-                cat_totals[c_name][1] += 1
-            sorted_breakdown = sorted(
-                [(c, totals[0], totals[1]) for c, totals in cat_totals.items()],
-                key=lambda x: x[1],
-                reverse=True,
-            )
-            return MockResult(rows=sorted_breakdown)
-
-        # 2. Recent expenses query or Highest expense query
-        if "order by expenses.amount_minor desc" in sql:
-            sorted_e = sorted(active_expenses, key=lambda x: x.amount_minor, reverse=True)
-            if sorted_e:
-                e = sorted_e[0]
-                c_name = self.categories[e.category_id].name if e.category_id in self.categories else "Other"
-                return MockResult(rows=[(e, c_name)])
-            return MockResult(rows=[])
-
-        if "order by expenses.expense_date desc" in sql:
-            sorted_e = sorted(active_expenses, key=lambda x: (x.expense_date, x.created_at), reverse=True)
-            limit = stmt._limit or len(sorted_e)
-            sliced = sorted_e[:limit]
-            rows = [
-                (e, self.categories[e.category_id].name if e.category_id in self.categories else "Other")
-                for e in sliced
-            ]
-            return MockResult(rows=rows)
-
-        # 3. Sum & Count aggregate queries (total_spending, spending_by_category, spending_by_merchant, daily_average)
-        if "coalesce(sum(expenses.amount_minor)" in sql:
-            tot = sum(e.amount_minor for e in active_expenses)
-            cnt = len(active_expenses)
-            return MockResult(tuple_res=(tot, cnt))
-
-        # 4. Count query
-        if "count(expenses.id)" in sql:
-            return MockResult(tuple_res=(len(active_expenses),))
-
-        return MockResult()
+async def run(name: str, **slots):
+    spec = tools.TOOLS[name]
+    return await spec.run(None, USER, spec.slots.model_validate(slots), TODAY)
 
 
-@pytest.fixture
-def mock_dataset():
-    """Build mock categories and expenses for two distinct users."""
-    user_a = uuid.uuid4()
-    user_b = uuid.uuid4()
-
-    cat_food = Category(id=uuid.uuid4(), name="Food & Dining", is_default=True)
-    cat_shop = Category(id=uuid.uuid4(), name="Shopping", is_default=True)
-    cat_travel = Category(id=uuid.uuid4(), name="Travel & Transport", is_default=True)
-    categories = [cat_food, cat_shop, cat_travel]
-
-    now = datetime.now(UTC)
-    today = date(2026, 11, 22)
-
-    expenses = [
-        # User A expenses
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_a,
-            category_id=cat_food.id,
-            amount_minor=200000,  # ₹2,000
-            description="Lunch with colleagues",
-            merchant="Bawarchi",
-            expense_date=today,
-            created_at=now,
-        ),
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_a,
-            category_id=cat_food.id,
-            amount_minor=45000,   # ₹450
-            description="Coffee",
-            merchant="Starbucks",
-            expense_date=today,
-            created_at=now,
-        ),
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_a,
-            category_id=cat_shop.id,
-            amount_minor=150000,  # ₹1,500
-            description="Winter Jacket",
-            merchant="Zara",
-            expense_date=date(2026, 11, 20),
-            created_at=now,
-        ),
-        # Soft-deleted expense for User A (must be ignored)
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_a,
-            category_id=cat_shop.id,
-            amount_minor=500000,
-            description="Cancelled Order",
-            expense_date=today,
-            created_at=now,
-            deleted_at=now,
-        ),
-        # User B expenses
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_b,
-            category_id=cat_food.id,
-            amount_minor=50000,   # ₹500
-            description="Dinner",
-            merchant="Swiggy",
-            expense_date=today,
-            created_at=now,
-        ),
-        Expense(
-            id=uuid.uuid4(),
-            user_id=user_b,
-            category_id=cat_travel.id,
-            amount_minor=80000,   # ₹800
-            description="Cab to Airport",
-            merchant="Uber",
-            expense_date=today,
-            created_at=now,
-        ),
-    ]
-
-    session = MockSession(expenses, categories)
-    return {
-        "user_a": user_a,
-        "user_b": user_b,
-        "session": session,
-    }
+def pairs(result):
+    return [(f.label, f.amount_paise) for f in result.figures], [(c.label, c.value) for c in result.counts]
 
 
-def test_exactly_eight_tools_registered():
-    """Verify strictly eight fixed tools are registered."""
-    assert len(ALLOWED_TOOL_NAMES) == 8
-    expected_tools = {
-        "get_total_spending",
-        "get_spending_by_category",
-        "get_category_breakdown",
-        "get_recent_expenses",
-        "get_highest_expense",
-        "get_spending_by_merchant",
-        "get_daily_average_spending",
-        "get_expenses_count",
-    }
-    assert ALLOWED_TOOL_NAMES == expected_tools
+def _keys(schema) -> set[str]:
+    found: set[str] = set()
+    if isinstance(schema, dict):
+        for key, value in schema.items():
+            if key == "properties":
+                found |= set(value)
+            found |= _keys(value)
+    elif isinstance(schema, list):
+        for value in schema:
+            found |= _keys(value)
+    return found
+
+
+def test_exactly_the_eight_documented_tools_and_no_id_slots():
+    assert set(tools.TOOLS) == DOCUMENTED == tools.ALLOWED_TOOL_NAMES == set(get_args(ToolName))
+    for definition in tools.tool_definitions():
+        keys = _keys(definition["slots"])
+        assert not any("id" in k.split("_") or k in {"user", "users", "sql", "query"} for k in keys), keys
+
+
+# ---- 1. spend_total ---------------------------------------------------------------------
 
 
 @pytest.mark.anyio
-async def test_invalid_tool_rejection(mock_dataset):
-    """Attempting to execute an arbitrary/unsupported tool is strictly rejected."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    with pytest.raises(ValueError, match="Unsupported tool"):
-        await execute_tool("execute_sql_query", {}, user_id=user_a, db=session)
-
-    with pytest.raises(ValueError, match="Unsupported tool"):
-        await execute_tool("delete_all_data", {}, user_id=user_a, db=session)
+async def test_spend_total_is_the_analytics_share_for_the_period(monkeypatch):
+    fake = FakeServices(share_paise=70000, expense_count=3).install(monkeypatch)
+    result = await run("spend_total", period={"date_range": "last_week"})
+    assert fake.calls == [("summary", {"from": date(2026, 11, 16), "to": date(2026, 11, 22), "group_id": None})]
+    assert pairs(result) == ([("Total spending", 70000)], [("Expenses", 3)])
+    assert result.template_answer() == "You spent ₹700.00 across 3 expenses last week (16 Nov 2026 – 22 Nov 2026)."
 
 
 @pytest.mark.anyio
-async def test_unauthorized_parameter_rejection(mock_dataset):
-    """Parameters attempting to inject user_id or SQL are rejected."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    with pytest.raises(ValueError, match="Unauthorized parameter"):
-        await execute_tool("get_total_spending", {"user_id": str(uuid.uuid4())}, user_id=user_a, db=session)
-
-    with pytest.raises(ValueError, match="Unauthorized parameter"):
-        await execute_tool("get_total_spending", {"sql": "SELECT 1"}, user_id=user_a, db=session)
-
-
-@pytest.mark.anyio
-async def test_user_level_data_isolation(mock_dataset):
-    """User A and User B cannot access each other's expenses."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-    user_b = mock_dataset["user_b"]
-
-    # User A: 2000 + 450 + 1500 = 3950 rupees (395000 paise), 3 transactions
-    res_a = await tool_get_total_spending(db=session, user_id=user_a)
-    assert res_a["total_paise"] == 395000
-    assert res_a["total_rupees"] == 3950.0
-    assert res_a["transaction_count"] == 3
-
-    # User B: 500 + 800 = 1300 rupees (130000 paise), 2 transactions
-    res_b = await tool_get_total_spending(db=session, user_id=user_b)
-    assert res_b["total_paise"] == 130000
-    assert res_b["total_rupees"] == 1300.0
-    assert res_b["transaction_count"] == 2
-
-    # Category isolation
-    cat_a = await tool_get_spending_by_category(db=session, user_id=user_a, category="Food & Dining")
-    assert cat_a["total_paise"] == 245000  # 2000 + 450
-    assert cat_a["transaction_count"] == 2
-
-    cat_b = await tool_get_spending_by_category(db=session, user_id=user_b, category="Food & Dining")
-    assert cat_b["total_paise"] == 50000   # 500
-    assert cat_b["transaction_count"] == 1
-
-    # User B has no shopping expenses
-    cat_b_shop = await tool_get_spending_by_category(db=session, user_id=user_b, category="Shopping")
-    assert cat_b_shop["total_paise"] == 0
-    assert cat_b_shop["transaction_count"] == 0
-
-
-@pytest.mark.anyio
-async def test_tool_get_category_breakdown(mock_dataset):
-    """Verify category breakdown returns sorted categories."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    res = await tool_get_category_breakdown(db=session, user_id=user_a)
-    assert res["total_paise"] == 395000
-    breakdown = res["breakdown"]
-    assert len(breakdown) == 2
-    # Food & Dining: 245000, Shopping: 150000 -> Food is highest
-    assert breakdown[0]["category"] == "Food & Dining"
-    assert breakdown[0]["total_paise"] == 245000
-    assert breakdown[1]["category"] == "Shopping"
-    assert breakdown[1]["total_paise"] == 150000
-
-
-@pytest.mark.anyio
-async def test_tool_get_recent_expenses(mock_dataset):
-    """Verify recent expenses returns records for user with proper limit."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    res = await tool_get_recent_expenses(db=session, user_id=user_a, limit=2)
-    assert len(res["expenses"]) == 2
-    assert res["count"] == 2
-
-
-@pytest.mark.anyio
-async def test_tool_get_highest_expense(mock_dataset):
-    """Verify highest expense for User A is ₹2,000."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    res = await tool_get_highest_expense(db=session, user_id=user_a)
-    exp = res["expense"]
-    assert exp is not None
-    assert exp["amount_paise"] == 200000
-    assert exp["amount_rupees"] == 2000.0
-    assert exp["description"] == "Lunch with colleagues"
-
-
-@pytest.mark.anyio
-async def test_tool_get_spending_by_merchant(mock_dataset):
-    """Verify merchant spending for Starbucks."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    res = await tool_get_spending_by_merchant(db=session, user_id=user_a, merchant="Starbucks")
-    assert res["total_paise"] == 45000
-    assert res["total_rupees"] == 450.0
-    assert res["transaction_count"] == 1
-
-
-@pytest.mark.anyio
-async def test_tool_get_daily_average_spending(mock_dataset):
-    """Verify daily average spending over 1 day."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
-
-    res = await tool_get_daily_average_spending(
-        db=session,
-        user_id=user_a,
-        start_date="2026-11-22",
-        end_date="2026-11-22",
+async def test_spend_total_in_one_category_and_as_a_count(monkeypatch):
+    FakeServices(categories=[("Food & Dining", 50000, 2), ("Groceries", 20000, 1)]).install(monkeypatch)
+    food = await run("spend_total", category="Food & Dining", period={"date_range": "this_month"})
+    assert pairs(food) == ([("Food & Dining spending", 50000)], [("Expenses", 2)])
+    count = await run("spend_total", category="Groceries", measure="count")
+    assert count.template_answer() == (
+        "You recorded 1 expense in Groceries this month so far (1 Nov 2026 – 24 Nov 2026), ₹200.00 in total."
     )
-    assert res["days"] == 1
-    assert res["total_paise"] == 245000  # On 2026-11-22 User A spent 2000 + 450
-    assert res["average_daily_paise"] == 245000
+    none = await run("spend_total", category="Health")
+    assert none.template_answer().startswith("You have no spending on Health recorded")
 
 
 @pytest.mark.anyio
-async def test_tool_get_expenses_count(mock_dataset):
-    """Verify counting transactions."""
-    session = mock_dataset["session"]
-    user_a = mock_dataset["user_a"]
+async def test_daily_average_ends_today_and_rounds_to_the_nearest_paisa(monkeypatch):
+    fake = FakeServices(share_paise=100001, expense_count=4).install(monkeypatch)
+    result = await run("spend_total", measure="daily_average", period={"date_range": "this_month"})
+    # This month is 1-30 Nov, but only 24 days have happened: average over 24, not 30.
+    assert fake.calls[0][1]["to"] == TODAY
+    assert result.period.label == "this month so far" and result.period.days == 24
+    assert pairs(result) == (
+        [("Average per day", 4167), ("Total spending", 100001)],  # 100001 / 24 = 4166.7
+        [("Days", 24), ("Expenses", 4)],
+    )
 
-    res = await tool_get_expenses_count(db=session, user_id=user_a)
-    assert res["transaction_count"] == 3
 
-    res_food = await tool_get_expenses_count(db=session, user_id=user_a, category="Food & Dining")
-    assert res_food["transaction_count"] == 2
+# ---- 2. spend_by_category ---------------------------------------------------------------
 
 
 @pytest.mark.anyio
-async def test_empty_query_results():
-    """Verify clean response when user has zero recorded expenses."""
-    empty_session = MockSession([], [])
-    random_user = uuid.uuid4()
+async def test_category_breakdown_total_is_the_real_total_not_the_sum_of_the_top(monkeypatch):
+    cats = [(f"Cat {i}", 1000 * (10 - i), 1) for i in range(7)]
+    FakeServices(categories=cats).install(monkeypatch)
+    result = await run("spend_by_category", limit=3)
+    figures, counts = pairs(result)
+    assert figures[0] == ("Total spending", sum(c[1] for c in cats))
+    assert figures[1:] == [("Cat 0", 10000), ("Cat 1", 9000), ("Cat 2", 8000)]
+    assert counts == [("Categories", 7), ("Categories not listed", 4)]
+    assert "Plus 4 more categories." in result.template_answer()
+    assert result.percentages == {Decimal("20.4"), Decimal("18.4"), Decimal("16.3")}  # of 49000, not of 27000
 
-    res = await tool_get_total_spending(db=empty_session, user_id=random_user)
-    assert res["total_paise"] == 0
-    assert res["transaction_count"] == 0
 
-    highest = await tool_get_highest_expense(db=empty_session, user_id=random_user)
-    assert highest["expense"] is None
+# ---- 3. compare_periods -----------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_compare_periods_states_both_totals_the_difference_and_the_change(monkeypatch):
+    fake = FakeServices().install(monkeypatch)
+    totals = iter([(90000, 3), (60000, 2)])
+
+    async def spending(db, user, period, category):
+        return next(totals)
+
+    monkeypatch.setattr(tools, "_spending", spending)
+    result = await run("compare_periods", a={"date_range": "this_month"}, b={"date_range": "last_month"})
+    assert pairs(result) == (
+        [("Spending this month", 90000), ("Spending last month", 60000), ("Difference", 30000)],
+        [("Expenses this month", 3), ("Expenses last month", 2)],
+    )
+    assert result.template_answer() == (
+        "You spent ₹900.00 this month (1 Nov 2026 – 30 Nov 2026), ₹300.00 more than the ₹600.00 "
+        "last month (1 Oct 2026 – 31 Oct 2026). That is 50.0% more."
+    )
+    assert result.period.label == "this month" and fake.calls == []
+    assert not find_violations(result.template_answer(), result.allowed())
+
+
+@pytest.mark.anyio
+async def test_compare_periods_in_a_category_and_the_same_period_twice(monkeypatch):
+    FakeServices(categories=[("Food & Dining", 50000, 2)]).install(monkeypatch)
+    result = await run("compare_periods", a={"month": "october"}, b={"month": "november"}, category="Food & Dining")
+    assert result.figures[0].label == "Food & Dining spending in October 2026"
+    assert "₹500.00 on Food & Dining both" in result.template_answer()
+    with pytest.raises(tools.ToolInputError):
+        await run("compare_periods", a={"date_range": "last_week"}, b={"date_range": "last_week"})
+
+
+# ---- 4. top_merchants -------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_top_merchants_names_the_largest_and_keeps_names_from_the_model(monkeypatch):
+    FakeServices(merchants=[("Swiggy", 40000, 2), ("Uber", 30000, 1), ("PVR", 5000, 1)]).install(monkeypatch)
+    result = await run("top_merchants", n=2, period={"date_range": "last_month"})
+    assert pairs(result) == ([("Swiggy", 40000), ("Uber", 30000)], [("Merchants", 3), ("Merchants shown", 2)])
+    assert result.template_answer() == (
+        "You spent at 3 merchants last month (1 Oct 2026 – 31 Oct 2026). The top 2 merchants: "
+        "Swiggy ₹400.00 (2 expenses); Uber ₹300.00 (1 expense)."
+    )
+    assert "Swiggy" not in json.dumps(result.shared_values())
+
+
+# ---- 5. budget_status -------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_budget_status_lists_each_budget_with_its_progress(monkeypatch):
+    week = (date(2026, 11, 23), date(2026, 11, 29))
+    month = (date(2026, 11, 1), date(2026, 11, 30))
+    FakeServices(budgets=[
+        budget("monthly", 2000000, 1700000, *month),
+        budget("weekly", 100000, 125000, *week, category_id=FOOD_ID),
+    ]).install(monkeypatch)
+    result = await run("budget_status")
+    assert result.template_answer() == (
+        "You have 2 budgets. Monthly overall budget: ₹17,000.00 of ₹20,000.00 spent (85%), ₹3,000.00 left, "
+        "close to the limit (1 Nov 2026 – 30 Nov 2026). Weekly Food & Dining budget: ₹1,250.00 of ₹1,000.00 "
+        "spent (125%), ₹250.00 over the limit (23 Nov 2026 – 29 Nov 2026)."
+    )
+    assert pairs(result)[1] == [("Budgets", 2), ("Over the limit", 1)]
+    assert result.percentages == {Decimal(85), Decimal(125)} and result.period is None
+    food = await run("budget_status", category="Food & Dining")
+    assert food.period.label == "this week" and [f.amount_paise for f in food.figures] == [125000, 100000, 25000]
+    none = await run("budget_status", category="Health")
+    assert none.template_answer() == "You have no budget for Health." and none.figures == []
+
+
+# ---- 6. owed_summary --------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_owed_summary_across_groups_and_for_one_named_group(monkeypatch):
+    fake = FakeServices(owed_to_you_paise=156666, you_owe_paise=0, groups=["Flat Expenses"]).install(monkeypatch)
+    every = await run("owed_summary")
+    assert every.template_answer() == "Across your groups, others owe you ₹1,566.66 and you owe ₹0.00."
+    one = await run("owed_summary", group="the flat expenses group")
+    assert ("summary", {"from": None, "to": None, "group_id": GROUP_ID}) in fake.calls
+    assert one.template_answer() == "In Flat Expenses, others owe you ₹1,566.66 and you owe ₹0.00."
+    with pytest.raises(tools.ToolInputError, match="couldn't find a group called 'Goa Trip'"):
+        await run("owed_summary", group="Goa Trip")
+
+
+# ---- 7. recurring_upcoming --------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_recurring_upcoming_lists_occurrences_due_in_the_window(monkeypatch):
+    FakeServices(rules=[
+        rule("Netflix", 64900, date(2026, 1, 28)),  # monthly on the 28th
+        rule("Gym", 150000, date(2026, 1, 5)),  # next on 5 Dec: outside 7 days
+        rule("Milk", 6000, date(2026, 11, 1), frequency="weekly", next_run=date(2026, 11, 22)),  # Sundays
+    ]).install(monkeypatch)
+    result = await run("recurring_upcoming", days=7)
+    assert (result.period.start, result.period.end, result.period.label) == (TODAY, date(2026, 11, 30), "in the next 7 days")
+    assert pairs(result) == (
+        [("Total due", 70900), ("Netflix on 28 Nov 2026", 64900), ("Milk on 29 Nov 2026", 6000)],
+        [("Recurring expenses due", 2)],
+    )
+    month = await run("recurring_upcoming", days=31)
+    assert [f.label for f in month.figures[1:]] == [
+        "Netflix on 28 Nov 2026", "Milk on 29 Nov 2026", "Gym on 5 Dec 2026", "Milk on 6 Dec 2026",
+        "Milk on 13 Dec 2026", "Milk on 20 Dec 2026",
+    ]
+    assert "Netflix" not in json.dumps(result.shared_values())
+
+
+# ---- 8. list_expenses -------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_list_expenses_rows_come_only_from_the_template(monkeypatch):
+    fake = FakeServices().install(monkeypatch)
+    result = await run("list_expenses", filters={"merchant": "Swiggy", "category": "Food & Dining"}, sort="largest")
+    (_, call), = fake.calls
+    assert call == {"from": date(2024, 11, 24), "to": TODAY, "category": "Food & Dining", "merchant": "Swiggy",
+                    "sort": "largest", "limit": 5}  # no period named: the last two years
+    assert result.model_wording is False
+    assert result.template_answer() == (
+        "You have 2 expenses on Food & Dining at Swiggy in the last 2 years (24 Nov 2024 – 24 Nov 2026), ₹700.00 in "
+        "total. Largest first: 20 Nov 2026 Dinner (Swiggy) ₹400.00; 18 Nov 2026 Cab (Uber) ₹300.00."
+    )
+    assert "Dinner" not in json.dumps(result.shared_values())
+
+
+# ---- every tool ---------------------------------------------------------------------------
+
+CASES = [
+    ("spend_total", {"period": {"date_range": "this_week"}}),
+    ("spend_total", {"measure": "daily_average", "category": "Groceries"}),
+    ("spend_total", {"measure": "count", "period": {"last_days": 7}}),
+    ("spend_by_category", {"period": {"month": "october"}}),
+    ("compare_periods", {"a": {"date_range": "this_week"}, "b": {"date_range": "last_week"}}),
+    ("top_merchants", {"period": {"date_range": "all_time"}}),
+    ("budget_status", {}),
+    ("owed_summary", {"group": "Flat Expenses"}),
+    ("recurring_upcoming", {"days": 31}),
+    ("list_expenses", {"filters": {"period": {"start_date": "2026-11-01", "end_date": "2026-11-20"}}}),
+]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("tool", "slots"), CASES)
+@pytest.mark.parametrize("empty", [False, True])
+async def test_every_template_passes_the_grounding_guard(monkeypatch, tool, slots, empty):
+    if empty:
+        FakeServices(share_paise=0, expense_count=0, categories=[], merchants=[], rows=[]).install(monkeypatch)
+    else:
+        FakeServices(
+            owed_to_you_paise=12345, you_owe_paise=678,
+            budgets=[budget("monthly", 500000, 412300, date(2026, 11, 1), date(2026, 11, 30))],
+            rules=[rule("Rent 2BHK, flat 4", 1500000, date(2026, 1, 1))],
+            rows=[(date(2026, 11, 2), "2 pizzas for 4 people", None, "Food & Dining", 99900)],
+        ).install(monkeypatch)
+    result = await run(tool, **slots)
+    assert find_violations(result.template_answer(), result.allowed()) == [], result.template_answer()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("tool", "slots"), CASES)
+async def test_values_shared_with_the_model_hold_no_stored_text_or_ids(monkeypatch, tool, slots):
+    secret = "Dinner with Priya at 22 Baker Street"
+    FakeServices(
+        categories=[(secret, 50000, 1)], merchants=[(secret, 50000, 1)],
+        rows=[(date(2026, 11, 2), secret, secret, secret, 50000)],
+        budgets=[budget("monthly", 500000, 1000, date(2026, 11, 1), date(2026, 11, 30), category_id=FOOD_ID)],
+        names={FOOD_ID: secret}, rules=[rule(secret, 1000, date(2026, 11, 25))], groups=[secret],
+    ).install(monkeypatch)
+    try:
+        result = await run(tool, **slots)
+    except tools.ToolInputError:
+        return  # "Flat Expenses" is not among the user's groups here
+    shared = json.dumps(result.shared_values())
+    assert secret not in shared and str(USER.id) not in shared
+
+
+@pytest.mark.parametrize(
+    ("tool", "slots"),
+    [
+        ("spend_total", {"user_id": str(uuid.uuid4())}),
+        ("spend_total", {"period": {"date_range": "last_week", "month": "may"}}),
+        ("spend_total", {"category": "Coffee"}),
+        ("spend_total", {"measure": "median"}),
+        ("spend_by_category", {"limit": 13}),
+        ("compare_periods", {"a": {"date_range": "this_month"}}),
+        ("top_merchants", {"n": 11}),
+        ("budget_status", {"budget_id": str(uuid.uuid4())}),
+        ("owed_summary", {"group_id": str(GROUP_ID)}),
+        ("owed_summary", {"group": "x" * 61}),
+        ("recurring_upcoming", {"days": 32}),
+        ("list_expenses", {"limit": 11}),
+        ("list_expenses", {"filters": {"merchant": "Swiggy'; DROP TABLE expenses; --"}}),
+        ("list_expenses", {"filters": {"expense_id": str(uuid.uuid4())}}),
+    ],
+)
+def test_invalid_slots_are_rejected(tool, slots):
+    with pytest.raises(ValidationError):
+        tools.TOOLS[tool].slots.model_validate(slots)
