@@ -315,10 +315,19 @@ def test_migration_012_extends_t36_011_and_there_is_a_single_alembic_head():
     config.set_main_option("script_location", str(backend / "alembic"))
     script = ScriptDirectory.from_config(config)
     # Exactly one head. T-46's 013 merges the two 012 branches; T-50's 014 sits on top of it,
-    # T-44's 015 on top of 014, and T-48's 016 on top of 015.
+    # T-44's 015 on top of 014, and T-48's 016 on top of 015. Later migrations sit on top of
+    # 016, so the head is read from Alembic rather than hard-coded: it must be the revision of
+    # the highest-numbered migration file, and 016 must be one of its ancestors.
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["016_budgets"]
+    highest = max(
+        (p for p in (backend / "alembic" / "versions").glob("[0-9][0-9][0-9]_*.py")),
+        key=lambda p: (int(p.name[:3]), p.name),
+    )
+    newest = [r for r in script.walk_revisions() if Path(r.path).name == highest.name]
+    assert heads == [newest[0].revision]
+    ancestors = {r.revision for r in script.iterate_revisions(heads[0], "base")}
+    assert "016_budgets" in ancestors
     assert script.get_revision("016_budgets").down_revision == "015_recurring_expenses"
     assert script.get_revision("015_recurring_expenses").down_revision == "014_password_change"
     assert (

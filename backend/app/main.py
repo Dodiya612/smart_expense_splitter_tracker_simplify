@@ -14,30 +14,6 @@ from app.core.config import settings
 from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
 from app.schemas.common import ApiErrorDetail, ApiErrorResponse
 from app.services import receipt_cleanup, recurring_service
-from app.jobs import weekly_summary, congratulations
-from apscheduler.triggers.cron import CronTrigger
-from app.services.category_suggestion_service import restore_user_history
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.types import ASGIApp
-
-from app.api.v1.api import api_router
-from app.core.config import settings
-from app.core.security_headers import SecurityHeadersMiddleware, get_security_headers_dict
-from app.schemas.common import ApiErrorDetail, ApiErrorResponse
-from app.services import receipt_cleanup, recurring_service
-from app.jobs import weekly_summary, congratulations
-from apscheduler.triggers.cron import CronTrigger
 from app.services.category_suggestion_service import restore_user_history
 
 # Configure logging
@@ -60,20 +36,6 @@ async def lifespan(app: FastAPI):
     # T-44: recurring expenses. Only STARTS the background task (startup catch-up, then hourly);
     # startup never waits for it, and a failing run is logged inside the task.
     scheduler = recurring_service.start_scheduler() if settings.RECURRING_SCHEDULER_ENABLED else None
-    # Register T‑56 jobs if the scheduler is available
-    if scheduler:
-        # Weekly summary – every Monday 00:00 Asia/Kolkata
-        scheduler.add_job(
-            weekly_summary.weekly_summary_job,
-            CronTrigger(day_of_week="mon", hour=0, minute=0, timezone="Asia/Kolkata"),
-            name="weekly_summary",
-        )
-        # End‑of‑month congratulations – last day of month 00:00 Asia/Kolkata
-        scheduler.add_job(
-            congratulations.month_end_congratulations_job,
-            CronTrigger(day="last", hour=0, minute=0, timezone="Asia/Kolkata"),
-            name="period_congratulations",
-        )
     # T-54: bill images of deleted expenses and unconfirmed scans are removed after 24 hours.
     cleanup = receipt_cleanup.start_cleanup() if settings.RECEIPT_CLEANUP_ENABLED else None
     try:
