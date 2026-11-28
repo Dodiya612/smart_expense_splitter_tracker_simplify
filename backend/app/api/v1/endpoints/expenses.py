@@ -146,6 +146,12 @@ async def list_expenses_endpoint(
     ] = None,
     limit: Annotated[int, Query(ge=1, le=100, description="Page limit (1-100)")] = 50,
     offset: Annotated[int, Query(ge=0, description="Page offset")] = 0,
+    cursor: Annotated[
+        str | None,
+        Query(
+            description="Keyset pagination cursor for O(1) seek pagination, or numeric string offset"
+        ),
+    ] = None,
 ) -> ExpenseListResponse:
     # Disallow foreign user_id query parameter tampering
     foreign_user = request.query_params.get("user_id") or request.query_params.get(
@@ -183,7 +189,7 @@ async def list_expenses_endpoint(
             },
         )
 
-    expenses, total = await expense_service.list_expenses(
+    res = await expense_service.list_expenses(
         db=db,
         user_id=current_user.id,
         category_id=category_id,
@@ -195,13 +201,19 @@ async def list_expenses_endpoint(
         payment_mode=payment_mode,
         limit=limit,
         offset=offset,
+        cursor=cursor,
     )
+    expenses, total = res[0], res[1]
     items = [ExpenseResponse.model_validate(exp) for exp in expenses]
+    next_cursor = getattr(res, "next_cursor", None)
+    if next_cursor is None and not cursor and (offset + limit) < total:
+        next_cursor = str(offset + limit)
+
     meta = ExpenseListMeta(
         total=total,
         limit=limit,
         offset=offset,
-        next_cursor=str(offset + limit) if (offset + limit) < total else None,
+        next_cursor=next_cursor,
     )
     return ExpenseListResponse(data=items, meta=meta)
 

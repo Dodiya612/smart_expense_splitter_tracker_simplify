@@ -56,6 +56,15 @@ class Settings(BaseSettings):
             return self.ENABLE_DOCS
         return self.ENVIRONMENT == "development"
 
+    # Maintenance Banner & System Availability Configuration (US-35 / T-61)
+    MAINTENANCE_MODE: bool = False
+    MAINTENANCE_MESSAGE: str = (
+        "Scheduled maintenance in progress. Coinscious is currently undergoing planned "
+        "upgrades and will return shortly."
+    )
+    MAINTENANCE_START_TIME: str | None = None
+    MAINTENANCE_END_TIME: str | None = None
+
     # JWT Authentication Configuration
     JWT_SECRET_KEY: str = Field(
         default="dev-secret-key-change-in-production-at-least-32-bytes-long",
