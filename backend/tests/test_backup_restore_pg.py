@@ -38,6 +38,18 @@ def _admin() -> bc.DbTarget:
     return bc.parse_db_url(ADMIN_URL)
 
 
+def _alembic_head() -> str:
+    """The single head of the migration chain (read from Alembic, so new migrations need no test change)."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "alembic"))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1, heads
+    return heads[0]
+
+
 @pytest.fixture(scope="module")
 def pg() -> Iterator[dict[str, Any]]:
     try:
@@ -184,7 +196,8 @@ def test_backup_and_restore_drill_end_to_end(pg, tmp_path):
     assert manifest["tables"] == source_counts
     assert manifest["snapshot"]["used"] is True
     assert manifest["row_counts_exact"] is True
-    assert manifest["alembic_version"] == ["016_budgets"]
+    head = _alembic_head()
+    assert manifest["alembic_version"] == [head]
     assert {e["name"] for e in manifest["extensions"]} >= {"pg_trgm"}
     assert manifest["sha256"] == bc.sha256_file(dumps[0])
     assert "password" not in json.dumps(manifest).lower()
@@ -204,7 +217,7 @@ def test_backup_and_restore_drill_end_to_end(pg, tmp_path):
     assert "Restore:  completed" in drill.stdout
     assert f"OK: restore completed and all {len(source_counts)} tables match" in drill.stdout
     assert " NO" not in drill.stdout
-    assert "alembic_version: expected ['016_budgets'], restored ['016_budgets'] -> OK" in drill.stdout
+    assert f"alembic_version: expected ['{head}'], restored ['{head}'] -> OK" in drill.stdout
     kept = _drill_databases(admin) - existing
     assert len(kept) == 1
     restored = admin.with_dbname(kept.pop())

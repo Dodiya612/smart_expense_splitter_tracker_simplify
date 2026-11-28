@@ -55,10 +55,6 @@ NOTIFICATION_KINDS: tuple[str, ...] = (
     # T-48 budget thresholds (80% and 100%). Added by alembic/versions/016_budgets.py.
     "budget_warning",
     "budget_exceeded",
-    # T-56 new kinds
-    "weekly_summary",
-    "budget_overrun",
-    "congratulations",
 )
 
 # Kinds a user may never switch off; the preference API and emit() both honour this set.
